@@ -1,3 +1,5 @@
+'use client'
+
 export default function ArticleAd() {
   return (
     <div className="loro-art-ad">

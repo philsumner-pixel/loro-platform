@@ -1,3 +1,5 @@
+'use client'
+
 export default function FakeAd() {
   return (
     <div className="loro-demo-ad">
