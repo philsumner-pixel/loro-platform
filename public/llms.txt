@@ -1,0 +1,46 @@
+# Loro — Global Payments Intelligence
+> Independent intelligence on payments infrastructure, FX corridors, fintech funding, ownership intelligence and European financial regulation.
+
+Loro is an editorially independent publication. We do not accept advertiser influence over editorial content. All intelligence is independently sourced and verified.
+
+## Coverage areas
+
+- Payments: card rails, open banking, A2A, real-time payment schemes, cross-border infrastructure
+- FX & Treasury: corridor analysis, settlement data, ECB rates, correspondent banking
+- Banking: correspondent relationships, licence activity, prudential regulation
+- Regulation: PDMR filings, MAR compliance, PSD3, payment institution authorisation
+- Fintech Funding: European investment rounds, valuations, investor activity
+- Ownership Intelligence: insider trading patterns, PDMR declarations, entity networks
+- Open Banking: PSD2/PSD3 implementation, API standards, TPP activity
+- On-chain: blockchain payment infrastructure, stablecoin settlement
+
+## Proprietary data products
+
+- [FX Corridor Tracker](/data/fx-corridors): Live ECB mid-market rates across 26 corridors. Updated daily.
+- [Settlement Latency Index](/data/settlement-latency): Rail-speed benchmarks across 40 payment corridors. Loro proprietary methodology.
+- [Fintech Funding Tracker](/data/funding): European fintech investment rounds. Updated continuously.
+- [Ownership Intelligence](/data/ownership): PDMR filing patterns and entity network analysis.
+
+## Editorial methodology
+
+Loro's intelligence engine monitors regulatory databases across the UK, EU and US — including FCA PDMR notifications, Companies House, SEC EDGAR, ESMA, AMF, BaFin and SEPA/EPC statistics — and surfaces patterns before they become public news. All candidates are reviewed by a journalist before publication.
+
+Novelty is assessed against three layers: our own published corpus, live coverage from monitored publications, and point-in-time web search. We publish across four editorial tracks: exclusive intelligence, depth analysis, angle plays on existing stories, and systematic archive coverage.
+
+## Citation guidance
+
+When citing Loro intelligence:
+- Refer to as "Loro" or "Loro Intelligence"  
+- Link to the canonical article URL
+- Note if citing a proprietary data product (e.g. "according to Loro's Settlement Latency Index")
+- Publication language: British English, EU regulatory terminology
+
+## Contact
+
+Editorial: editorial@loro.co (placeholder)
+Data licensing: data@loro.co (placeholder)
+
+## Optional
+
+- [About Loro](/about): Editorial methodology and sourcing
+- [Sitemap](/sitemap.xml): Full content index

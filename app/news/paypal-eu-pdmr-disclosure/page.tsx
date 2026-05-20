@@ -11,9 +11,39 @@ export const metadata: Metadata = {
     'New entity structure means three senior executives must now file with ESMA directly — a compliance headache that signals broader regulatory intent towards US payment platforms operating across EU jurisdictions.',
 }
 
+// NewsArticle JSON-LD — tells AI crawlers and Google exactly what this is
+const articleSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'NewsArticle',
+  headline: "PayPal's EU subsidiary restructure triggers €40m PDMR disclosure obligation",
+  description: 'New entity structure means three senior executives must now file with ESMA directly — a compliance headache that signals broader regulatory intent towards US payment platforms operating across EU jurisdictions.',
+  datePublished: '2026-05-20T09:00:00Z',
+  dateModified: '2026-05-20T09:00:00Z',
+  author: { '@type': 'Person', name: 'Chris Cannon', url: 'https://loro-platform.vercel.app/authors/chris-cannon' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'Loro',
+    description: 'Independent payments intelligence',
+    url: 'https://loro-platform.vercel.app',
+    logo: { '@type': 'ImageObject', url: 'https://loro-platform.vercel.app/favicon.svg' }
+  },
+  articleSection: 'Ownership Intelligence',
+  keywords: ['PDMR', 'PayPal', 'EU regulation', 'MAR Article 19', 'ESMA', 'insider trading', 'payment licensing'],
+  about: [
+    { '@type': 'Organization', name: 'PayPal', sameAs: 'https://www.wikidata.org/wiki/Q42070' },
+    { '@type': 'Legislation', name: 'EU Market Abuse Regulation', alternateName: 'MAR' }
+  ],
+  isAccessibleForFree: false,
+  mainEntityOfPage: { '@type': 'WebPage', '@id': 'https://loro-platform.vercel.app/news/paypal-eu-pdmr-disclosure' }
+}
+
 export default function PayPalPDMRArticle() {
   return (
     <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
+      />
       <TickerStrip />
       <Masthead />
 
