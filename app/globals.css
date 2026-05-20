@@ -294,11 +294,13 @@ input { font-family: inherit; }
 
 /* ── Data strip ──────────────────────────────────────────── */
 .loro-data-strip {
-  background: var(--paper3);
+  background: var(--paper);
+  border-top: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
 }
 .loro-data-lbl {
-  padding-top: 10px;
+  padding-top: 12px;
+  padding-bottom: 4px;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
