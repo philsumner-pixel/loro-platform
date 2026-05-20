@@ -7,6 +7,7 @@ import NewsletterSection from '@/components/NewsletterSection'
 import SiteFooter from '@/components/SiteFooter'
 import AdSlot from '@/components/AdSlot'
 import SponsorTag from '@/components/SponsorTag'
+import FakeAd from '@/components/FakeAd'
 
 export default function HomePage() {
   return (
@@ -54,9 +55,9 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Teads inRead slot — homepage, between editorial grids */}
+        {/* Teads inRead slot — demo ad until real partner connected */}
         <div className="loro-wrap">
-          <AdSlot id="loro-inread-home-1" type="inread-home" />
+          <FakeAd />
         </div>
 
         {/* Markets */}
