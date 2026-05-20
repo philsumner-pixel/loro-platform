@@ -22,6 +22,11 @@ interface Candidate {
   anomaly_score: number | null
   novelty_status: string
   novelty_note: string | null
+  editorial_opportunity: string | null
+  editorial_priority: number | null
+  loro_angle_hypothesis: string | null
+  coverage_gaps: string | null
+  coverage_summary: string | null
   status: string
   assigned_to: string | null
   published_slug: string | null
@@ -35,6 +40,22 @@ const TABS = [
   { key: 'in_draft', label: 'In draft', statuses: ['in_draft'] },
   { key: 'published', label: 'Published', statuses: ['published'] },
 ]
+
+function oppLabel(s: string | null): string {
+  if (!s) return 'Unassessed'
+  return { exclusive: 'Exclusive', depth_play: 'Depth play', angle_play: 'Angle play', context_only: 'Context only', watch: 'Watching' }[s] ?? 'Unassessed'
+}
+
+function priorityLabel(p: number | null): string {
+  if (!p) return ''
+  return { 1: 'Publish now', 2: 'Publish today', 3: 'This week', 4: 'When capacity', 5: 'Monitor' }[p] ?? ''
+}
+
+function priorityClass(p: number | null): string {
+  if (!p || p >= 3) return 'p3'
+  if (p === 2) return 'p2'
+  return 'p1'
+}
 
 function timeAgo(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime()
@@ -201,6 +222,11 @@ export default function NewsroomPage() {
                   <div className="loro-nr-row-left">
                     <div className="loro-nr-row-meta">
                       <span className="loro-nr-cat">{c.category}</span>
+                      {c.editorial_opportunity && (
+                        <span className={`loro-nr-opp ${c.editorial_opportunity}`}>
+                          {oppLabel(c.editorial_opportunity)}
+                        </span>
+                      )}
                       {c.anomaly_score && (
                         <span className={`loro-nr-score ${scoreClass(c.anomaly_score)}`}>
                           Score {c.anomaly_score.toFixed(1)}
@@ -209,6 +235,11 @@ export default function NewsroomPage() {
                       <span className={`loro-nr-novelty ${noveltyClass(c.novelty_status)}`}>
                         {noveltyLabel(c.novelty_status)}
                       </span>
+                      {c.editorial_priority && (
+                        <span className={`loro-nr-priority ${priorityClass(c.editorial_priority)}`}>
+                          {priorityLabel(c.editorial_priority)}
+                        </span>
+                      )}
                       {c.status === 'shortlisted' && (
                         <span style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--blue-mid)' }}>
                           Shortlisted
@@ -333,6 +364,37 @@ export default function NewsroomPage() {
                         </div>
                       </div>
                     </div>
+
+                    {/* Loro angle */}
+                    {(c.loro_angle_hypothesis || c.coverage_summary || c.coverage_gaps) && (
+                      <div style={{ marginBottom: 24 }}>
+                        {c.editorial_opportunity && c.editorial_opportunity !== 'exclusive' && c.coverage_summary && (
+                          <>
+                            <div className="loro-nr-detail-section-title">What others covered</div>
+                            <div style={{ fontSize: 13, color: 'var(--ink4)', lineHeight: 1.65, marginBottom: 12, padding: '10px 14px', background: 'var(--paper2)', border: '1px solid var(--border)' }}>
+                              {c.coverage_summary}
+                            </div>
+                          </>
+                        )}
+                        {c.loro_angle_hypothesis && (
+                          <div className="loro-nr-angle-box">
+                            <div className="loro-nr-angle-title">
+                              {c.editorial_opportunity === 'exclusive' ? 'Why this is exclusive' :
+                               c.editorial_opportunity === 'depth_play' ? 'The depth play' :
+                               c.editorial_opportunity === 'angle_play' ? 'The Loro angle' :
+                               'Editorial note'}
+                            </div>
+                            <div className="loro-nr-angle-text">{c.loro_angle_hypothesis}</div>
+                          </div>
+                        )}
+                        {c.coverage_gaps && c.editorial_opportunity !== 'exclusive' && (
+                          <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.6, marginTop: 8 }}>
+                            <strong style={{ color: 'var(--ink)', fontWeight: 500 }}>Gaps in existing coverage: </strong>
+                            {c.coverage_gaps}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* AI Brief */}
                     <div className="loro-nr-detail-section-title">AI brief</div>

@@ -917,3 +917,37 @@ input { font-family: inherit; }
 .loro-nr-stat { background: var(--paper); padding: 16px 20px; }
 .loro-nr-stat-lbl { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink5); margin-bottom: 4px; }
 .loro-nr-stat-val { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); }
+
+/* ── Editorial opportunity badges ────────────────────────────────────── */
+.loro-nr-opp {
+  font-size: 9px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; padding: 2px 8px; border-radius: 10px;
+  white-space: nowrap;
+}
+.loro-nr-opp.exclusive    { background: #1A3A6B; color: #fff; }
+.loro-nr-opp.depth_play   { background: #FEF9C3; color: #A16207; }
+.loro-nr-opp.angle_play   { background: #EEF2FF; color: #3730A3; }
+.loro-nr-opp.context_only { background: var(--paper2); color: var(--ink5); }
+.loro-nr-opp.watch        { background: var(--paper2); color: var(--ink4); }
+
+/* Coverage panel inside detail view */
+.loro-nr-coverage-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); margin-top: 8px; }
+.loro-nr-coverage-item { background: var(--paper); padding: 10px 14px; }
+.loro-nr-coverage-pub  { font-size: 11px; font-weight: 500; color: var(--ink); margin-bottom: 2px; }
+.loro-nr-coverage-angle { font-size: 12px; color: var(--ink4); line-height: 1.55; }
+.loro-nr-angle-box {
+  background: var(--blue-light); border: 1px solid rgba(26,58,107,0.15);
+  border-left: 3px solid var(--blue); padding: 14px 18px; margin-top: 8px;
+}
+.loro-nr-angle-title {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--blue-mid); margin-bottom: 6px;
+}
+.loro-nr-angle-text { font-size: 13px; color: var(--ink2); line-height: 1.65; }
+.loro-nr-priority {
+  font-size: 9px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 10px;
+}
+.loro-nr-priority.p1 { background: #FEE2E2; color: #B91C1C; }
+.loro-nr-priority.p2 { background: #FEF9C3; color: #A16207; }
+.loro-nr-priority.p3 { background: #F0FAF0; color: #1E6B3A; }
