@@ -701,3 +701,73 @@ input { font-family: inherit; }
   padding: 3px 10px;
   border-radius: 20px;
 }
+
+/* ── Article page ────────────────────────────────────────── */
+.loro-article-zone { padding: 48px 0 80px; }
+.loro-article-content { max-width: 720px; margin: 0 auto; }
+
+/* Article header */
+.loro-art-header { padding: 40px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
+.loro-art-back { font-size: 12px; font-weight: 500; color: var(--ink5); letter-spacing: 0.04em; display: inline-flex; align-items: center; gap: 6px; margin-bottom: 20px; text-decoration: none; transition: color 0.12s; }
+.loro-art-back:hover { color: var(--ink); }
+.loro-art-cats { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+.loro-art-cat { font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--blue-mid); }
+.loro-art-cat-sep { font-size: 10px; color: var(--ink5); }
+.loro-art-headline { font-family: 'Playfair Display', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); margin-bottom: 18px; }
+.loro-art-headline em { font-style: italic; color: var(--blue); }
+.loro-art-standfirst { font-size: 18px; color: var(--ink3); line-height: 1.7; margin-bottom: 24px; font-weight: 400; max-width: 640px; }
+.loro-art-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.loro-art-author { font-size: 13px; font-weight: 500; color: var(--ink); }
+.loro-art-sep { color: var(--border); }
+.loro-art-date { font-size: 13px; color: var(--ink5); }
+.loro-art-read { font-size: 13px; color: var(--ink5); }
+.loro-art-sub { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 10px; border: 1px solid var(--border); border-radius: 20px; color: var(--ink4); }
+
+/* Article body */
+.loro-art-body { font-size: 17px; line-height: 1.875; color: var(--ink2); }
+.loro-art-body p { margin-bottom: 26px; }
+.loro-art-body p:last-child { margin-bottom: 0; }
+.loro-art-body strong { font-weight: 500; color: var(--ink); }
+
+/* Pull quote */
+.loro-art-pullquote { border-left: 3px solid var(--ink); padding: 6px 0 6px 28px; margin: 36px 0; }
+.loro-art-pullquote p { font-family: 'Playfair Display', serif; font-size: 20px; font-style: italic; font-weight: 400; color: var(--ink); line-height: 1.55; letter-spacing: -0.01em; margin: 0 0 10px; }
+.loro-art-pullquote cite { font-size: 12px; font-style: normal; color: var(--ink5); letter-spacing: 0.04em; }
+
+/* Data box */
+.loro-art-databox { background: var(--paper2); border: 1px solid var(--border); border-left: 3px solid var(--blue); padding: 24px 28px; margin: 40px 0; }
+.loro-art-databox-title { font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--blue-mid); margin-bottom: 16px; }
+.loro-art-databox-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 32px; }
+@media (max-width: 640px) { .loro-art-databox-grid { grid-template-columns: 1fr; } }
+.loro-art-databox-item {}
+.loro-art-databox-val { font-family: 'IBM Plex Mono', monospace; font-size: 22px; font-weight: 500; color: var(--ink); margin-bottom: 3px; }
+.loro-art-databox-label { font-size: 12px; color: var(--ink4); line-height: 1.5; }
+
+/* Intelligence note */
+.loro-art-intel { background: var(--blue-light); border: 1px solid rgba(26,58,107,0.15); padding: 18px 22px; margin: 36px 0; display: flex; gap: 14px; align-items: flex-start; }
+.loro-art-intel-icon { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); white-space: nowrap; margin-top: 2px; }
+.loro-art-intel-text { font-size: 13px; color: var(--ink2); line-height: 1.65; }
+.loro-art-intel-text strong { font-weight: 500; color: var(--blue); }
+
+/* ── Article inRead ad ───────────────────────────────────── */
+.loro-art-ad { border: 1px solid var(--border); margin: 32px 0 36px; border-left: 3px solid var(--blue); }
+.loro-art-ad-bar { display: flex; align-items: center; justify-content: space-between; padding: 5px 14px; background: var(--paper2); border-bottom: 1px solid var(--border); }
+.loro-art-ad-lbl { font-size: 9px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase; color: var(--ink5); }
+.loro-art-ad-close { font-size: 11px; color: var(--ink5); cursor: pointer; }
+.loro-art-ad-body { display: grid; grid-template-columns: 2fr 1fr; gap: 1px; background: var(--border); }
+.loro-art-ad-left { background: var(--paper); padding: 22px 26px 26px; }
+.loro-art-ad-right { background: var(--paper2); padding: 22px 20px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+.loro-art-ad-brand { font-size: 15px; font-weight: 600; color: #1A5F38; letter-spacing: -0.01em; margin-bottom: 2px; }
+.loro-art-ad-headline { font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600; color: var(--ink); line-height: 1.3; letter-spacing: -0.01em; margin-bottom: 8px; margin-top: 10px; }
+.loro-art-ad-copy { font-size: 12px; color: var(--ink4); line-height: 1.65; margin-bottom: 16px; }
+.loro-art-ad-cta { display: inline-block; background: var(--ink); color: #fff; padding: 8px 18px; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; text-decoration: none; cursor: pointer; }
+.loro-art-ad-stat { font-family: 'Playfair Display', serif; font-size: 44px; font-weight: 700; color: var(--ink); line-height: 1; margin-bottom: 8px; }
+.loro-art-ad-stat-lbl { font-size: 11px; color: var(--ink4); line-height: 1.55; }
+@media (max-width: 640px) {
+  .loro-art-ad-body { grid-template-columns: 1fr; }
+  .loro-art-ad-right { padding: 16px 20px; flex-direction: row; gap: 16px; align-items: center; text-align: left; }
+  .loro-art-ad-stat { font-size: 32px; }
+}
+
+/* Related articles */
+.loro-related { padding: 40px 0 64px; border-top: 1px solid var(--border); margin-top: 0; }

@@ -1,3 +1,5 @@
+'use client'
+
 interface Article {
   category: string
   title: string
@@ -6,6 +8,7 @@ interface Article {
   time: string
   hasData?: boolean
   subscriber?: boolean
+  href?: string
 }
 
 const INTELLIGENCE: Article[] = [
@@ -16,6 +19,7 @@ const INTELLIGENCE: Article[] = [
       'New entity structure means three senior executives must now file with ESMA directly — a compliance headache that signals broader regulatory intent.',
     author: 'Chris Cannon',
     time: '6h ago',
+    href: '/news/paypal-eu-pdmr-disclosure',
   },
   {
     category: 'FX & Treasury',
@@ -107,7 +111,12 @@ export default function ArticleGrid({ variant = 'intelligence' }: Props) {
   return (
     <div className="loro-art-grid">
       {articles.map((a, i) => (
-        <article key={i} className="loro-art-item">
+        <article
+          key={i}
+          className="loro-art-item"
+          style={{ cursor: a.href ? 'pointer' : 'default' }}
+          onClick={() => a.href && (window.location.href = a.href)}
+        >
           <span className="loro-art-cat">{a.category}</span>
           <h3 className="loro-art-title">{a.title}</h3>
           <p className="loro-art-excerpt">{a.excerpt}</p>
