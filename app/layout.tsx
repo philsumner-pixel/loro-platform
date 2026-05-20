@@ -15,6 +15,10 @@ export const metadata: Metadata = {
     description:
       'Independent intelligence on payments, FX, fintech funding and financial regulation.',
   },
+  icons: {
+    icon: '/favicon.svg',
+    shortcut: '/favicon.svg',
+  },
 }
 
 export default function RootLayout({

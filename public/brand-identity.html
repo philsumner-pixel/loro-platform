@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Loro — Brand Identity Exploration</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400;1,600;1,700&family=Inter:wght@300;400;500&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --lapis:#1A3A6B; --lapis-mid:#2B5BA8; --lapis-light:#EEF2FF;
+  --medici:#7A1829; --medici-mid:#A52B40; --medici-light:#FDF2F4;
+  --ink:#111111; --ink2:#2A2A2A; --ink3:#555555; --ink4:#888888; --ink5:#BBBBBB;
+  --border:#E0DED8; --paper3:#EEEDE8; --paper2:#F7F7F5; --paper:#FFFFFF;
+}
+html{font-size:16px;scroll-behavior:smooth}
+body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+.page{max-width:960px;margin:0 auto}
+
+/* Split cover */
+.cover{display:grid;grid-template-columns:1fr 1fr}
+.cover-a{background:var(--lapis);padding:72px 52px 60px;position:relative;overflow:hidden}
+.cover-b{background:var(--medici);padding:72px 52px 60px;position:relative;overflow:hidden;border-left:2px solid rgba(255,255,255,0.15)}
+.cover-rule{width:36px;height:2px;background:rgba(255,255,255,0.3);margin-bottom:40px}
+.cover-wm{font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:clamp(56px,8vw,88px);color:#fff;letter-spacing:-0.03em;line-height:0.9;display:block;margin-bottom:24px}
+.cover-cw{font-size:10px;font-weight:500;letter-spacing:0.2em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:5px}
+.cover-name{font-size:14px;color:rgba(255,255,255,0.6);font-weight:400}
+.cover-bg{position:absolute;bottom:-60px;right:-60px;width:280px;height:280px;border-radius:50%;border:1px solid rgba(255,255,255,0.07);pointer-events:none}
+
+/* Sections */
+.section{padding:60px 56px;border-bottom:1px solid var(--border)}
+.section:last-child{border-bottom:none}
+.section-eye{font-size:10px;font-weight:500;letter-spacing:0.18em;text-transform:uppercase;color:var(--ink5);margin-bottom:12px}
+.section-title{font-family:'Playfair Display',serif;font-size:clamp(24px,3.5vw,34px);font-weight:600;letter-spacing:-0.02em;line-height:1.1;color:var(--ink);margin-bottom:28px}
+
+/* Positioning pillars */
+.pillars{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.pillar{background:var(--paper);padding:26px 22px 30px}
+.pillar-word{font-family:'Playfair Display',serif;font-size:20px;font-weight:600;color:var(--lapis);letter-spacing:-0.01em;margin-bottom:8px}
+.pillar-desc{font-size:12px;color:var(--ink4);line-height:1.7}
+
+/* Logo grid */
+.logo-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:1px;background:var(--border)}
+.logo-card{background:var(--paper);display:flex;flex-direction:column}
+.logo-hero{padding:44px 32px 36px;display:flex;align-items:center;justify-content:center;min-height:172px;border-bottom:1px solid var(--border)}
+.logo-strip{display:flex;border-bottom:1px solid var(--border)}
+.ls-blue{background:var(--lapis);padding:16px 22px;display:flex;align-items:center;justify-content:center;flex:2;border-right:1px solid rgba(255,255,255,0.12)}
+.ls-icon{background:var(--paper2);padding:16px 22px;display:flex;align-items:center;justify-content:center;flex:1}
+.logo-info{padding:16px 22px 22px}
+.logo-num{font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:var(--ink5);margin-bottom:5px}
+.logo-name{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:4px}
+.logo-desc{font-size:12px;color:var(--ink4);line-height:1.6}
+
+/* Colorway blocks */
+.cw-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border);margin-bottom:24px}
+.cw-block{padding:0;display:flex;flex-direction:column}
+.cw-hero{padding:40px 32px;min-height:160px;display:flex;flex-direction:column;justify-content:flex-end}
+.cw-name{font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:rgba(255,255,255,0.4);margin-bottom:6px}
+.cw-hex{font-family:'IBM Plex Mono',monospace;font-size:24px;font-weight:500;color:#fff;letter-spacing:-0.01em;margin-bottom:3px}
+.cw-label{font-size:13px;color:rgba(255,255,255,0.5)}
+.cw-tints{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border)}
+.cw-tint{padding:22px 18px;display:flex;flex-direction:column;justify-content:flex-end}
+.ct-hex{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;margin-bottom:3px}
+.ct-role{font-size:10px}
+
+/* Ink scale */
+.ink-row{display:flex;gap:1px;background:var(--border);margin-top:24px}
+.ink-swatch{flex:1;padding:18px 0 12px;display:flex;flex-direction:column;align-items:center;gap:7px}
+.ink-circle{width:28px;height:28px;border-radius:50%}
+.ink-hex{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink4)}
+
+/* Colorway comparison */
+.cw-compare{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.cw-col{background:var(--paper);display:flex;flex-direction:column;gap:1px}
+.cw-col-head{padding:14px 24px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--border)}
+.cw-dot{width:12px;height:12px;flex-shrink:0}
+.cw-col-label{font-size:11px;font-weight:500;letter-spacing:0.1em;text-transform:uppercase;color:var(--ink4)}
+.cw-logo-row{padding:28px 24px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;background:var(--paper)}
+.cw-logo-row:last-child{border-bottom:none}
+
+/* Type */
+.type-system{display:flex;flex-direction:column;gap:1px;background:var(--border)}
+.type-block{background:var(--paper);padding:32px;display:grid;grid-template-columns:180px 1fr;gap:36px;align-items:start}
+.type-family{font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-bottom:6px}
+.type-name{font-size:14px;font-weight:500;color:var(--ink);margin-bottom:6px}
+.type-spec{font-size:12px;color:var(--ink4);line-height:1.65}
+.type-usage{font-size:11px;color:var(--lapis-mid);margin-top:8px;font-weight:500;letter-spacing:0.04em}
+
+/* In use */
+.inuse-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.inuse-item{background:var(--paper);padding:28px}
+.inuse-label{font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-bottom:18px}
+.mm{background:var(--lapis);padding:12px 18px;display:flex;align-items:center;justify-content:space-between}
+.mm-logo{font-family:'Playfair Display',serif;font-size:17px;font-weight:700;color:#fff;letter-spacing:-0.01em}
+.mm-nav{display:flex;gap:14px}
+.mm-nav span{font-size:10px;color:rgba(255,255,255,0.5)}
+.mm-cta{background:#fff;color:var(--lapis);font-size:9px;font-weight:500;padding:4px 10px;letter-spacing:0.06em}
+.ticker{background:var(--lapis);padding:6px 18px;display:flex;gap:20px;border-top:1px solid rgba(255,255,255,0.1)}
+.tick{font-family:'IBM Plex Mono',monospace;font-size:10px;color:rgba(255,255,255,0.5)}
+.tick strong{color:rgba(255,255,255,0.9)} .up{color:#6EBF8B} .dn{color:#F4977A}
+.widget{border:1px solid var(--border);padding:14px 18px;background:var(--paper3)}
+.we{font-size:9px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-bottom:4px}
+.ws{font-size:12px;font-weight:500;color:var(--ink3);margin-bottom:5px}
+.wv{font-family:'IBM Plex Mono',monospace;font-size:22px;font-weight:500;color:var(--ink)}
+.wc{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#1E6B3A;margin-left:7px}
+.wn{font-size:10px;color:var(--ink5);margin-top:4px}
+.art{border:1px solid var(--border);padding:18px}
+.ac{font-size:9px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--lapis-mid);margin-bottom:7px}
+.ah{font-family:'Playfair Display',serif;font-size:14px;font-weight:600;color:var(--ink);line-height:1.35;margin-bottom:7px;letter-spacing:-0.01em}
+.am{font-size:11px;color:var(--ink5)}
+
+/* Rules */
+.rules{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)}
+.rules-col{background:var(--paper);padding:30px}
+.rules-label{font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:18px}
+.ri{display:flex;gap:11px;margin-bottom:10px;align-items:flex-start}
+.rm{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-top:1px;flex-shrink:0}
+.rt{font-size:12px;color:var(--ink3);line-height:1.55}
+
+/* Wordmark bg row */
+.wm-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);margin-top:1px}
+.wm-cell{padding:24px 18px;display:flex;align-items:center;justify-content:center}
+</style>
+</head>
+<body>
+<div class="page">
+
+<!-- SPLIT COVER -->
+<div class="cover">
+  <div class="cover-a">
+    <div class="cover-bg"></div>
+    <div class="cover-rule"></div>
+    <span class="cover-wm">Loro</span>
+    <div class="cover-cw">Colorway A</div>
+    <div class="cover-name">Lapis Blue · #1A3A6B</div>
+  </div>
+  <div class="cover-b">
+    <div class="cover-bg"></div>
+    <div class="cover-rule"></div>
+    <span class="cover-wm">Loro</span>
+    <div class="cover-cw">Colorway B</div>
+    <div class="cover-name">Medici Red · #7A1829</div>
+  </div>
+</div>
+<div style="background:var(--ink);padding:14px 56px;display:flex;justify-content:space-between;align-items:center">
+  <span style="font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.35)">Global Payments Intelligence</span>
+  <span style="font-size:10px;font-weight:500;letter-spacing:0.16em;text-transform:uppercase;color:rgba(255,255,255,0.25)">Brand Identity Exploration · May 2026 · Confidential</span>
+</div>
+
+<!-- POSITIONING -->
+<div class="section">
+  <div class="section-eye">Brand positioning</div>
+  <h2 class="section-title">Three things Loro is, and everything it isn't</h2>
+  <div class="pillars">
+    <div class="pillar">
+      <div class="pillar-word">Independent</div>
+      <p class="pillar-desc">No affiliations, no advisory relationships. The loro account tradition — the third-party view, always from outside the transaction.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-word">Data-forward</div>
+      <p class="pillar-desc">Live FX rates, PDMR filings, funding rounds and settlement latency threaded through editorial. Not commentary on data — the data itself, with context.</p>
+    </div>
+    <div class="pillar">
+      <div class="pillar-word">EU-anchored</div>
+      <p class="pillar-desc">Rooted in the correspondent banking tradition of continental Europe — the Italian lapis lazuli trade routes and Medici banking networks that built modern finance.</p>
+    </div>
+  </div>
+</div>
+
+<!-- LOGO CONCEPTS 01-08 -->
+<div class="section">
+  <div class="section-eye">01 — Logo concepts</div>
+  <h2 class="section-title">Eight directions — typography, marks and heritage</h2>
+  <div class="logo-grid">
+
+    <div class="logo-card">
+      <div class="logo-hero">
+        <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:58px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:26px;color:#fff;letter-spacing:-0.02em">Loro</span></div>
+        <div class="ls-icon"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:24px;color:var(--lapis)">L</span></div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">01</div>
+        <div class="logo-name">The masthead</div>
+        <div class="logo-desc">Pure Playfair italic. No symbol. FT, Economist, Atlantic — editorial authority through type alone. The italic carries movement.</div>
+      </div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;align-items:center;gap:15px">
+          <svg width="50" height="50" viewBox="0 0 52 52" style="flex-shrink:0">
+            <polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#1A3A6B"/>
+          </svg>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:42px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;align-items:center;gap:9px">
+            <svg width="22" height="22" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+          </div>
+        </div>
+        <div class="ls-icon"><svg width="28" height="28" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#1A3A6B"/></svg></div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">02</div>
+        <div class="logo-name">The compass</div>
+        <div class="logo-desc">Geometric L with a 45° ascending cut — a bearing mark. Direction, intelligence, navigation. Strong standalone favicon at all scales.</div>
+      </div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;align-items:center;gap:15px">
+          <svg width="50" height="50" viewBox="0 0 52 52" style="flex-shrink:0">
+            <circle cx="24" cy="26" r="19" fill="none" stroke="#1A3A6B" stroke-width="4.5"/>
+            <circle cx="31" cy="19" r="7" fill="#1A3A6B"/>
+          </svg>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:42px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;align-items:center;gap:9px">
+            <svg width="22" height="22" viewBox="0 0 52 52">
+              <circle cx="24" cy="26" r="19" fill="none" stroke="#fff" stroke-width="4.5"/>
+              <circle cx="31" cy="19" r="7" fill="#fff"/>
+            </svg>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+          </div>
+        </div>
+        <div class="ls-icon">
+          <svg width="28" height="28" viewBox="0 0 52 52">
+            <circle cx="24" cy="26" r="19" fill="none" stroke="#1A3A6B" stroke-width="4.5"/>
+            <circle cx="31" cy="19" r="7" fill="#1A3A6B"/>
+          </svg>
+        </div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">03</div>
+        <div class="logo-name">The observer</div>
+        <div class="logo-desc">Circle with offset dot — the independent position outside the system. The loro account perspective made visual and minimal.</div>
+      </div>
+    </div>
+
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;flex-direction:column;align-items:flex-start;gap:9px">
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:58px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+          <svg width="144" height="17" viewBox="0 0 144 17">
+            <path d="M 0,12 H 48 L 60,2 L 72,12 H 144" fill="none" stroke="#1A3A6B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;flex-direction:column;align-items:flex-start;gap:5px">
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+            <svg width="68" height="10" viewBox="0 0 144 17"><path d="M 0,12 H 48 L 60,2 L 72,12 H 144" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+        </div>
+        <div class="ls-icon">
+          <svg width="34" height="14" viewBox="0 0 144 17"><path d="M 0,12 H 48 L 60,2 L 72,12 H 144" fill="none" stroke="#1A3A6B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">04</div>
+        <div class="logo-name">The signal</div>
+        <div class="logo-desc">Wordmark with an integrated data pulse underline. Live intelligence embedded in the mark. Works best at display scale.</div>
+      </div>
+    </div>
+
+  
+
+    <!-- 05 The Account -->
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;align-items:center;gap:18px">
+          <svg width="50" height="50" viewBox="0 0 52 52" style="flex-shrink:0">
+            <rect x="5" y="6" width="12" height="40" fill="#1A3A6B"/>
+            <rect x="25" y="6" width="12" height="40" fill="#1A3A6B"/>
+          </svg>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:42px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="22" height="22" viewBox="0 0 52 52">
+              <rect x="5" y="6" width="12" height="40" fill="#fff"/>
+              <rect x="25" y="6" width="12" height="40" fill="#fff"/>
+            </svg>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+          </div>
+        </div>
+        <div class="ls-icon">
+          <svg width="28" height="28" viewBox="0 0 52 52">
+            <rect x="5" y="6" width="12" height="40" fill="#1A3A6B"/>
+            <rect x="25" y="6" width="12" height="40" fill="#1A3A6B"/>
+          </svg>
+        </div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">05</div>
+        <div class="logo-name">The account</div>
+        <div class="logo-desc">Two parallel bars — a ledger, two columns, the bilateral structure of correspondent banking. NOSTRO and LORO, side by side.</div>
+      </div>
+    </div>
+
+    <!-- 06 The Meridian -->
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;align-items:center;gap:16px">
+          <svg width="50" height="50" viewBox="0 0 52 52" style="flex-shrink:0">
+            <circle cx="26" cy="26" r="19" fill="none" stroke="#1A3A6B" stroke-width="4"/>
+            <line x1="7" y1="26" x2="45" y2="26" stroke="#1A3A6B" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:42px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="22" height="22" viewBox="0 0 52 52">
+              <circle cx="26" cy="26" r="19" fill="none" stroke="#fff" stroke-width="4"/>
+              <line x1="7" y1="26" x2="45" y2="26" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+            </svg>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+          </div>
+        </div>
+        <div class="ls-icon">
+          <svg width="28" height="28" viewBox="0 0 52 52">
+            <circle cx="26" cy="26" r="19" fill="none" stroke="#1A3A6B" stroke-width="4"/>
+            <line x1="7" y1="26" x2="45" y2="26" stroke="#1A3A6B" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">06</div>
+        <div class="logo-name">The meridian</div>
+        <div class="logo-desc">A circle bisected by a horizontal line — a compass meridian, a benchmark baseline, a navigator's calibration mark. Precision instrument.</div>
+      </div>
+    </div>
+
+    <!-- 07 The Lapis -->
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;align-items:center;gap:16px">
+          <svg width="50" height="50" viewBox="0 0 52 52" style="flex-shrink:0">
+            <polygon points="26,3 49,26 26,49 3,26" fill="#1A3A6B"/>
+          </svg>
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:42px;color:var(--lapis);letter-spacing:-0.025em;line-height:1">Loro</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <div style="display:flex;align-items:center;gap:10px">
+            <svg width="22" height="22" viewBox="0 0 52 52"><polygon points="26,3 49,26 26,49 3,26" fill="#fff"/></svg>
+            <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:20px;color:#fff;letter-spacing:-0.02em">Loro</span>
+          </div>
+        </div>
+        <div class="ls-icon"><svg width="28" height="28" viewBox="0 0 52 52"><polygon points="26,3 49,26 26,49 3,26" fill="#1A3A6B"/></svg></div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">07</div>
+        <div class="logo-name">The lapis</div>
+        <div class="logo-desc">A solid diamond — lapis lazuli crystal, the trade routes that financed Italian banking. Geometric, heraldic, jeweler's hallmark quality.</div>
+      </div>
+    </div>
+
+    <!-- 08 The Roman -->
+    <div class="logo-card">
+      <div class="logo-hero">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:12px">
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:36px;color:var(--lapis);letter-spacing:0.32em;text-transform:uppercase;line-height:1">L·O·R·O</span>
+          <span style="font-size:10px;font-weight:500;letter-spacing:0.22em;text-transform:uppercase;color:var(--ink5)">Global Payments Intelligence</span>
+        </div>
+      </div>
+      <div class="logo-strip">
+        <div class="ls-blue">
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:17px;color:#fff;letter-spacing:0.24em;text-transform:uppercase">L·O·R·O</span>
+        </div>
+        <div class="ls-icon">
+          <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:15px;color:var(--lapis);letter-spacing:0.1em;text-transform:uppercase">L·O</span>
+        </div>
+      </div>
+      <div class="logo-info">
+        <div class="logo-num">08</div>
+        <div class="logo-name">The Roman</div>
+        <div class="logo-desc">Wide-tracked capitals with interpunct dots — a Roman stone inscription or coin. References the Latin/Italian heritage. The letterform IS the identity.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Wordmark on backgrounds -->
+  <p style="font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-top:28px;margin-bottom:1px">Wordmark across surfaces</p>
+  <div class="wm-row">
+    <div class="wm-cell" style="background:var(--paper)"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:30px;color:#1A3A6B;letter-spacing:-0.02em">Loro</span></div>
+    <div class="wm-cell" style="background:var(--paper3)"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:30px;color:#1A3A6B;letter-spacing:-0.02em">Loro</span></div>
+    <div class="wm-cell" style="background:var(--lapis)"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:30px;color:#fff;letter-spacing:-0.02em">Loro</span></div>
+    <div class="wm-cell" style="background:var(--ink)"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:30px;color:#fff;letter-spacing:-0.02em">Loro</span></div>
+  </div>
+</div>
+
+<!-- COLOR -->
+<div class="section">
+  <div class="section-eye">02 — Color · Two complete palette options</div>
+  <h2 class="section-title">Choose a colorway, keep everything else the same</h2>
+
+  <div class="cw-grid">
+    <!-- Colorway A -->
+    <div class="cw-block">
+      <div class="cw-hero" style="background:var(--lapis)">
+        <div class="cw-name">Colorway A — Lapis Blue</div>
+        <div class="cw-hex">#1A3A6B</div>
+        <div class="cw-label">Premium, EU-anchored, precision. References the lapis lazuli trade routes of Italian banking. The colour of maps and instruments.</div>
+      </div>
+      <div class="cw-tints" style="background:var(--border)">
+        <div class="cw-tint" style="background:#2B5BA8">
+          <div class="ct-hex" style="color:rgba(255,255,255,0.6)">#2B5BA8</div>
+          <div class="ct-role" style="color:rgba(255,255,255,0.4);font-size:10px">Hover · interactive</div>
+        </div>
+        <div class="cw-tint" style="background:var(--lapis-light)">
+          <div class="ct-hex" style="color:var(--lapis)">#EEF2FF</div>
+          <div class="ct-role" style="color:var(--ink5);font-size:10px">Selected · tint</div>
+        </div>
+        <div class="cw-tint" style="background:var(--paper3)">
+          <div class="ct-hex" style="color:var(--ink3)">#EEEDE8</div>
+          <div class="ct-role" style="color:var(--ink5);font-size:10px">Data strip bg</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Colorway B -->
+    <div class="cw-block">
+      <div class="cw-hero" style="background:var(--medici)">
+        <div class="cw-name">Colorway B — Medici Red</div>
+        <div class="cw-hex">#7A1829</div>
+        <div class="cw-label">Authority, heritage, independence. Named for the Medici banking dynasty — the most famous correspondent bankers of the Renaissance, whose networks spanned all of Europe.</div>
+      </div>
+      <div class="cw-tints" style="background:var(--border)">
+        <div class="cw-tint" style="background:#A52B40">
+          <div class="ct-hex" style="color:rgba(255,255,255,0.6)">#A52B40</div>
+          <div class="ct-role" style="color:rgba(255,255,255,0.4);font-size:10px">Hover · interactive</div>
+        </div>
+        <div class="cw-tint" style="background:#FDF2F4">
+          <div class="ct-hex" style="color:var(--medici)">#FDF2F4</div>
+          <div class="ct-role" style="color:var(--ink5);font-size:10px">Selected · tint</div>
+        </div>
+        <div class="cw-tint" style="background:#F5EDEE">
+          <div class="ct-hex" style="color:var(--ink3)">#F5EDEE</div>
+          <div class="ct-role" style="color:var(--ink5);font-size:10px">Data strip bg</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Ink scale -->
+  <p style="font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-top:28px;margin-bottom:10px">Shared ink scale — same in both colorways</p>
+  <div class="ink-row">
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#111111;border:1px solid var(--border)"></div><span class="ink-hex">#111111</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#2A2A2A;border:1px solid var(--border)"></div><span class="ink-hex">#2A2A2A</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#555555;border:1px solid var(--border)"></div><span class="ink-hex">#555555</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#888888;border:1px solid var(--border)"></div><span class="ink-hex">#888888</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#BBBBBB;border:1px solid var(--border)"></div><span class="ink-hex">#BBBBBB</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#E0DED8;border:1px solid var(--border)"></div><span class="ink-hex">#E0DED8</span></div>
+    <div class="ink-swatch" style="background:var(--paper)"><div class="ink-circle" style="background:#FFFFFF;border:1px solid var(--border)"></div><span class="ink-hex">#FFFFFF</span></div>
+  </div>
+</div>
+
+<!-- COLORWAY COMPARISON -->
+<div class="section" style="padding-top:0;border-top:none">
+  <div class="section-eye" style="margin-top:0">02 — Color · Same logo, two personalities</div>
+  <h2 class="section-title" style="margin-top:12px">Key concepts in both colorways</h2>
+  <div class="cw-compare">
+    <div class="cw-col">
+      <div class="cw-col-head">
+        <div class="cw-dot" style="background:var(--lapis)"></div>
+        <span class="cw-col-label">Colorway A — Lapis Blue</span>
+      </div>
+      <!-- Masthead A -->
+      <div class="cw-logo-row"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:40px;color:#1A3A6B;letter-spacing:-0.025em;line-height:1">Loro</span></div>
+      <!-- Compass A -->
+      <div class="cw-logo-row">
+        <svg width="38" height="38" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#1A3A6B"/></svg>
+        <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:32px;color:#1A3A6B;letter-spacing:-0.02em;line-height:1">Loro</span>
+      </div>
+      <!-- Lapis diamond A -->
+      <div class="cw-logo-row">
+        <svg width="38" height="38" viewBox="0 0 52 52"><polygon points="26,3 49,26 26,49 3,26" fill="#1A3A6B"/></svg>
+        <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:32px;color:#1A3A6B;letter-spacing:-0.02em;line-height:1">Loro</span>
+      </div>
+      <!-- Roman A -->
+      <div class="cw-logo-row"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:26px;color:#1A3A6B;letter-spacing:0.28em;text-transform:uppercase">L·O·R·O</span></div>
+    </div>
+    <div class="cw-col" style="background:var(--paper2)">
+      <div class="cw-col-head" style="background:var(--paper2)">
+        <div class="cw-dot" style="background:var(--medici)"></div>
+        <span class="cw-col-label">Colorway B — Medici Red</span>
+      </div>
+      <!-- Masthead B -->
+      <div class="cw-logo-row" style="background:var(--paper2)"><span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:40px;color:#7A1829;letter-spacing:-0.025em;line-height:1">Loro</span></div>
+      <!-- Compass B -->
+      <div class="cw-logo-row" style="background:var(--paper2)">
+        <svg width="38" height="38" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#7A1829"/></svg>
+        <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:32px;color:#7A1829;letter-spacing:-0.02em;line-height:1">Loro</span>
+      </div>
+      <!-- Lapis diamond B -->
+      <div class="cw-logo-row" style="background:var(--paper2)">
+        <svg width="38" height="38" viewBox="0 0 52 52"><polygon points="26,3 49,26 26,49 3,26" fill="#7A1829"/></svg>
+        <span style="font-family:'Playfair Display',serif;font-weight:700;font-size:32px;color:#7A1829;letter-spacing:-0.02em;line-height:1">Loro</span>
+      </div>
+      <!-- Roman B -->
+      <div class="cw-logo-row" style="background:var(--paper2)"><span style="font-family:'Playfair Display',serif;font-weight:700;font-size:26px;color:#7A1829;letter-spacing:0.28em;text-transform:uppercase">L·O·R·O</span></div>
+    </div>
+  </div>
+
+  <!-- Reversed in both -->
+  <p style="font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-top:28px;margin-bottom:1px">Reversed — masthead usage</p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)">
+    <div style="background:#1A3A6B;padding:28px 32px;display:flex;align-items:center;gap:14px">
+      <svg width="32" height="32" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg>
+      <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:32px;color:#fff;letter-spacing:-0.02em">Loro</span>
+    </div>
+    <div style="background:#7A1829;padding:28px 32px;display:flex;align-items:center;gap:14px">
+      <svg width="32" height="32" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg>
+      <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:32px;color:#fff;letter-spacing:-0.02em">Loro</span>
+    </div>
+  </div>
+</div>
+
+<!-- TYPOGRAPHY -->
+<div class="section">
+  <div class="section-eye">03 — Typography</div>
+  <h2 class="section-title">Three families. Three distinct jobs. Non-negotiable.</h2>
+  <div class="type-system">
+    <div class="type-block">
+      <div>
+        <div class="type-family">Display</div>
+        <div class="type-name">Playfair Display</div>
+        <p class="type-spec">700 weight · italic for hero<br>22px and above only<br>Never on body or labels</p>
+        <div class="type-usage">Headlines · Wordmark · Titles</div>
+      </div>
+      <div>
+        <p style="font-family:'Playfair Display',serif;font-size:clamp(22px,3.2vw,36px);font-weight:700;color:var(--ink);letter-spacing:-0.02em;line-height:1.15;margin-bottom:10px">Independent intelligence on global payments, FX and financial regulation.</p>
+        <p style="font-family:'Playfair Display',serif;font-style:italic;font-size:clamp(18px,2.5vw,28px);font-weight:600;color:var(--lapis);letter-spacing:-0.02em;line-height:1.2">The third-party view. Always.</p>
+      </div>
+    </div>
+    <div class="type-block" style="background:var(--paper2)">
+      <div>
+        <div class="type-family">UI + Body</div>
+        <div class="type-name">Inter</div>
+        <p class="type-spec">400 regular · 500 medium<br>11–17px<br>Never for headlines</p>
+        <div class="type-usage">Body · Navigation · Labels</div>
+      </div>
+      <div>
+        <p style="font-family:'Inter',sans-serif;font-size:15px;font-weight:400;color:var(--ink3);line-height:1.85;margin-bottom:12px">Mid-market exchange rates across key payment corridors — major pairs, remittance routes, EU internal and Asia Pacific. Sourced from the ECB Statistical Data Warehouse and updated daily at 16:00 CET.</p>
+        <p style="font-family:'Inter',sans-serif;font-size:10px;font-weight:500;color:var(--ink5);letter-spacing:0.14em;text-transform:uppercase">FX & Treasury · Chris Cannon · 3 hours ago</p>
+      </div>
+    </div>
+    <div class="type-block">
+      <div>
+        <div class="type-family">Data + Numbers</div>
+        <div class="type-name">IBM Plex Mono</div>
+        <p class="type-spec">500 · 400 weight<br>All rates and amounts<br>Never Inter for numbers</p>
+        <div class="type-usage">Rates · Amounts · Latency</div>
+      </div>
+      <div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:30px;font-weight:500;color:var(--ink);letter-spacing:-0.01em">1.1756</span>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:#1E6B3A;margin-left:10px">↑ +0.20%</span>
+            <div style="font-family:'Inter',sans-serif;font-size:10px;color:var(--ink5);margin-top:4px">GBP / EUR · ECB mid-market</div>
+          </div>
+          <div style="display:flex;gap:24px">
+            <div><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;color:var(--ink)">£95m</span><div style="font-family:'Inter',sans-serif;font-size:10px;color:var(--ink5)">Modulr Series C</div></div>
+            <div><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;color:var(--ink)">8.2s</span><div style="font-family:'Inter',sans-serif;font-size:10px;color:var(--ink5)">SEPA Instant avg</div></div>
+            <div><span style="font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:500;color:var(--ink)">£2.1m</span><div style="font-family:'Inter',sans-serif;font-size:10px;color:var(--ink5)">PDMR disposal</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- IN USE -->
+<div class="section">
+  <div class="section-eye">04 — Identity in use</div>
+  <h2 class="section-title">How the system works together</h2>
+  <div class="inuse-grid">
+    <div class="inuse-item">
+      <div class="inuse-label">Site masthead + ticker</div>
+      <div class="mm">
+        <span class="mm-logo">Loro</span>
+        <div class="mm-nav"><span>News</span><span>FX</span><span>Intelligence</span></div>
+        <span class="mm-cta">Subscribe</span>
+      </div>
+      <div class="ticker">
+        <span class="tick"><strong>GBP/EUR</strong> 1.1756 <span class="up">↑0.20%</span></span>
+        <span class="tick"><strong>GBP/USD</strong> 1.2634 <span class="dn">↓0.12%</span></span>
+        <span class="tick"><strong>USD/INR</strong> 83.42 <span class="up">↑0.08%</span></span>
+      </div>
+    </div>
+    <div class="inuse-item">
+      <div class="inuse-label">Live data widget</div>
+      <div class="widget">
+        <div class="we">FX Pulse</div>
+        <div class="ws">GBP / EUR</div>
+        <div><span class="wv">1.1756</span><span class="wc">↑ +0.20%</span></div>
+        <div class="wn">ECB mid-market · 20 May 2026</div>
+      </div>
+    </div>
+    <div class="inuse-item">
+      <div class="inuse-label">Article card</div>
+      <div class="art">
+        <div class="ac">Ownership Intelligence · Exclusive</div>
+        <div class="ah">PDMR filings suggest coordinated pre-announcement activity at three mid-cap fintechs</div>
+        <div class="am">Chris Cannon · 3 hours ago · <span style="color:var(--lapis-mid)">Subscriber</span></div>
+      </div>
+    </div>
+    <div class="inuse-item">
+      <div class="inuse-label">Favicon scale — Concept 02</div>
+      <div style="display:flex;align-items:center;gap:18px;flex-wrap:wrap">
+        <div style="text-align:center"><div style="width:64px;height:64px;background:var(--lapis);display:flex;align-items:center;justify-content:center"><svg width="36" height="36" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg></div><p style="font-size:10px;color:var(--ink5);margin-top:5px">64px</p></div>
+        <div style="text-align:center"><div style="width:32px;height:32px;background:var(--lapis);display:flex;align-items:center;justify-content:center"><svg width="18" height="18" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg></div><p style="font-size:10px;color:var(--ink5);margin-top:5px">32px</p></div>
+        <div style="text-align:center"><div style="width:16px;height:16px;background:var(--lapis);display:flex;align-items:center;justify-content:center"><svg width="9" height="9" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg></div><p style="font-size:10px;color:var(--ink5);margin-top:5px">16px</p></div>
+        <div style="flex:1;border-left:1px solid var(--border);padding-left:16px"><p style="font-size:12px;color:var(--ink4);line-height:1.6">Compass mark holds clarity at all favicon sizes. Diamond (07) and parallel bars (05) also work at small scale.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- RULES -->
+<div class="section">
+  <div class="section-eye">05 — Usage rules</div>
+  <h2 class="section-title">What the identity always is, and never is</h2>
+  <div class="rules">
+    <div class="rules-col">
+      <div class="rules-label" style="color:var(--lapis)">Always</div>
+      <div class="ri"><span class="rm" style="color:var(--lapis)">→</span><p class="rt">One accent colour — either Lapis Blue or Medici Red. Never both, never a third colour.</p></div>
+      <div class="ri"><span class="rm" style="color:var(--lapis)">→</span><p class="rt">Playfair Display for the wordmark. Italic for display scale. Regular weight when paired with a symbol mark.</p></div>
+      <div class="ri"><span class="rm" style="color:var(--lapis)">→</span><p class="rt">IBM Plex Mono for every rate, amount, timestamp and data value. Always, without exception.</p></div>
+      <div class="ri"><span class="rm" style="color:var(--lapis)">→</span><p class="rt">Sharp corners on every element. No border-radius except pill category tags.</p></div>
+      <div class="ri"><span class="rm" style="color:var(--lapis)">→</span><p class="rt">White on brand colour for the reversed masthead lockup. No exceptions.</p></div>
+    </div>
+    <div class="rules-col" style="background:var(--paper2)">
+      <div class="rules-label" style="color:#B33A1A">Never</div>
+      <div class="ri"><span class="rm" style="color:#B33A1A">✕</span><p class="rt">Gradients, drop shadows, glows or any decorative effects. The identity is completely flat.</p></div>
+      <div class="ri"><span class="rm" style="color:#B33A1A">✕</span><p class="rt">Hexagons, nodes, globe outlines, circuit patterns — the visual clichés of fintech branding.</p></div>
+      <div class="ri"><span class="rm" style="color:#B33A1A">✕</span><p class="rt">Playfair Display below 22px or on body copy, labels or captions. Display use only.</p></div>
+      <div class="ri"><span class="rm" style="color:#B33A1A">✕</span><p class="rt">Inter for numbers or data values. IBM Plex Mono is mandatory for all numerical content.</p></div>
+      <div class="ri"><span class="rm" style="color:#B33A1A">✕</span><p class="rt">Both colorways on the same surface. Pick one and apply it consistently across all touchpoints.</p></div>
+    </div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div style="background:var(--ink);padding:36px 56px;display:grid;grid-template-columns:1fr 1fr;align-items:center">
+  <div style="display:flex;align-items:center;gap:16px">
+    <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:26px;color:#fff;letter-spacing:-0.02em">Loro</span>
+    <div style="display:flex;gap:8px">
+      <div style="width:10px;height:10px;background:#1A3A6B"></div>
+      <div style="width:10px;height:10px;background:#7A1829"></div>
+    </div>
+  </div>
+  <div style="text-align:right">
+    <p style="font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.25)">Brand Identity Exploration</p>
+    <p style="font-size:10px;font-weight:500;letter-spacing:0.12em;text-transform:uppercase;color:rgba(255,255,255,0.15);margin-top:4px">May 2026 · Confidential</p>
+  </div>
+</div>
+
+</div>
+</body>
+</html>
