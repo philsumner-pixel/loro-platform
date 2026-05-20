@@ -771,3 +771,149 @@ input { font-family: inherit; }
 
 /* Related articles */
 .loro-related { padding: 40px 0 64px; border-top: 1px solid var(--border); margin-top: 0; }
+
+/* ── Newsroom ────────────────────────────────────────────── */
+.loro-newsroom { min-height: 100vh; background: var(--paper); }
+
+.loro-nr-header {
+  background: var(--ink);
+  padding: 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.loro-nr-header-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 40px;
+  display: flex; align-items: center; justify-content: space-between; height: 56px;
+}
+.loro-nr-wordmark {
+  font-family: 'Playfair Display', serif; font-style: italic;
+  font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.01em;
+}
+.loro-nr-badge {
+  font-size: 9px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(255,255,255,0.35); margin-left: 10px;
+}
+.loro-nr-user {
+  font-size: 12px; color: rgba(255,255,255,0.4); letter-spacing: 0.02em;
+}
+
+.loro-nr-tabs {
+  background: var(--ink); border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+.loro-nr-tabs-inner {
+  max-width: 1200px; margin: 0 auto; padding: 0 40px; display: flex; gap: 0;
+}
+.loro-nr-tab {
+  padding: 0 20px; height: 40px; display: flex; align-items: center; gap: 8px;
+  font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.45);
+  letter-spacing: 0.04em; cursor: pointer; border-bottom: 2px solid transparent;
+  background: none; border-top: none; border-left: none; border-right: none;
+  font-family: 'Inter', sans-serif; transition: color 0.12s;
+}
+.loro-nr-tab:hover { color: rgba(255,255,255,0.7); }
+.loro-nr-tab.active { color: #fff; border-bottom-color: #fff; }
+.loro-nr-tab-count {
+  background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.6);
+  font-size: 10px; font-weight: 500; padding: 1px 7px; border-radius: 10px;
+}
+.loro-nr-tab.active .loro-nr-tab-count { background: rgba(255,255,255,0.2); color: #fff; }
+
+.loro-nr-body { max-width: 1200px; margin: 0 auto; padding: 32px 40px; }
+
+.loro-nr-empty {
+  padding: 80px 0; text-align: center;
+  font-size: 14px; color: var(--ink5);
+}
+
+/* Candidate rows */
+.loro-nr-list { display: flex; flex-direction: column; gap: 1px; background: var(--border); }
+
+.loro-nr-row {
+  background: var(--paper); padding: 20px 24px;
+  display: grid; grid-template-columns: 1fr auto;
+  gap: 16px; align-items: start; cursor: pointer; transition: background 0.1s;
+}
+.loro-nr-row:hover { background: var(--paper2); }
+.loro-nr-row.selected { background: var(--blue-light); border-left: 3px solid var(--blue); padding-left: 21px; }
+
+.loro-nr-row-left {}
+.loro-nr-row-meta {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 6px; flex-wrap: wrap;
+}
+.loro-nr-cat {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--blue-mid);
+}
+.loro-nr-score {
+  font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 500;
+  padding: 1px 7px; border-radius: 10px;
+}
+.loro-nr-score.high { background: #FEF2EE; color: #B33A1A; }
+.loro-nr-score.mid { background: #FEF9C3; color: #A16207; }
+.loro-nr-score.low { background: var(--paper2); color: var(--ink4); }
+.loro-nr-novelty {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 1px 8px; border-radius: 10px;
+}
+.loro-nr-novelty.novel { background: #EEFAF2; color: #1E6B3A; }
+.loro-nr-novelty.lightly { background: #FEF9C3; color: #A16207; }
+.loro-nr-novelty.widely { background: var(--paper2); color: var(--ink4); }
+.loro-nr-novelty.unchecked { background: var(--paper2); color: var(--ink5); }
+
+.loro-nr-headline {
+  font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600;
+  color: var(--ink); line-height: 1.3; letter-spacing: -0.01em; margin-bottom: 6px;
+}
+.loro-nr-standfirst {
+  font-size: 13px; color: var(--ink4); line-height: 1.6;
+}
+.loro-nr-age { font-size: 11px; color: var(--ink5); margin-top: 8px; }
+
+.loro-nr-row-actions { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; min-width: 120px; }
+.loro-nr-btn {
+  padding: 6px 14px; font-family: 'Inter', sans-serif; font-size: 11px;
+  font-weight: 500; letter-spacing: 0.04em; cursor: pointer; border-radius: 0;
+  white-space: nowrap; transition: opacity 0.12s; border: 1px solid var(--border);
+  background: var(--paper); color: var(--ink);
+}
+.loro-nr-btn:hover { opacity: 0.75; }
+.loro-nr-btn.primary { background: var(--blue); color: #fff; border-color: var(--blue); }
+.loro-nr-btn.danger { background: var(--paper); color: #B33A1A; border-color: #F9CBBF; }
+.loro-nr-btn.success { background: #EEFAF2; color: #1E6B3A; border-color: #C2E8CF; }
+
+/* Candidate detail panel */
+.loro-nr-detail {
+  background: var(--paper); border: 1px solid var(--border);
+  border-left: 3px solid var(--blue); margin-top: 1px; padding: 28px 32px;
+}
+.loro-nr-detail-headline {
+  font-family: 'Playfair Display', serif; font-size: 22px; font-weight: 700;
+  color: var(--ink); letter-spacing: -0.015em; line-height: 1.2; margin-bottom: 12px;
+}
+.loro-nr-detail-standfirst { font-size: 15px; color: var(--ink3); line-height: 1.7; margin-bottom: 24px; }
+.loro-nr-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-bottom: 28px; }
+@media (max-width: 768px) { .loro-nr-detail-grid { grid-template-columns: 1fr; } }
+.loro-nr-detail-section-title {
+  font-size: 10px; font-weight: 500; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink5); margin-bottom: 12px;
+}
+.loro-nr-timeline { display: flex; flex-direction: column; gap: 0; }
+.loro-nr-tl-item { display: flex; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.loro-nr-tl-item:last-child { border-bottom: none; }
+.loro-nr-tl-date { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink5); min-width: 80px; margin-top: 1px; }
+.loro-nr-tl-event { font-size: 13px; color: var(--ink2); line-height: 1.55; }
+.loro-nr-brief {
+  background: var(--paper2); border: 1px solid var(--border); padding: 20px 22px;
+  font-size: 14px; color: var(--ink3); line-height: 1.8; font-style: italic;
+  margin-bottom: 24px;
+}
+.loro-nr-brief-placeholder { color: var(--ink5); font-style: normal; font-size: 13px; }
+.loro-nr-detail-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+
+/* Stats bar */
+.loro-nr-stats {
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px;
+  background: var(--border); margin-bottom: 28px;
+}
+.loro-nr-stat { background: var(--paper); padding: 16px 20px; }
+.loro-nr-stat-lbl { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink5); margin-bottom: 4px; }
+.loro-nr-stat-val { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); }
