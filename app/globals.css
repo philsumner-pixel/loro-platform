@@ -298,14 +298,13 @@ input { font-family: inherit; }
   border-bottom: 1px solid var(--border);
 }
 .loro-data-lbl {
-  padding: 10px 20px 0;
+  padding-top: 10px;
   font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink5);
 }
-@media (min-width: 768px) { .loro-data-lbl { padding: 10px 40px 0; } }
 .loro-data-widgets {
   display: grid;
   grid-template-columns: 1fr 1fr;

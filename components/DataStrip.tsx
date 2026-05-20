@@ -59,6 +59,7 @@ export default function DataStrip() {
 
   return (
     <div className="loro-data-strip">
+      <div className="loro-wrap">
       <div className="loro-data-lbl">Live data</div>
 
       <div className="loro-data-widgets">
@@ -132,6 +133,8 @@ export default function DataStrip() {
         </div>
 
       </div>
+
+      </div>{/* /loro-wrap */}
     </div>
   )
 }
