@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/ingest/rss",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/ingest/sec-edgar",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/ingest/companies-house",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/ingest/bis-sdmx",
+      "schedule": "0 6 * * *"
+    }
+  ]
+}
