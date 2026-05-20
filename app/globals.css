@@ -344,6 +344,40 @@ input { font-family: inherit; }
 .loro-dw-flat { color: var(--ink5); }
 .loro-dw-note { font-size: 11px; color: var(--ink5); margin-top: 4px; }
 
+/* ── Sponsor tag ─────────────────────────────────────────── */
+.loro-sponsor-tag {
+  font-size: 11px;
+  color: var(--ink5);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+.loro-sponsor-name {
+  font-weight: 500;
+  color: var(--ink4);
+  transition: color 0.12s;
+}
+.loro-sponsor-name:hover { color: var(--ink); }
+
+/* ── Ad slots (Teads inRead) ─────────────────────────────── */
+.loro-ad-slot {
+  margin: 48px 0;
+  position: relative;
+}
+.loro-ad-label {
+  font-size: 9px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink5);
+  text-align: center;
+  margin-bottom: 6px;
+}
+.loro-ad-inner {
+  min-height: 0;
+  width: 100%;
+}
+.loro-ad-slot:has(.loro-ad-inner:empty) { display: none; }
+
 /* ── Section headers ─────────────────────────────────────── */
 .loro-section-wrap { padding: 24px 0; }
 @media (min-width: 768px) { .loro-section-wrap { padding: 32px 0; } }

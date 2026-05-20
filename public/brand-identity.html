@@ -122,6 +122,49 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);lin
 /* Wordmark bg row */
 .wm-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);margin-top:1px}
 .wm-cell{padding:24px 18px;display:flex;align-items:center;justify-content:center}
+
+/* ── Mobile responsive ───────────────────────── */
+@media (max-width: 768px) {
+  .cover { grid-template-columns: 1fr !important; }
+  .cover-b { border-left: none !important; border-top: 1px solid rgba(255,255,255,0.15); }
+  .cover-a, .cover-b { padding: 48px 28px 44px !important; }
+  .cover-date { bottom: 16px; right: 28px; }
+  .section { padding: 36px 22px !important; }
+  .pillars { grid-template-columns: 1fr !important; }
+  .logo-grid { grid-template-columns: 1fr !important; }
+  .logo-hero { min-height: 140px !important; padding: 32px 24px !important; }
+  .type-block { grid-template-columns: 1fr !important; gap: 20px !important; padding: 28px 22px !important; }
+  .cw-grid { grid-template-columns: 1fr !important; }
+  .cw-compare { grid-template-columns: 1fr !important; }
+  .color-hero { grid-template-columns: 1fr !important; }
+  .cw-tints { grid-template-columns: 1fr !important; }
+  .inuse-grid { grid-template-columns: 1fr !important; }
+  .inuse-item { padding: 22px !important; }
+  .rules { grid-template-columns: 1fr !important; }
+  .wm-row { grid-template-columns: repeat(2, 1fr) !important; }
+  .ink-row { flex-wrap: wrap; }
+  .ink-swatch { flex: none !important; width: calc(25% - 1px) !important; }
+  .rev-cw { grid-template-columns: 1fr !important; }
+  .rev-cw-cell { padding: 22px 20px !important; }
+  .brand-footer { grid-template-columns: 1fr !important; gap: 14px !important; padding: 28px 22px !important; }
+  .brand-footer [style*="text-align:right"] { text-align: left !important; }
+  .section-title { font-size: clamp(20px, 6vw, 34px) !important; }
+  .mm-nav { display: none !important; }
+  .cw-col-head { padding: 12px 18px !important; }
+  .cw-logo-row { padding: 22px 18px !important; }
+}
+
+@media (max-width: 480px) {
+  .cover-a, .cover-b { padding: 36px 20px 32px !important; }
+  .cover-wm { font-size: 54px !important; margin-bottom: 18px !important; }
+  .section { padding: 28px 16px !important; }
+  .logo-hero { padding: 24px 16px !important; min-height: 120px !important; }
+  .type-block { padding: 22px 16px !important; }
+  .wm-row { grid-template-columns: repeat(2, 1fr) !important; }
+  .logo-strip { flex-direction: column !important; }
+  .ls-blue, .ls-icon { border-right: none !important; border-bottom: 1px solid rgba(255,255,255,0.12) !important; }
+  .ls-icon { border-bottom: none !important; border-top: 1px solid var(--border) !important; background: var(--paper2) !important; }
+}
 </style>
 </head>
 <body>
@@ -524,8 +567,8 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);lin
 
   <!-- Reversed in both -->
   <p style="font-size:10px;font-weight:500;letter-spacing:0.14em;text-transform:uppercase;color:var(--ink5);margin-top:28px;margin-bottom:1px">Reversed — masthead usage</p>
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)">
-    <div style="background:#1A3A6B;padding:28px 32px;display:flex;align-items:center;gap:14px">
+  <div class="rev-cw" style="display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--border)">
+    <div class="rev-cw-cell" style="background:#1A3A6B;padding:28px 32px;display:flex;align-items:center;gap:14px">
       <svg width="32" height="32" viewBox="0 0 52 52"><polygon points="4,16 16,4 16,40 48,40 48,48 4,48" fill="#fff"/></svg>
       <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:32px;color:#fff;letter-spacing:-0.02em">Loro</span>
     </div>
@@ -662,7 +705,7 @@ body{font-family:'Inter',sans-serif;background:var(--paper);color:var(--ink);lin
 </div>
 
 <!-- FOOTER -->
-<div style="background:var(--ink);padding:36px 56px;display:grid;grid-template-columns:1fr 1fr;align-items:center">
+<div class="brand-footer" style="background:var(--ink);padding:36px 56px;display:grid;grid-template-columns:1fr 1fr;align-items:center">
   <div style="display:flex;align-items:center;gap:16px">
     <span style="font-family:'Playfair Display',serif;font-style:italic;font-weight:700;font-size:26px;color:#fff;letter-spacing:-0.02em">Loro</span>
     <div style="display:flex;gap:8px">

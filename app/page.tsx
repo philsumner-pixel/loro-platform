@@ -5,6 +5,8 @@ import DataStrip from '@/components/DataStrip'
 import ArticleGrid from '@/components/ArticleGrid'
 import NewsletterSection from '@/components/NewsletterSection'
 import SiteFooter from '@/components/SiteFooter'
+import AdSlot from '@/components/AdSlot'
+import SponsorTag from '@/components/SponsorTag'
 
 export default function HomePage() {
   return (
@@ -42,9 +44,9 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Sponsor slot */}
+        {/* Sponsor slot — section sponsorship example */}
         <div className="loro-wrap">
-          <div className="loro-sponsor">
+          <div className="loro-sponsor" style={{ marginTop: 0 }}>
             <span className="loro-sponsor-lbl">
               FX corridor data partnership — sponsorship available
             </span>
@@ -52,11 +54,19 @@ export default function HomePage() {
           </div>
         </div>
 
+        {/* Teads inRead slot — homepage, between editorial grids */}
+        <div className="loro-wrap">
+          <AdSlot id="loro-inread-home-1" type="inread-home" />
+        </div>
+
         {/* Markets */}
         <div className="loro-wrap">
           <div className="loro-section-wrap">
             <div className="loro-section-hd" style={{ marginBottom: 1 }}>
-              <span className="loro-section-title">Markets</span>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 14 }}>
+                <span className="loro-section-title">Markets</span>
+                <SponsorTag name={undefined} />
+              </div>
               <a className="loro-section-link" href="#">All market coverage →</a>
             </div>
             <ArticleGrid variant="markets" />
