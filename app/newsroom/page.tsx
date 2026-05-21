@@ -35,6 +35,14 @@ interface Candidate {
   detected_at: string
 }
 
+interface DraftState {
+  candidateId: string
+  headline: string
+  standfirst: string
+  body: string
+  category: string
+}
+
 const TABS = [
   { key: 'new,shortlisted', label: 'Inbox', statuses: ['new', 'shortlisted'] },
   { key: 'in_draft', label: 'In draft', statuses: ['in_draft'] },
@@ -93,6 +101,9 @@ export default function NewsroomPage() {
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Candidate | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
+  const [draft, setDraft] = useState<DraftState | null>(null)
+  const [publishing, setPublishing] = useState(false)
+  const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -109,6 +120,46 @@ export default function NewsroomPage() {
   }, [activeTab.key])
 
   useEffect(() => { load() }, [load])
+
+  function openDraft(c: Candidate) {
+    setDraft({
+      candidateId: c.id,
+      headline: c.headline,
+      standfirst: c.standfirst ?? '',
+      body: c.ai_brief
+        ? `<p>${c.ai_brief}</p>`
+        : `<p>${c.standfirst ?? ''}</p>\n<p>[Write your article here]</p>`,
+      category: c.category,
+    })
+    setPublishedUrl(null)
+  }
+
+  async function publishDraft() {
+    if (!draft) return
+    setPublishing(true)
+    try {
+      const res = await fetch('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          candidate_id: draft.candidateId,
+          headline: draft.headline,
+          standfirst: draft.standfirst,
+          body_html: draft.body,
+          category: draft.category,
+          publication_tier: 'section',
+        }),
+      })
+      const data = await res.json()
+      if (data.slug) {
+        setPublishedUrl(data.url)
+        setDraft(null)
+        await load()
+      }
+    } finally {
+      setPublishing(false)
+    }
+  }
 
   async function updateStatus(id: string, status: string, extra: Record<string, string> = {}) {
     setUpdating(id)
@@ -198,6 +249,70 @@ export default function NewsroomPage() {
           </div>
         )}
 
+        {/* Draft editor */}
+        {draft && (
+          <div style={{ background: 'var(--paper)', border: '1px solid var(--border)', borderLeft: '3px solid var(--blue)', padding: '28px 32px', marginBottom: 24 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div className="loro-nr-detail-section-title" style={{ margin: 0 }}>Draft editor</div>
+              <button className="loro-nr-btn" onClick={() => setDraft(null)}>Discard draft</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink5)', display: 'block', marginBottom: 6 }}>Headline</label>
+                <input
+                  value={draft.headline}
+                  onChange={e => setDraft(d => d ? { ...d, headline: e.target.value } : null)}
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', fontFamily: "'Playfair Display', serif", fontSize: 17, fontWeight: 600, color: 'var(--ink)', background: 'var(--paper)', outline: 'none' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink5)', display: 'block', marginBottom: 6 }}>Standfirst</label>
+                <textarea
+                  value={draft.standfirst}
+                  onChange={e => setDraft(d => d ? { ...d, standfirst: e.target.value } : null)}
+                  rows={2}
+                  style={{ width: '100%', padding: '10px 14px', border: '1px solid var(--border)', fontFamily: "'Inter', sans-serif", fontSize: 14, color: 'var(--ink3)', background: 'var(--paper)', outline: 'none', resize: 'vertical' }}
+                />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--ink5)', display: 'block', marginBottom: 6 }}>
+                  Article body (HTML or plain text — &lt;p&gt; tags for paragraphs)
+                </label>
+                <textarea
+                  value={draft.body}
+                  onChange={e => setDraft(d => d ? { ...d, body: e.target.value } : null)}
+                  rows={16}
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid var(--border)', fontFamily: "'IBM Plex Mono', monospace", fontSize: 12, color: 'var(--ink)', background: 'var(--paper2)', outline: 'none', resize: 'vertical', lineHeight: 1.7 }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                <button
+                  className="loro-nr-btn success"
+                  style={{ padding: '10px 28px', fontSize: 13 }}
+                  disabled={publishing || !draft.headline || !draft.body}
+                  onClick={publishDraft}
+                >
+                  {publishing ? 'Publishing…' : 'Publish →'}
+                </button>
+                <span style={{ fontSize: 12, color: 'var(--ink5)' }}>
+                  Goes live immediately at /news/[slug]
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Published confirmation */}
+        {publishedUrl && (
+          <div style={{ background: '#EEFAF2', border: '1px solid #C2E8CF', padding: '14px 20px', marginBottom: 24, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 13, color: '#1E6B3A', fontWeight: 500 }}>Article published successfully</span>
+            <a href={publishedUrl} style={{ fontSize: 13, color: '#1E6B3A', fontWeight: 500 }}>
+              View live article →
+            </a>
+          </div>
+        )}
+
         {/* Loading */}
         {loading && (
           <div className="loro-nr-empty">Loading candidates…</div>
@@ -277,7 +392,7 @@ export default function NewsroomPage() {
                         <button
                           className="loro-nr-btn success"
                           disabled={updating === c.id}
-                          onClick={() => updateStatus(c.id, 'in_draft')}
+                          onClick={() => { updateStatus(c.id, 'in_draft'); openDraft(c) }}
                         >
                           Take to draft
                         </button>
@@ -422,13 +537,18 @@ export default function NewsroomPage() {
                       )}
                       {c.status === 'shortlisted' && (
                         <>
-                          <button className="loro-nr-btn success" onClick={() => updateStatus(c.id, 'in_draft')}>
+                          <button className="loro-nr-btn success" onClick={() => { updateStatus(c.id, 'in_draft'); openDraft(c) }}>
                             Take to draft
                           </button>
                           <button className="loro-nr-btn danger" onClick={() => updateStatus(c.id, 'discarded', { discard_reason: 'Deprioritised' })}>
                             Discard
                           </button>
                         </>
+                      )}
+                      {c.status === 'in_draft' && (
+                        <button className="loro-nr-btn primary" onClick={() => openDraft(c)}>
+                          Open draft editor
+                        </button>
                       )}
                       {c.status === 'published' && c.published_slug && (
                         <a href={`/news/${c.published_slug}`} className="loro-nr-btn success">
