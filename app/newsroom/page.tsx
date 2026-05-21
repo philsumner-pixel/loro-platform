@@ -506,8 +506,10 @@ export default function NewsroomPage() {
                   return (
                     <div key={col.key} className={`loro-nr-col ${col.key}`}>
                       <div className="loro-nr-col-hd">
-                        <span className="loro-nr-col-count">{cols.length}</span>
-                        <div className="loro-nr-col-title">{col.label}</div>
+                        <div className="loro-nr-col-hd-top">
+                          <div className="loro-nr-col-title">{col.label}</div>
+                          <span className="loro-nr-col-count">{cols.length}</span>
+                        </div>
                         <div className="loro-nr-col-sub">{col.sub}</div>
                       </div>
                       {cols.length === 0

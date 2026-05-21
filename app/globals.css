@@ -974,24 +974,30 @@ input { font-family: inherit; }
   position: sticky;
   top: 0;
   z-index: 5;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.loro-nr-col-hd-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
 .loro-nr-col-title {
   font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  margin-bottom: 2px;
 }
 .loro-nr-col-sub {
   font-size: 10px;
   color: var(--ink5);
 }
 .loro-nr-col-count {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 500;
   font-family: 'IBM Plex Mono', monospace;
-  float: right;
-  margin-top: -18px;
+  color: var(--ink4);
 }
 .loro-nr-col.novel .loro-nr-col-title  { color: var(--ink); }
 .loro-nr-col.novel .loro-nr-col-hd     { border-top: 2px solid #B33A1A; }
