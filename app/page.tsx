@@ -19,14 +19,12 @@ export default function HomePage() {
       <nav className="loro-subnav">
         <div className="loro-subnav-inner">
           <a href="#" className="loro-active">All</a>
-          <a href="#">Payments</a>
-          <a href="#">FX & Treasury</a>
-          <a href="#">Banking</a>
-          <a href="#">Regulation</a>
-          <a href="#">Fintech Funding</a>
-          <a href="#">Ownership Intel</a>
-          <a href="#">Open Banking</a>
-          <a href="#">On-chain</a>
+          <a href="#" style={{letterSpacing:'0.01em'}}>Payments</a>
+          <a href="#" style={{letterSpacing:'0.01em'}}>FX & Treasury</a>
+          <a href="#" style={{letterSpacing:'0.01em'}}>Banking</a>
+          <a href="#" style={{letterSpacing:'0.01em'}}>Regulation</a>
+          <a href="#" style={{letterSpacing:'0.01em'}}>Ownership Intel</a>
+          <a href="/intelligence" style={{marginLeft:'auto',color:'var(--ink4)',letterSpacing:'0.01em'}}>Intelligence sources →</a>
         </div>
       </nav>
 
