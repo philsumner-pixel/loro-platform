@@ -951,3 +951,137 @@ input { font-family: inherit; }
 .loro-nr-priority.p1 { background: #FEE2E2; color: #B91C1C; }
 .loro-nr-priority.p2 { background: #FEF9C3; color: #A16207; }
 .loro-nr-priority.p3 { background: #F0FAF0; color: #1E6B3A; }
+
+/* ── Newsroom three-column inbox ─────────────────────────── */
+.loro-nr-columns {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1px;
+  background: var(--border);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .loro-nr-columns { grid-template-columns: 1fr; }
+}
+.loro-nr-col {
+  background: var(--paper);
+  min-height: 120px;
+}
+.loro-nr-col-hd {
+  padding: 12px 16px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--paper2);
+  position: sticky;
+  top: 0;
+  z-index: 5;
+}
+.loro-nr-col-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.loro-nr-col-sub {
+  font-size: 10px;
+  color: var(--ink5);
+}
+.loro-nr-col-count {
+  font-size: 11px;
+  font-weight: 500;
+  font-family: 'IBM Plex Mono', monospace;
+  float: right;
+  margin-top: -18px;
+}
+.loro-nr-col.novel .loro-nr-col-title  { color: var(--ink); }
+.loro-nr-col.novel .loro-nr-col-hd     { border-top: 2px solid #B33A1A; }
+.loro-nr-col.angle .loro-nr-col-title  { color: var(--blue-mid); }
+.loro-nr-col.angle .loro-nr-col-hd     { border-top: 2px solid var(--blue); }
+.loro-nr-col.depth .loro-nr-col-title  { color: #A16207; }
+.loro-nr-col.depth .loro-nr-col-hd     { border-top: 2px solid #F59E0B; }
+.loro-nr-col-empty {
+  padding: 28px 16px;
+  font-size: 12px;
+  color: var(--ink5);
+  text-align: center;
+}
+
+/* Compact card within column */
+.loro-nr-card {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.loro-nr-card:hover { background: var(--paper2); }
+.loro-nr-card.selected { background: var(--blue-light); border-left: 3px solid var(--blue); padding-left: 13px; }
+.loro-nr-card-meta { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; flex-wrap: wrap; }
+.loro-nr-card-headline {
+  font-family: 'Playfair Display', serif;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  margin-bottom: 5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.loro-nr-card-standfirst {
+  font-size: 11px;
+  color: var(--ink4);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 6px;
+}
+.loro-nr-card-foot { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
+.loro-nr-card-age { font-size: 10px; color: var(--ink5); }
+.loro-nr-card-actions { display: flex; gap: 5px; }
+
+/* Score badge with tooltip */
+.loro-nr-score-wrap { position: relative; display: inline-flex; }
+.loro-nr-score-tooltip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: var(--ink);
+  color: #F5F5F4;
+  padding: 12px 14px;
+  width: 240px;
+  font-size: 11px;
+  line-height: 1.8;
+  border-radius: 2px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  pointer-events: none;
+}
+.loro-nr-score-wrap:hover .loro-nr-score-tooltip { display: block; }
+.loro-nr-tooltip-title {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8A8A8A;
+  margin-bottom: 6px;
+}
+.loro-nr-tooltip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.loro-nr-tooltip-row span:last-child {
+  font-family: 'IBM Plex Mono', monospace;
+  color: #F59E0B;
+}
+.loro-nr-tooltip-total {
+  border-top: 0.5px solid #2A2A2A;
+  margin-top: 6px;
+  padding-top: 6px;
+  font-weight: 500;
+}
