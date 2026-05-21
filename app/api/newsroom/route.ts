@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
-// Client created inside handlers — not at module level.
-// Module-level instantiation runs at build time when env vars don't exist yet.
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -15,14 +13,39 @@ export async function GET(req: NextRequest) {
   const statusParam = searchParams.get('status') || 'new,shortlisted,in_draft'
   const statuses = statusParam.split(',').map(s => s.trim())
 
-  const { data, error } = await getSupabase()
+  const sb = getSupabase()
+
+  const { data: candidates, error } = await sb
     .from('loro_story_candidates')
     .select('*')
     .in('status', statuses)
     .order('anomaly_score', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ candidates: data })
+
+  // Fetch coverage links for each candidate
+  const ids = (candidates ?? []).map(c => c.id)
+  const { data: coverage } = ids.length
+    ? await sb
+        .from('loro_story_coverage')
+        .select('candidate_id, publication, headline, url, published_at, angle_taken, similarity_score')
+        .in('candidate_id', ids)
+        .order('similarity_score', { ascending: false })
+    : { data: [] }
+
+  // Group coverage by candidate
+  const coverageMap: Record<string, typeof coverage> = {}
+  for (const item of coverage ?? []) {
+    if (!coverageMap[item.candidate_id]) coverageMap[item.candidate_id] = []
+    coverageMap[item.candidate_id]!.push(item)
+  }
+
+  const enriched = (candidates ?? []).map(c => ({
+    ...c,
+    coverage_links: coverageMap[c.id] ?? [],
+  }))
+
+  return NextResponse.json({ candidates: enriched })
 }
 
 export async function PATCH(req: NextRequest) {
@@ -33,12 +56,13 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'id and status required' }, { status: 400 })
   }
 
+  const sb = getSupabase()
   const updates: Record<string, unknown> = { status }
   if (discard_reason) updates.discard_reason = discard_reason
   if (status === 'discarded') updates.discarded_at = new Date().toISOString()
   if (assigned_to) updates.assigned_to = assigned_to
 
-  const { data, error } = await getSupabase()
+  const { data, error } = await sb
     .from('loro_story_candidates')
     .update(updates)
     .eq('id', id)

@@ -234,13 +234,72 @@ export async function GET(req: Request) {
         ? `Lightly covered (${uniquePubs.join(', ')}). Loro can own the depth or angle play.`
         : `Widely covered (${uniquePubs.join(', ')}). Publish to archive tier — look for specific Loro angle.`
 
-    // Update candidate with novelty results
+    // Generate AI angle hypothesis using Anthropic API
+    let aiAngle: string | null = null
+    const anthropicKey = process.env.ANTHROPIC_API_KEY
+    if (anthropicKey && checks.length > 0) {
+      try {
+        const coverageContext = checks
+          .flatMap(c => (c.evidence.similar_coverage as Array<{publication: string; headline: string; url: string}> ?? []))
+          .slice(0, 4)
+          .map(n => `• ${n.publication}: "${n.headline}"`)
+          .join('\n')
+
+        const newsApiContext = (checks.find(c => c.layer === 'web_search')?.evidence?.results as Array<{source: string; title: string}> ?? [])
+          .slice(0, 3)
+          .map(n => `• ${n.source}: "${n.title}"`)
+          .join('\n')
+
+        const allCoverageText = [coverageContext, newsApiContext].filter(Boolean).join('\n')
+
+        const prompt = `You are an editorial intelligence engine for Loro, an independent payments intelligence publication.
+
+DETECTED SIGNAL:
+Headline: ${candidate.headline}
+Category: ${candidate.category}
+Pattern: ${overallStatus === 'novel' ? 'Novel — no existing coverage found' : 'Existing coverage found'}
+
+${allCoverageText ? `EXISTING COVERAGE:\n${allCoverageText}` : 'NO COVERAGE FOUND — this signal appears to be novel.'}
+
+Based on the signal and existing coverage (or lack of it), suggest in 2-3 sentences:
+1. What specific angle Loro could own that isn't yet covered
+2. What the payments-specific regulatory or ownership intelligence dimension is
+3. Why this matters to a payments journalist right now
+
+Be concrete and specific. Name the exact uncovered angle. Do not pad or be generic.`
+
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'x-api-key': anthropicKey,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 200,
+            messages: [{ role: 'user', content: prompt }],
+          }),
+          signal: AbortSignal.timeout(15000),
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          aiAngle = data.content?.[0]?.text ?? null
+        }
+      } catch {
+        // Angle generation is best-effort — don't fail the whole check
+      }
+    }
+
+    // Update candidate with novelty results + AI angle
     await sb.from('loro_story_candidates')
       .update({
         novelty_status: overallStatus,
         novelty_note: noveltyNote,
         novelty_checked_at: new Date().toISOString(),
         coverage_summary: coverageSummary.length > 0 ? coverageSummary : null,
+        ...(aiAngle ? { loro_angle_hypothesis: aiAngle, ai_angle_generated: true } : {}),
       })
       .eq('id', candidate.id)
 

@@ -13,6 +13,14 @@ interface EvidencePacket {
   [key: string]: unknown
 }
 
+interface CoverageLink {
+  publication: string
+  headline: string
+  url: string | null
+  published_at: string | null
+  similarity_score: number | null
+}
+
 interface Candidate {
   id: string
   headline: string
@@ -27,12 +35,16 @@ interface Candidate {
   loro_angle_hypothesis: string | null
   coverage_gaps: string | null
   coverage_summary: string | null
+  angle_votes_up: number
+  angle_votes_down: number
+  ai_angle_generated: boolean
   status: string
   assigned_to: string | null
   published_slug: string | null
   published_at: string | null
   evidence_packet: EvidencePacket
   detected_at: string
+  coverage_links: CoverageLink[]
 }
 
 interface DraftState {
@@ -120,6 +132,15 @@ export default function NewsroomPage() {
   }, [activeTab.key])
 
   useEffect(() => { load() }, [load])
+
+  async function voteAngle(id: string, vote: 'up' | 'down') {
+    await fetch('/api/newsroom/vote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ candidate_id: id, vote }),
+    })
+    await load()
+  }
 
   function openDraft(c: Candidate) {
     setDraft({
@@ -480,35 +501,91 @@ export default function NewsroomPage() {
                       </div>
                     </div>
 
-                    {/* Loro angle */}
-                    {(c.loro_angle_hypothesis || c.coverage_summary || c.coverage_gaps) && (
+                    {/* Coverage links — what's been published */}
+                    {c.coverage_links?.length > 0 && (
                       <div style={{ marginBottom: 24 }}>
-                        {c.editorial_opportunity && c.editorial_opportunity !== 'exclusive' && c.coverage_summary && (
-                          <>
-                            <div className="loro-nr-detail-section-title">What others covered</div>
-                            <div style={{ fontSize: 13, color: 'var(--ink4)', lineHeight: 1.65, marginBottom: 12, padding: '10px 14px', background: 'var(--paper2)', border: '1px solid var(--border)' }}>
-                              {c.coverage_summary}
+                        <div className="loro-nr-detail-section-title">
+                          Coverage found — {c.coverage_links.length} article{c.coverage_links.length > 1 ? 's' : ''}
+                        </div>
+                        <div className="loro-nr-coverage-list">
+                          {c.coverage_links.map((link, i) => (
+                            <div key={i} className="loro-nr-coverage-item">
+                              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
+                                <div>
+                                  <span className="loro-nr-coverage-pub">{link.publication}</span>
+                                  {link.similarity_score && (
+                                    <span style={{ fontSize: 9, color: 'var(--ink5)', marginLeft: 8, fontFamily: "'IBM Plex Mono', monospace" }}>
+                                      sim {(link.similarity_score * 100).toFixed(0)}%
+                                    </span>
+                                  )}
+                                </div>
+                                {link.published_at && (
+                                  <span style={{ fontSize: 10, color: 'var(--ink5)', whiteSpace: 'nowrap' }}>
+                                    {new Date(link.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}
+                                  </span>
+                                )}
+                              </div>
+                              {link.url ? (
+                                <a
+                                  href={link.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="loro-nr-coverage-angle"
+                                  style={{ color: 'var(--blue-mid)', textDecoration: 'none' }}
+                                >
+                                  {link.headline} →
+                                </a>
+                              ) : (
+                                <div className="loro-nr-coverage-angle">{link.headline}</div>
+                              )}
                             </div>
-                          </>
-                        )}
-                        {c.loro_angle_hypothesis && (
-                          <div className="loro-nr-angle-box">
-                            <div className="loro-nr-angle-title">
-                              {c.editorial_opportunity === 'exclusive' ? 'Why this is exclusive' :
-                               c.editorial_opportunity === 'depth_play' ? 'The depth play' :
-                               c.editorial_opportunity === 'angle_play' ? 'The Loro angle' :
-                               'Editorial note'}
-                            </div>
-                            <div className="loro-nr-angle-text">{c.loro_angle_hypothesis}</div>
-                          </div>
-                        )}
-                        {c.coverage_gaps && c.editorial_opportunity !== 'exclusive' && (
-                          <div style={{ fontSize: 12, color: 'var(--ink4)', lineHeight: 1.6, marginTop: 8 }}>
-                            <strong style={{ color: 'var(--ink)', fontWeight: 500 }}>Gaps in existing coverage: </strong>
-                            {c.coverage_gaps}
-                          </div>
-                        )}
+                          ))}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink5)', marginTop: 8, fontStyle: 'italic' }}>
+                          Similarity scores show how closely these articles match this signal — not whether the specific angle is covered.
+                        </div>
                       </div>
+                    )}
+
+                    {/* AI-generated angle + voting */}
+                    {c.loro_angle_hypothesis && (
+                      <div style={{ marginBottom: 24 }}>
+                        <div className="loro-nr-detail-section-title" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <span>{c.ai_angle_generated ? 'Engine angle suggestion' : 'Editorial angle'}</span>
+                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                            <button
+                              onClick={() => voteAngle(c.id, 'up')}
+                              style={{ background: 'none', border: '1px solid var(--border)', padding: '2px 10px', cursor: 'pointer', fontSize: 13, borderRadius: 4, color: c.angle_votes_up > 0 ? '#1E6B3A' : 'var(--ink5)' }}
+                              title="Strong angle — I'd pursue this"
+                            >
+                              🔥 {c.angle_votes_up > 0 ? c.angle_votes_up : ''}
+                            </button>
+                            <button
+                              onClick={() => voteAngle(c.id, 'down')}
+                              style={{ background: 'none', border: '1px solid var(--border)', padding: '2px 10px', cursor: 'pointer', fontSize: 13, borderRadius: 4, color: c.angle_votes_down > 0 ? '#B33A1A' : 'var(--ink5)' }}
+                              title="Weak angle — already covered or not interesting"
+                            >
+                              👎 {c.angle_votes_down > 0 ? c.angle_votes_down : ''}
+                            </button>
+                          </div>
+                        </div>
+                        <div className="loro-nr-angle-box">
+                          <div className="loro-nr-angle-text">{c.loro_angle_hypothesis}</div>
+                        </div>
+                        <div style={{ fontSize: 10, color: 'var(--ink5)', marginTop: 6 }}>
+                          Vote to calibrate — your decisions train the engine to predict what angles are worth pursuing
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Loro angle (manually set) */}
+                    {(c.editorial_opportunity && c.editorial_opportunity !== 'exclusive' && c.coverage_summary && !c.loro_angle_hypothesis) && (
+                      <>
+                        <div className="loro-nr-detail-section-title">What others covered</div>
+                        <div style={{ fontSize: 13, color: 'var(--ink4)', lineHeight: 1.65, marginBottom: 12, padding: '10px 14px', background: 'var(--paper2)', border: '1px solid var(--border)' }}>
+                          {c.coverage_summary}
+                        </div>
+                      </>
                     )}
 
                     {/* AI Brief */}
