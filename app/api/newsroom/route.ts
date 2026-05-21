@@ -34,8 +34,9 @@ export async function GET(req: NextRequest) {
     : { data: [] }
 
   // Group coverage by candidate
-  const coverageMap: Record<string, typeof coverage> = {}
-  for (const item of coverage ?? []) {
+  type CoverageItem = { candidate_id: string; publication: string; headline: string; url: string | null; published_at: string | null; angle_taken: string | null; similarity_score: number | null }
+  const coverageMap: Record<string, CoverageItem[]> = {}
+  for (const item of (coverage ?? []) as CoverageItem[]) {
     if (!coverageMap[item.candidate_id]) coverageMap[item.candidate_id] = []
     coverageMap[item.candidate_id]!.push(item)
   }
