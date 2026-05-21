@@ -44,7 +44,7 @@ function extractDataPoints(
     const series = (data as { dataSets?: Array<{ series?: Record<string, { observations?: Record<string, [number]> }> }> })
       .dataSets?.[0]?.series ?? {}
     
-    const structure = (data as { structure?: { dimensions?: { series?: Array<{ values?: Array<{ id?: string; name?: string }> }> }, observation?: Array<{ values?: Array<{ id?: string }> }> } }).structure
+    const structure = (data as { structure?: { dimensions?: { series?: Array<{ values?: Array<{ id?: string; name?: string }> }>, observation?: Array<{ values?: Array<{ id?: string }> }> } } }).structure
 
     const obsDimValues = structure?.dimensions?.observation?.[0]?.values ?? []
 
