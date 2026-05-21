@@ -99,7 +99,12 @@ export async function GET(req: Request) {
   const results: Array<{ id: string; status: string; layers: string[] }> = []
 
   for (const candidate of candidates) {
-    const checkText = `${candidate.headline}. ${candidate.standfirst ?? ''}`
+    // Build structured embedding input — domain-aware, not raw text
+    // This is what makes Loro's semantic layer different from generic NLP
+    const { data: embeddingInput } = await sb.rpc('build_candidate_embedding_input', {
+      candidate_id: candidate.id,
+    })
+    const checkText = embeddingInput ?? `${candidate.headline}. ${candidate.standfirst ?? ''}`
     const checks: Array<{ layer: string; result: string; evidence: Record<string, unknown> }> = []
     let overallStatus = 'novel'
 
@@ -112,9 +117,13 @@ export async function GET(req: Request) {
     const embedding = await embedText(checkText)
 
     if (embedding) {
-      // Store embedding on candidate
+      // Store embedding with provenance — model name and exact input text
       await sb.from('loro_story_candidates')
-        .update({ embedding })
+        .update({
+          embedding,
+          embedding_model: 'text-embedding-3-small',
+          embedding_input: checkText,
+        })
         .eq('id', candidate.id)
 
       // Check against our own articles
