@@ -110,12 +110,11 @@ export function scorePattern(params: {
     : 0
 
   // Temporal compression bonus — events closer together = more significant
+  let temporalBonus = 0
   if (events.length >= 2) {
     const dates = events.map(e => new Date(e.event_date).getTime())
     const spanHours = (Math.max(...dates) - Math.min(...dates)) / 3600000
-    var temporalBonus = spanHours < 24 ? 0.5 : spanHours < 72 ? 0.3 : 0
-  } else {
-    var temporalBonus = 0
+    temporalBonus = spanHours < 24 ? 0.5 : spanHours < 72 ? 0.3 : 0
   }
 
   const total = Math.min(
