@@ -30,12 +30,17 @@ export async function GET(req: Request) {
   try {
     // Fetch active publications with RSS URLs
     const sb = getSupabase()
-    const { data: pubs } = await sb
+    const { data: pubs, error: pubsError } = await sb
       .from('loro_monitored_publications')
       .select('slug, name, rss_url, tier')
       .eq('active', true)
       .not('rss_url', 'is', null)
       .order('tier', { ascending: true })
+
+    if (pubsError) {
+      await completeRun(runId, { found: 0, new: 0, duplicate: 0 }, [pubsError.message])
+      return NextResponse.json({ error: `DB error: ${pubsError.message}` }, { status: 500 })
+    }
 
     if (!pubs?.length) {
       await completeRun(runId, { found: 0, new: 0, duplicate: 0 })
