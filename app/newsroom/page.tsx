@@ -133,13 +133,31 @@ export default function NewsroomPage() {
 
   useEffect(() => { load() }, [load])
 
-  async function voteAngle(id: string, vote: 'up' | 'down') {
+  const [voteState, setVoteState] = useState<{candidateId: string; vote: 'up'|'down'} | null>(null)
+  const [voteNote, setVoteNote] = useState('')
+  const [votingInFlight, setVotingInFlight] = useState(false)
+
+  async function submitVote() {
+    if (!voteState) return
+    setVotingInFlight(true)
     await fetch('/api/newsroom/vote', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ candidate_id: id, vote }),
+      body: JSON.stringify({
+        candidate_id: voteState.candidateId,
+        vote: voteState.vote,
+        note: voteNote.trim() || null,
+      }),
     })
+    setVoteState(null)
+    setVoteNote('')
+    setVotingInFlight(false)
     await load()
+  }
+
+  async function voteAngle(id: string, vote: 'up' | 'down') {
+    setVoteNote('')
+    setVoteState({ candidateId: id, vote })
   }
 
   function openDraft(c: Candidate) {
@@ -575,6 +593,74 @@ export default function NewsroomPage() {
                         <div style={{ fontSize: 10, color: 'var(--ink5)', marginTop: 6 }}>
                           Vote to calibrate — your decisions train the engine to predict what angles are worth pursuing
                         </div>
+
+                        {/* Reason panel — appears when this candidate is being voted on */}
+                        {voteState?.candidateId === c.id && (
+                          <div style={{ marginTop: 12, background: 'var(--paper2)', border: '1px solid var(--border)', padding: '14px 16px' }}>
+                            <div style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.1em', textTransform: 'uppercase', color: voteState.vote === 'up' ? '#1E6B3A' : '#B33A1A', marginBottom: 10 }}>
+                              {voteState.vote === 'up' ? '🔥 Strong angle — tell us why' : '👎 Weak angle — tell us why'}
+                            </div>
+
+                            {/* Quick-pick reasons */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+                              {(voteState.vote === 'up' ? [
+                                'Specific regulatory provision not covered',
+                                'Timing pattern is genuinely novel',
+                                'Cross-jurisdictional angle nobody has',
+                                'Pre-announcement signal is strong',
+                                'Loro has proprietary data on this',
+                              ] : [
+                                'Company covered, not the specific event',
+                                'Already widely reported elsewhere',
+                                'Not payments-relevant enough',
+                                'Angle too speculative',
+                                'Story doesn\'t hold without more data',
+                              ]).map(reason => (
+                                <button
+                                  key={reason}
+                                  onClick={() => setVoteNote(voteNote === reason ? '' : reason)}
+                                  style={{
+                                    fontSize: 11, padding: '4px 10px', cursor: 'pointer',
+                                    border: `1px solid ${voteNote === reason ? (voteState.vote === 'up' ? '#1E6B3A' : '#B33A1A') : 'var(--border)'}`,
+                                    background: voteNote === reason ? (voteState.vote === 'up' ? '#EEFAF2' : '#FEF2EE') : 'var(--paper)',
+                                    color: voteNote === reason ? (voteState.vote === 'up' ? '#1E6B3A' : '#B33A1A') : 'var(--ink4)',
+                                    borderRadius: 20,
+                                    fontFamily: 'var(--font-sans)',
+                                  }}
+                                >
+                                  {reason}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Free text */}
+                            <textarea
+                              placeholder="Add more detail (optional)..."
+                              value={voteNote.length > 40 ? voteNote : ''}
+                              onChange={e => setVoteNote(e.target.value)}
+                              rows={2}
+                              style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', fontSize: 12, color: 'var(--ink)', background: 'var(--paper)', outline: 'none', resize: 'none', fontFamily: 'var(--font-sans)', marginBottom: 10 }}
+                            />
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                              <button
+                                className="loro-nr-btn primary"
+                                onClick={submitVote}
+                                disabled={votingInFlight}
+                                style={{ fontSize: 11 }}
+                              >
+                                {votingInFlight ? 'Saving…' : 'Submit →'}
+                              </button>
+                              <button
+                                className="loro-nr-btn"
+                                onClick={() => { setVoteState(null); setVoteNote('') }}
+                                style={{ fontSize: 11 }}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     )}
 
