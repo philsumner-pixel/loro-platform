@@ -119,7 +119,28 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: 
   const [voteDir, setVoteDir] = useState<'up'|'down'|null>(null)
   const [voteNote, setVoteNote] = useState('')
   const [saving, setSaving] = useState(false)
+  const [generatingBrief, setGeneratingBrief] = useState(false)
+  const [briefError, setBriefError] = useState<string|null>(null)
   const bd = c.evidence_packet?.score_breakdown
+
+  async function generateBrief() {
+    setGeneratingBrief(true)
+    setBriefError(null)
+    try {
+      const res = await fetch('/api/newsroom/generate-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_id: c.id }),
+      })
+      const data = await res.json()
+      if (data.error) setBriefError(data.error)
+      else onUpdateStatus(c.id, c.status)  // reload
+    } catch {
+      setBriefError('Generation failed — check ANTHROPIC_API_KEY is set in Vercel')
+    } finally {
+      setGeneratingBrief(false)
+    }
+  }
 
   async function submitVote() {
     if (!voteDir) return
@@ -284,11 +305,34 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: 
       )}
 
       {/* AI brief */}
-      <div className="loro-nr-detail-section-title">AI brief</div>
+      <div className="loro-nr-detail-section-title" style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
+        <span>AI brief</span>
+        {!c.ai_brief && (
+          <button className="loro-nr-btn primary" style={{fontSize:10,padding:'3px 12px'}}
+            onClick={generateBrief} disabled={generatingBrief}>
+            {generatingBrief ? 'Generating…' : '✦ Generate brief'}
+          </button>
+        )}
+        {c.ai_brief && (
+          <button className="loro-nr-btn" style={{fontSize:10,padding:'3px 12px'}}
+            onClick={generateBrief} disabled={generatingBrief}>
+            {generatingBrief ? 'Regenerating…' : '↻ Regenerate'}
+          </button>
+        )}
+      </div>
+      {briefError && (
+        <div style={{fontSize:12,color:'#B33A1A',padding:'8px 12px',background:'#FEF2EE',marginBottom:10}}>
+          {briefError}
+        </div>
+      )}
       <div className="loro-nr-brief">
-        {c.ai_brief ?? (
+        {c.ai_brief ? (
+          <div style={{whiteSpace:'pre-wrap',fontSize:13,lineHeight:1.75,color:'var(--ink3)',fontFamily:"'Inter',sans-serif"}}>{c.ai_brief}</div>
+        ) : (
           <span className="loro-nr-brief-placeholder">
-            Brief not yet generated. When the Loro engine produces a 75% draft it will appear here.
+            {generatingBrief
+              ? 'Generating first draft with Claude Sonnet — usually takes 15–20 seconds…'
+              : 'Click "Generate brief" to produce a 75% first draft from the signal evidence. Requires ANTHROPIC_API_KEY in Vercel.'}
           </span>
         )}
       </div>

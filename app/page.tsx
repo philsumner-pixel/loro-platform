@@ -4,6 +4,7 @@ import HeroSection from '@/components/HeroSection'
 import DataStrip from '@/components/DataStrip'
 import ArticleGrid from '@/components/ArticleGrid'
 import NewsletterSection from '@/components/NewsletterSection'
+import ScoreWidget from '@/components/ScoreWidget'
 import SiteFooter from '@/components/SiteFooter'
 import AdSlot from '@/components/AdSlot'
 import SponsorTag from '@/components/SponsorTag'
@@ -41,6 +42,8 @@ export default function HomePage() {
             </div>
             <ArticleGrid variant="intelligence" />
           </div>
+
+          <ScoreWidget />
         </div>
 
         {/* Sponsor slot — section sponsorship example */}
