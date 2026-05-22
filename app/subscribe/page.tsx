@@ -7,13 +7,7 @@ export const metadata: Metadata = {
   description: 'Two tiers: Loro Weekly for payments enthusiasts, Loro Intelligence for institutional investors and B2B professionals.',
 }
 
-export default function SubscribePage({
-  searchParams,
-}: {
-  searchParams: { track?: string; confirmed?: string }
-}) {
-  const track = searchParams.track  // 'weekly' | 'intelligence'
-
+export default function SubscribePage() {
   return (
     <>
       <Masthead />
