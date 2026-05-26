@@ -12,7 +12,7 @@ export default function Masthead() {
           <a href="#">Markets</a>
           <a href="#">FX Tracker</a>
           <a href="#">Funding</a>
-          <a href="#">Intelligence</a>
+          <a href="/dashboard">Intelligence</a>
           <a href="#">Regulation</a>
         </nav>
 
