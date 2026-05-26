@@ -21,9 +21,7 @@ export interface EntityScore {
   alert_triggered: boolean | null
 }
 
-interface Props {
-  entities: EntityScore[]
-}
+interface Props { entities: EntityScore[] }
 
 const BARS = [
   { l: 'Regulatory', k: 'regulatory_score' as const, c: '#A32D2D' },
@@ -33,11 +31,29 @@ const BARS = [
   { l: 'Market',     k: 'market_score'     as const, c: '#6A7A86' },
 ]
 
+// Strip legal suffixes for cleaner display
+function cleanName(raw: string): string {
+  return raw
+    .replace(/\s+Holdings$/i, ' Holdings')
+    .replace(/\s+(Group\s+)?Ltd\.?$/i, '')
+    .replace(/\s+Limited$/i, '')
+    .replace(/\s+Inc\.?$/i, '')
+    .replace(/\s+NV$/i, '')
+    .replace(/\s+Payments\s+Ltd$/i, '')
+    .replace(/\s+Finance\s+Ltd$/i, ' Finance')
+    .replace(/\s+Bank\s+Ltd$/i, ' Bank')
+    .trim()
+}
+
+// Approximate label width in pixels
+function labelW(name: string): number {
+  return Math.max(name.length * 5.6 + 4, 24)
+}
+
 export default function EntityLandscape({ entities }: Props) {
-  const svgRef = useRef<SVGSVGElement>(null)
-  const [selected, setSelected] = useState<EntityScore | null>(null)
+  const svgRef   = useRef<SVGSVGElement>(null)
+  const [selected, setSelected]   = useState<EntityScore | null>(null)
   const [activeJur, setActiveJur] = useState('all')
-  const [ready, setReady] = useState(false)
 
   const highlighted = entities.reduce((best, e) =>
     e.loro_score > (best?.loro_score ?? 0) ? e : best
@@ -45,90 +61,93 @@ export default function EntityLandscape({ entities }: Props) {
 
   useEffect(() => {
     if (!svgRef.current || !entities.length) return
+
     import('d3').then(d3 => {
       const svg = svgRef.current!
-      const W = svg.clientWidth || 450
-      const H = 360
-      const ml = 52, mt = 22, mr = 14, mb = 42
-      const pw = W - ml - mr, ph = H - mt - mb
+      const W   = svg.clientWidth || 460
+      const H   = 360
+      const ml = 52, mt = 22, mr = 14, mb = 44
+      const pw  = W - ml - mr
+      const ph  = H - mt - mb
 
-      // X = regulatory_score (0–100 computed sub-score) gives real spread across all entities.
-      // Y = loro_score (overall composite).
-      // Dot radius = regulatory_events_7d (raw filing count — size encodes activity intensity).
-      const maxRegScore = 105  // fixed 0-100 scale with small headroom
-      const maxEvents   = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
-      const maxScore    = Math.max(...entities.map(e => e.loro_score), 60)
+      // ── Adaptive scale selection ──────────────────────────────────
+      // Examine the spread of regulatory_score values.
+      // If the highest entity is >2.5x the 75th-percentile value,
+      // use a sqrt (power 0.5) scale to compress the outlier and
+      // give the cluster more readable space.
+      const xVals = entities
+        .map(e => e.regulatory_score ?? 0)
+        .sort((a, b) => a - b)
+      const p75    = xVals[Math.floor(xVals.length * 0.75)] || 1
+      const xMax   = xVals[xVals.length - 1] || 100
+      const isSkewed = (xMax / p75) > 2.5
 
-      const xSc = d3.scaleLinear().domain([0, maxRegScore]).range([0, pw])
-      const ySc = d3.scaleLinear().domain([15, Math.ceil(maxScore / 10) * 10 + 8]).range([ph, 0])
-      const rSc = d3.scaleSqrt().domain([0, maxEvents]).range([4, 14])
+      // Sqrt scale naturally compresses outliers without hiding them.
+      // Linear when data is well-spread (no compression needed).
+      const xSc = isSkewed
+        ? d3.scalePow().exponent(0.5).domain([0, xMax + 8]).range([0, pw])
+        : d3.scaleLinear().domain([0, xMax + 8]).range([0, pw])
 
-      const isDark = matchMedia('(prefers-color-scheme:dark)').matches
+      const yMax = Math.max(...entities.map(e => e.loro_score), 60)
+      const ySc  = d3.scaleLinear()
+        .domain([15, Math.ceil(yMax / 10) * 10 + 8])
+        .range([ph, 0])
+
+      const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
+      const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([4, 13])
+
+      // ── Colours ───────────────────────────────────────────────────
+      const isDark  = matchMedia('(prefers-color-scheme:dark)').matches
       const LAPIS   = isDark ? '#5A9EC4' : '#1A3A6B'
       const RED     = isDark ? '#F09595' : '#A32D2D'
-
-      const cs = getComputedStyle(document.documentElement)
-      const COL_TER = cs.getPropertyValue('--color-text-tertiary').trim() || '#888'
+      const cs      = getComputedStyle(document.documentElement)
+      const COL_TER = cs.getPropertyValue('--color-text-tertiary').trim()  || '#888'
       const COL_SEC = cs.getPropertyValue('--color-text-secondary').trim() || '#555'
-      const COL_BDR = cs.getPropertyValue('--color-border-tertiary').trim() || '#eee'
+      const COL_BDR = cs.getPropertyValue('--color-border-tertiary').trim()|| '#eee'
 
       function dotColor(e: EntityScore) { return e === highlighted ? RED : LAPIS }
 
-      // Dot positions — x from regulatory_score, y from loro_score
-      // Natural spread: PayPal ~100, others 16–40
-      // No jitter needed — regulatory_score genuinely differentiates all entities
+      // ── Dot positions (fixed) ──────────────────────────────────────
       const dotPos = entities.map(e => ({
-        x: xSc(e.regulatory_score ?? 0),
-        y: ySc(e.loro_score),
+        x:  xSc(e.regulatory_score ?? 0),
+        y:  ySc(e.loro_score),
         fx: xSc(e.regulatory_score ?? 0),
         fy: ySc(e.loro_score),
       }))
 
-      // Clean display names — strip legal suffixes
-      function cleanName(raw: string): string {
-        return raw
-          .replace(/\s+Holdings$/i, ' Holdings')
-          .replace(/\s+(Group\s+)?Ltd\.?$/i, '')
-          .replace(/\s+Limited$/i, '')
-          .replace(/\s+Inc\.?$/i, '')
-          .replace(/\s+NV$/i, '')
-          .replace(/\s+Payments\s+Ltd$/i, '')
-          .replace(/\s+Finance\s+Ltd$/i, ' Finance')
-          .replace(/\s+Bank\s+Ltd$/i, ' Bank')
-          .trim()
+      // ── Force-directed label placement ────────────────────────────
+      const labelH = 22
+
+      interface LabelNode {
+        x: number; y: number; vx: number; vy: number; i: number
+        fx?: number | null; fy?: number | null
       }
 
-      function labelW(name: string) { return Math.max(name.length * 5.8 + 4, 28) }
-      const labelH = 22
-        y: ySc(e.loro_score),
-        fx: xSc(e.regulatory_events_7d ?? 0),
-        fy: ySc(e.loro_score),
-      }))
-
-      interface LabelNode { x: number; y: number; vx: number; vy: number; i: number; fx?: number | null; fy?: number | null }
-
       const labelNodes: LabelNode[] = entities.map((e, i) => {
-        const dx = dotPos[i].x, dy = dotPos[i].y
-        const isRight = dx > pw * 0.65
-        const isTop   = dy < ph * 0.4
-        const isLeft  = dx < pw * 0.2
+        const dx  = dotPos[i].x
+        const dy  = dotPos[i].y
+        const isRight  = dx > pw * 0.65
+        const isTop    = dy < ph * 0.40
+        const isLeft   = dx < pw * 0.20
         let ox = 16, oy = 0
-        if (e === highlighted)     { ox = -80; oy = -20 }
-        else if (isRight && isTop) { ox = -65; oy = -18 }
-        else if (isRight)          { ox = -65; oy = 0   }
-        else if (isLeft && isTop)  { ox = 14;  oy = -20 }
-        else if (isLeft)           { ox = 14;  oy = 0   }
-        else if (isTop)            { ox = 14;  oy = -20 }
-        else                       { ox = 14;  oy = 0   }
+        if (e === highlighted)      { ox = -82; oy = -22 }
+        else if (isRight && isTop)  { ox = -68; oy = -18 }
+        else if (isRight)           { ox = -68; oy = 0   }
+        else if (isLeft && isTop)   { ox = 14;  oy = -20 }
+        else if (isLeft)            { ox = 14;  oy = 0   }
+        else if (isTop)             { ox = 14;  oy = -20 }
+        else                        { ox = 14;  oy = 0   }
         return { x: dx + ox, y: dy + oy, vx: 0, vy: 0, i }
       })
 
-      const links = entities.map((_, i) => ({
-        source: labelNodes[i], target: dotPos[i],
-        strength: entities[i] === highlighted ? 0.3 : 0.5,
-        distance: entities[i] === highlighted ? 50 : 18,
+      const links = entities.map((e, i) => ({
+        source:   labelNodes[i],
+        target:   dotPos[i],
+        strength: e === highlighted ? 0.28 : 0.52,
+        distance: e === highlighted ? 55   : 20,
       }))
 
+      // Rectangular collision force
       function forceRectCollide() {
         let ns: LabelNode[]
         function force(alpha: number) {
@@ -138,13 +157,14 @@ export default function EntityLandscape({ entities }: Props) {
             const wiH = labelW(cn) / 2 + 4
             const hiH = labelH / 2 + 4
             for (let j = i + 1; j < ns.length; j++) {
-              const nj = ns[j]
+              const nj  = ns[j]
               const cnj = cleanName(entities[nj.i].entity_name)
               const wjH = labelW(cnj) / 2 + 4
               const hjH = labelH / 2 + 4
-              const dx = nj.x - ni.x, dy = nj.y - ni.y
-              const ox = wiH + wjH - Math.abs(dx)
-              const oy = hiH + hjH - Math.abs(dy)
+              const dx  = nj.x - ni.x
+              const dy  = nj.y - ni.y
+              const ox  = wiH + wjH - Math.abs(dx)
+              const oy  = hiH + hjH - Math.abs(dy)
               if (ox > 0 && oy > 0) {
                 const push = Math.min(ox, oy) * 0.65 * alpha
                 if (ox < oy) {
@@ -167,14 +187,16 @@ export default function EntityLandscape({ entities }: Props) {
 
       const sim = d3.forceSimulation<LabelNode>(labelNodes)
         .force('rect', forceRectCollide())
-        .force('link', d3.forceLink(links).strength(d => (d as {strength: number}).strength).distance(d => (d as {distance: number}).distance))
+        .force('link', d3.forceLink(links)
+          .strength(d => (d as { strength: number }).strength)
+          .distance(d => (d as { distance: number }).distance))
         .force('dotX', d3.forceX<LabelNode>().x(d => dotPos[d.i].x).strength(0.03))
         .force('dotY', d3.forceY<LabelNode>().y(d => dotPos[d.i].y).strength(0.03))
         .stop()
 
-      for (let t = 0; t < 450; t++) sim.tick()
+      for (let t = 0; t < 480; t++) sim.tick()
 
-      // ── Render ─────────────────────────────────────────────────────
+      // ── Render ────────────────────────────────────────────────────
       const root = d3.select(svg)
       root.selectAll('*').remove()
       root.attr('viewBox', `0 0 ${W} ${H}`)
@@ -188,7 +210,8 @@ export default function EntityLandscape({ entities }: Props) {
 
       // Axes
       g.append('g').attr('transform', `translate(0,${ph})`)
-        .call(d3.axisBottom(xSc).ticks(6).tickSize(3).tickPadding(5))
+        .call(d3.axisBottom(xSc).ticks(6).tickSize(3).tickPadding(5)
+          .tickFormat(n => isSkewed ? String(Math.round((n as number) ** 2)) : String(n)))
         .call(a => {
           a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
           a.selectAll('line').attr('stroke', COL_BDR)
@@ -205,23 +228,26 @@ export default function EntityLandscape({ entities }: Props) {
         })
 
       // Axis labels
-      root.append('text').attr('x', ml + pw / 2).attr('y', H - 4).attr('text-anchor', 'middle')
-        .attr('fill', COL_TER).attr('font-size', 9).style('font-family', 'var(--font-sans)')
-        .attr('letter-spacing', '.1em').text('REGULATORY SIGNAL SCORE (0–100)')
+      root.append('text').attr('x', ml + pw / 2).attr('y', H - 4)
+        .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
+        .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
+        .text(isSkewed
+          ? 'REGULATORY SIGNAL SCORE (sqrt scale — outlier compressed)'
+          : 'REGULATORY SIGNAL SCORE (0-100)')
 
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
-        .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em').text('LORO SCORE')
+        .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
+        .text('LORO SCORE')
 
-      // Leader lines — only for labelled (notable) entities
+      // Leader lines
       const ldrG = g.append('g').attr('pointer-events', 'none')
       entities.forEach((e, i) => {
-        if (!shouldLabel(e)) return
-        const lx = labelNodes[i].x, ly = labelNodes[i].y
-        const dx = dotPos[i].x, dy = dotPos[i].y
+        const lx   = labelNodes[i].x, ly = labelNodes[i].y
+        const dx   = dotPos[i].x,     dy = dotPos[i].y
         const dist = Math.sqrt((lx - dx) ** 2 + (ly - dy) ** 2)
         if (dist < 8) return
-        const r = rSc(e.regulatory_events_7d ?? 0) + 1
+        const r  = rSc(e.regulatory_events_7d ?? 0) + 1
         const ux = (lx - dx) / dist, uy = (ly - dy) / dist
         ldrG.append('line')
           .attr('class', `ldr-${i}`)
@@ -232,34 +258,29 @@ export default function EntityLandscape({ entities }: Props) {
           .attr('opacity', e === highlighted ? 0.7 : 0.5)
       })
 
-      // No cluster annotation needed — entities spread naturally across regulatory_score axis
-
       // Dots
       const nodeG = g.append('g')
       const nodes = nodeG.selectAll('.nd').data(entities).join('g')
         .attr('class', 'nd')
-        .attr('transform', (_, i) => `translate(${dotPos[i].x.toFixed(1)},${dotPos[i].y.toFixed(1)})`)
+        .attr('transform', (_, i) =>
+          `translate(${dotPos[i].x.toFixed(1)},${dotPos[i].y.toFixed(1)})`)
         .style('cursor', 'pointer')
 
       nodes.append('circle').attr('class', 'dot')
         .attr('r', 0)
         .attr('fill', d => dotColor(d))
-        .attr('fill-opacity', d => d === highlighted ? 1 : 0.7)
+        .attr('fill-opacity', d => d === highlighted ? 1 : 0.72)
         .attr('stroke', 'none')
 
-      // Label all entities — regulatory_score spreads them naturally
-      function shouldLabel(_e: EntityScore): boolean { return true }
-
-      // Labels — only rendered for notable entities
+      // Labels
       const lblG = g.append('g').attr('pointer-events', 'none')
       entities.forEach((e, i) => {
-        if (!shouldLabel(e)) return  // dot-only for clustered entities
-
-        const lx = labelNodes[i].x, ly = labelNodes[i].y
-        const cn = cleanName(e.entity_name)
-        const wH = labelW(cn) / 2
-        const anchor = lx > dotPos[i].x ? 'start' : 'end'
-        const ax = anchor === 'start' ? lx - wH : lx + wH
+        const lx   = labelNodes[i].x, ly = labelNodes[i].y
+        const cn   = cleanName(e.entity_name)
+        const wH   = labelW(cn) / 2
+        const toRight = lx > dotPos[i].x
+        const anchor  = toRight ? 'start' : 'end'
+        const ax      = anchor === 'start' ? lx - wH : lx + wH
 
         lblG.append('text').attr('class', `lbl-n-${i}`)
           .attr('x', ax).attr('y', ly - 2)
@@ -279,11 +300,13 @@ export default function EntityLandscape({ entities }: Props) {
           .text(Math.round(e.loro_score))
       })
 
-      // Interactions
+      // ── Interactions ──────────────────────────────────────────────
       nodes.on('mouseenter', function(_, d) {
-        d3.select(this).select('.dot').attr('stroke', dotColor(d)).attr('stroke-width', 2).attr('fill-opacity', 1)
-        nodes.filter(n => n !== d).select('.dot').transition().duration(100).attr('fill-opacity', 0.1)
-        ldrG.selectAll('line').transition().duration(100).attr('opacity', 0.1)
+        d3.select(this).select('.dot')
+          .attr('stroke', dotColor(d)).attr('stroke-width', 2).attr('fill-opacity', 1)
+        nodes.filter(n => n !== d).select('.dot')
+          .transition().duration(100).attr('fill-opacity', 0.12)
+        ldrG.selectAll('line').transition().duration(100).attr('opacity', 0.08)
         lblG.selectAll('text').transition().duration(100).attr('opacity', 0.15)
         const i = entities.indexOf(d)
         ldrG.select(`.ldr-${i}`).attr('opacity', 1)
@@ -294,34 +317,33 @@ export default function EntityLandscape({ entities }: Props) {
         const j = activeJur
         nodes.select('.dot').transition().duration(150)
           .attr('stroke', 'none')
-          .attr('fill-opacity', (d: EntityScore) => j === 'all' || d.jurisdiction === j ? (d === highlighted ? 1 : 0.7) : 0.1)
+          .attr('fill-opacity', (d: EntityScore) =>
+            j === 'all' || d.jurisdiction === j ? (d === highlighted ? 1 : 0.72) : 0.1)
         ldrG.selectAll('line').transition().duration(150).attr('opacity', 0.5)
         lblG.selectAll('text').transition().duration(150).attr('opacity', 1)
         setSelected(null)
       })
 
       // Animate in
-      nodes.select('.dot').transition().duration(700).delay((_, i) => i * 50)
+      nodes.select('.dot').transition().duration(700).delay((_, i) => i * 48)
         .attrTween('r', function(d: EntityScore) {
-          const r = rSc(d.regulatory_events_7d ?? 0)
-          const final = Math.max(r, d === highlighted ? 7 : 5)
-          return (t: number) => String(d3.easeBackOut.overshoot(1.3)(t) * final)
+          const base = rSc(d.regulatory_events_7d ?? 0)
+          const r    = Math.max(base, d === highlighted ? 7 : 4.5)
+          return (t: number) => String(d3.easeBackOut.overshoot(1.3)(t) * r)
         })
-
-      setReady(true)
     })
   }, [entities, activeJur]) // eslint-disable-line
 
   const dirLabel = (d: string | null) =>
-    ({ mixed: 'Mixed insider activity', buying: 'Insiders buying', selling: 'Insiders selling' }[d ?? ''] ?? '')
+    ({ mixed: 'Mixed insider activity', buying: 'Insiders buying', selling: 'Insiders selling' }
+      [d ?? ''] ?? '')
 
   return (
     <div>
-      {/* Filters */}
+      {/* Jurisdiction filters */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
         {['all', 'GB', 'US', 'EU'].map(j => (
-          <button key={j}
-            onClick={() => setActiveJur(j)}
+          <button key={j} onClick={() => setActiveJur(j)}
             style={{
               padding: '2px 11px', borderRadius: 20, fontSize: 10, cursor: 'pointer',
               letterSpacing: '.04em', transition: 'all .12s',
@@ -334,15 +356,13 @@ export default function EntityLandscape({ entities }: Props) {
         ))}
       </div>
 
-      {/* Chart + panel */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 190px', gap: 0 }}>
-        <div>
-          <svg ref={svgRef} width="100%" style={{ display: 'block', overflow: 'visible' }} />
-        </div>
+      {/* Chart + detail panel */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 190px' }}>
+        <svg ref={svgRef} width="100%" style={{ display: 'block', overflow: 'visible' }} />
 
-        {/* Detail panel */}
         <div style={{ borderLeft: '0.5px solid var(--color-border-tertiary)', padding: '16px' }}>
-          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
+          <div style={{ fontSize: 9, letterSpacing: '.14em', textTransform: 'uppercase',
+            color: 'var(--color-text-tertiary)', marginBottom: 8 }}>
             Entity detail
           </div>
 
@@ -352,16 +372,22 @@ export default function EntityLandscape({ entities }: Props) {
             </div>
           ) : (
             <>
-              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500, color: selected === highlighted ? '#A32D2D' : 'var(--color-text-primary)', lineHeight: 1.2, marginBottom: 2 }}>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 500,
+                color: selected === highlighted ? '#A32D2D' : 'var(--color-text-primary)',
+                lineHeight: 1.2, marginBottom: 2 }}>
                 {selected.entity_name}
               </div>
-              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', letterSpacing: '.06em', marginBottom: 12 }}>
+              <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)',
+                letterSpacing: '.06em', marginBottom: 12 }}>
                 {selected.jurisdiction}
               </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 44, fontWeight: 500, lineHeight: 1, color: selected === highlighted ? '#A32D2D' : '#1A3A6B', letterSpacing: '-.02em' }}>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 44, fontWeight: 500,
+                lineHeight: 1, letterSpacing: '-.02em',
+                color: selected === highlighted ? '#A32D2D' : '#1A3A6B' }}>
                 {Math.round(selected.loro_score)}
               </div>
-              <div style={{ fontSize: 9, letterSpacing: '.08em', color: 'var(--color-text-tertiary)', marginBottom: 14 }}>
+              <div style={{ fontSize: 9, letterSpacing: '.08em',
+                color: 'var(--color-text-tertiary)', marginBottom: 14 }}>
                 {selected.score_delta != null
                   ? `${selected.score_delta > 0 ? '+' : ''}${selected.score_delta.toFixed(1)} from yesterday`
                   : 'Day 1 — baseline establishing'}
@@ -370,21 +396,28 @@ export default function EntityLandscape({ entities }: Props) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {BARS.map(b => (
                   <div key={b.l}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 9.5, marginBottom: 3 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between',
+                      fontSize: 9.5, marginBottom: 3 }}>
                       <span style={{ color: 'var(--color-text-tertiary)' }}>{b.l}</span>
-                      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-secondary)' }}>
+                      <span style={{ fontFamily: 'var(--font-mono)',
+                        color: 'var(--color-text-secondary)' }}>
                         {Math.round(selected[b.k] ?? 50)}
                       </span>
                     </div>
                     <div style={{ height: 1.5, background: 'var(--color-border-tertiary)' }}>
-                      <div style={{ height: 1.5, width: `${selected[b.k] ?? 50}%`, background: b.c }} />
+                      <div style={{ height: 1.5, width: `${selected[b.k] ?? 50}%`,
+                        background: b.c }} />
                     </div>
                   </div>
                 ))}
               </div>
-              <div style={{ marginTop: 12, paddingTop: 10, borderTop: '.5px solid var(--color-border-tertiary)', fontSize: 10, color: 'var(--color-text-tertiary)', lineHeight: 1.8 }}>
+              <div style={{ marginTop: 12, paddingTop: 10,
+                borderTop: '.5px solid var(--color-border-tertiary)',
+                fontSize: 10, color: 'var(--color-text-tertiary)', lineHeight: 1.8 }}>
                 {(selected.regulatory_events_7d ?? 0) > 0 && (
-                  <div>{selected.regulatory_events_7d} regulatory filing{selected.regulatory_events_7d !== 1 ? 's' : ''} (7d)</div>
+                  <div>{selected.regulatory_events_7d} regulatory filing
+                    {selected.regulatory_events_7d !== 1 ? 's' : ''} (7d)
+                  </div>
                 )}
                 {selected.avg_anomaly_score_7d != null && (
                   <div>Avg anomaly {selected.avg_anomaly_score_7d.toFixed(1)}/10</div>
@@ -397,7 +430,8 @@ export default function EntityLandscape({ entities }: Props) {
                 )}
               </div>
               <a href={`/companies/${selected.entity_slug}`}
-                style={{ display: 'block', marginTop: 12, fontSize: 10, color: '#1A3A6B', letterSpacing: '.04em', textDecoration: 'none' }}>
+                style={{ display: 'block', marginTop: 12, fontSize: 10,
+                  color: '#1A3A6B', letterSpacing: '.04em', textDecoration: 'none' }}>
                 Full entity page
               </a>
             </>
