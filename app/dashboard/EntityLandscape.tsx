@@ -52,12 +52,16 @@ export default function EntityLandscape({ entities }: Props) {
       const ml = 52, mt = 22, mr = 14, mb = 42
       const pw = W - ml - mr, ph = H - mt - mb
 
-      const maxEvents = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
-      const maxScore  = Math.max(...entities.map(e => e.loro_score), 60)
+      // X = regulatory_score (0–100 computed sub-score) gives real spread across all entities.
+      // Y = loro_score (overall composite).
+      // Dot radius = regulatory_events_7d (raw filing count — size encodes activity intensity).
+      const maxRegScore = 105  // fixed 0-100 scale with small headroom
+      const maxEvents   = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
+      const maxScore    = Math.max(...entities.map(e => e.loro_score), 60)
 
-      const xSc = d3.scaleLinear().domain([-0.6, maxEvents + 2]).range([0, pw])
+      const xSc = d3.scaleLinear().domain([0, maxRegScore]).range([0, pw])
       const ySc = d3.scaleLinear().domain([15, Math.ceil(maxScore / 10) * 10 + 8]).range([ph, 0])
-      const rSc = d3.scaleSqrt().domain([0, maxEvents]).range([5, 14])
+      const rSc = d3.scaleSqrt().domain([0, maxEvents]).range([4, 14])
 
       const isDark = matchMedia('(prefers-color-scheme:dark)').matches
       const LAPIS   = isDark ? '#5A9EC4' : '#1A3A6B'
@@ -69,6 +73,16 @@ export default function EntityLandscape({ entities }: Props) {
       const COL_BDR = cs.getPropertyValue('--color-border-tertiary').trim() || '#eee'
 
       function dotColor(e: EntityScore) { return e === highlighted ? RED : LAPIS }
+
+      // Dot positions — x from regulatory_score, y from loro_score
+      // Natural spread: PayPal ~100, others 16–40
+      // No jitter needed — regulatory_score genuinely differentiates all entities
+      const dotPos = entities.map(e => ({
+        x: xSc(e.regulatory_score ?? 0),
+        y: ySc(e.loro_score),
+        fx: xSc(e.regulatory_score ?? 0),
+        fy: ySc(e.loro_score),
+      }))
 
       // Clean display names — strip legal suffixes
       function cleanName(raw: string): string {
@@ -86,27 +100,6 @@ export default function EntityLandscape({ entities }: Props) {
 
       function labelW(name: string) { return Math.max(name.length * 5.8 + 4, 28) }
       const labelH = 22
-
-      // For entities with 0 regulatory events, add deterministic horizontal jitter
-      // so dots don't all stack at x=0 — spread them from -0.45 to +0.45
-      // based on their rank in the score ordering
-      const zeroEventEntities = entities
-        .filter(e => (e.regulatory_events_7d ?? 0) === 0)
-        .sort((a, b) => b.loro_score - a.loro_score)
-
-      function getJitteredX(e: EntityScore): number {
-        const raw = e.regulatory_events_7d ?? 0
-        if (raw > 0) return raw
-        const idx = zeroEventEntities.indexOf(e)
-        const n = zeroEventEntities.length
-        if (n <= 1) return 0
-        // Spread from -0.45 to +0.45, centre near 0
-        return (idx / (n - 1)) * 0.9 - 0.45
-      }
-
-      // Smart initial offsets
-      const dotPos = entities.map(e => ({
-        x: xSc(getJitteredX(e)),
         y: ySc(e.loro_score),
         fx: xSc(e.regulatory_events_7d ?? 0),
         fy: ySc(e.loro_score),
@@ -118,20 +111,15 @@ export default function EntityLandscape({ entities }: Props) {
         const dx = dotPos[i].x, dy = dotPos[i].y
         const isRight = dx > pw * 0.65
         const isTop   = dy < ph * 0.4
-        const isLeft  = dx < pw * 0.15
-        const cn = cleanName(e.entity_name)
+        const isLeft  = dx < pw * 0.2
         let ox = 16, oy = 0
-        if (e === highlighted) { ox = -80; oy = -20 }  // highlighted: always go far left + up
+        if (e === highlighted)     { ox = -80; oy = -20 }
         else if (isRight && isTop) { ox = -65; oy = -18 }
         else if (isRight)          { ox = -65; oy = 0   }
+        else if (isLeft && isTop)  { ox = 14;  oy = -20 }
         else if (isLeft)           { ox = 14;  oy = 0   }
-        else if (isTop)            { ox = 14;  oy = -22 }
+        else if (isTop)            { ox = 14;  oy = -20 }
         else                       { ox = 14;  oy = 0   }
-        // Stagger left-cluster labels vertically to reduce initial overlap
-        if (!isRight && (e.regulatory_events_7d ?? 0) === 0) {
-          const rank = zeroEventEntities.indexOf(e)
-          oy = -22 + rank * 3  // spread vertically
-        }
         return { x: dx + ox, y: dy + oy, vx: 0, vy: 0, i }
       })
 
@@ -200,7 +188,7 @@ export default function EntityLandscape({ entities }: Props) {
 
       // Axes
       g.append('g').attr('transform', `translate(0,${ph})`)
-        .call(d3.axisBottom(xSc).ticks(Math.min(maxEvents + 2, 8)).tickSize(3).tickPadding(5))
+        .call(d3.axisBottom(xSc).ticks(6).tickSize(3).tickPadding(5))
         .call(a => {
           a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
           a.selectAll('line').attr('stroke', COL_BDR)
@@ -219,7 +207,7 @@ export default function EntityLandscape({ entities }: Props) {
       // Axis labels
       root.append('text').attr('x', ml + pw / 2).attr('y', H - 4).attr('text-anchor', 'middle')
         .attr('fill', COL_TER).attr('font-size', 9).style('font-family', 'var(--font-sans)')
-        .attr('letter-spacing', '.1em').text('REGULATORY EVENTS (7 DAYS)')
+        .attr('letter-spacing', '.1em').text('REGULATORY SIGNAL SCORE (0–100)')
 
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
@@ -244,18 +232,7 @@ export default function EntityLandscape({ entities }: Props) {
           .attr('opacity', e === highlighted ? 0.7 : 0.5)
       })
 
-      // Cluster annotation
-      const quietEntities = entities.filter(e => !shouldLabel(e))
-      if (quietEntities.length > 0) {
-        const quietIndices = entities.map((e, i) => shouldLabel(e) ? null : i).filter(x => x !== null) as number[]
-        const avgX = quietIndices.reduce((s, i) => s + dotPos[i].x, 0) / quietIndices.length
-        const avgY = quietIndices.reduce((s, i) => s + dotPos[i].y, 0) / quietIndices.length
-        g.append('text')
-          .attr('x', avgX + 12).attr('y', avgY + 32)
-          .attr('fill', COL_TER).attr('font-size', 9)
-          .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.04em')
-          .text(`${quietEntities.length} entities at baseline — hover to explore`)
-      }
+      // No cluster annotation needed — entities spread naturally across regulatory_score axis
 
       // Dots
       const nodeG = g.append('g')
@@ -270,12 +247,8 @@ export default function EntityLandscape({ entities }: Props) {
         .attr('fill-opacity', d => d === highlighted ? 1 : 0.7)
         .attr('stroke', 'none')
 
-      // Only label entities that are notable — have events or are top scorers
-      // Everything else is dot-only, labelled on hover via the panel
-      const LABEL_THRESHOLD_SCORE = 31
-      function shouldLabel(e: EntityScore): boolean {
-        return (e.regulatory_events_7d ?? 0) > 0 || e.loro_score >= LABEL_THRESHOLD_SCORE
-      }
+      // Label all entities — regulatory_score spreads them naturally
+      function shouldLabel(_e: EntityScore): boolean { return true }
 
       // Labels — only rendered for notable entities
       const lblG = g.append('g').attr('pointer-events', 'none')

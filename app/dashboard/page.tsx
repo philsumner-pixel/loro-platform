@@ -141,7 +141,7 @@ export default async function DashboardPage() {
               </h2>
             </div>
             <div style={{ fontSize: 10, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>
-              X axis: Regulatory events (7d) &nbsp;·&nbsp; Y axis: Loro Score &nbsp;·&nbsp; Dot size: signal intensity
+              X axis: Regulatory signal score (0-100) &nbsp;·&nbsp; Y axis: Loro Score &nbsp;·&nbsp; Dot size: filing activity
             </div>
           </div>
           <EntityLandscape entities={scores} />
