@@ -83,7 +83,9 @@ export default function EntityLandscape({ entities }: Props) {
         fy: ySc(e.loro_score),
       }))
 
-      const labelNodes = entities.map((e, i) => {
+      interface LabelNode { x: number; y: number; vx: number; vy: number; i: number; fx?: number | null; fy?: number | null }
+
+      const labelNodes: LabelNode[] = entities.map((e, i) => {
         const dx = dotPos[i].x, dy = dotPos[i].y
         const isRight = dx > pw * 0.7
         const isTop   = dy < ph * 0.35
@@ -100,7 +102,7 @@ export default function EntityLandscape({ entities }: Props) {
       }))
 
       function forceRectCollide() {
-        let ns: typeof labelNodes
+        let ns: LabelNode[]
         function force(alpha: number) {
           for (let i = 0; i < ns.length; i++) {
             const ni = ns[i]
@@ -128,15 +130,15 @@ export default function EntityLandscape({ entities }: Props) {
             ni.y = Math.max(labelH / 2 + 2, Math.min(ph - labelH / 2 - 2, ni.y))
           }
         }
-        force.initialize = (n: typeof labelNodes) => { ns = n }
+        force.initialize = (n: LabelNode[]) => { ns = n }
         return force
       }
 
-      const sim = d3.forceSimulation(labelNodes)
+      const sim = d3.forceSimulation<LabelNode>(labelNodes)
         .force('rect', forceRectCollide())
         .force('link', d3.forceLink(links).strength(0.6).distance(20))
-        .force('dotX', d3.forceX().x(d => dotPos[d.i].x).strength(0.05))
-        .force('dotY', d3.forceY().y(d => dotPos[d.i].y).strength(0.05))
+        .force('dotX', d3.forceX<LabelNode>().x(d => dotPos[d.i].x).strength(0.05))
+        .force('dotY', d3.forceY<LabelNode>().y(d => dotPos[d.i].y).strength(0.05))
         .stop()
 
       for (let t = 0; t < 320; t++) sim.tick()
