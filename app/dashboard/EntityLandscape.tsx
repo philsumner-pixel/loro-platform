@@ -225,13 +225,14 @@ export default function EntityLandscape({ entities }: Props) {
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em').text('LORO SCORE')
 
-      // Leader lines
+      // Leader lines — only for labelled (notable) entities
       const ldrG = g.append('g').attr('pointer-events', 'none')
       entities.forEach((e, i) => {
+        if (!shouldLabel(e)) return
         const lx = labelNodes[i].x, ly = labelNodes[i].y
         const dx = dotPos[i].x, dy = dotPos[i].y
         const dist = Math.sqrt((lx - dx) ** 2 + (ly - dy) ** 2)
-        if (dist < 6) return
+        if (dist < 8) return
         const r = rSc(e.regulatory_events_7d ?? 0) + 1
         const ux = (lx - dx) / dist, uy = (ly - dy) / dist
         ldrG.append('line')
@@ -242,6 +243,19 @@ export default function EntityLandscape({ entities }: Props) {
           .attr('stroke-width', e === highlighted ? 0.8 : 0.4)
           .attr('opacity', e === highlighted ? 0.7 : 0.5)
       })
+
+      // Cluster annotation
+      const quietEntities = entities.filter(e => !shouldLabel(e))
+      if (quietEntities.length > 0) {
+        const quietIndices = entities.map((e, i) => shouldLabel(e) ? null : i).filter(x => x !== null) as number[]
+        const avgX = quietIndices.reduce((s, i) => s + dotPos[i].x, 0) / quietIndices.length
+        const avgY = quietIndices.reduce((s, i) => s + dotPos[i].y, 0) / quietIndices.length
+        g.append('text')
+          .attr('x', avgX + 12).attr('y', avgY + 32)
+          .attr('fill', COL_TER).attr('font-size', 9)
+          .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.04em')
+          .text(`${quietEntities.length} entities at baseline — hover to explore`)
+      }
 
       // Dots
       const nodeG = g.append('g')
@@ -256,9 +270,18 @@ export default function EntityLandscape({ entities }: Props) {
         .attr('fill-opacity', d => d === highlighted ? 1 : 0.7)
         .attr('stroke', 'none')
 
-      // Labels
+      // Only label entities that are notable — have events or are top scorers
+      // Everything else is dot-only, labelled on hover via the panel
+      const LABEL_THRESHOLD_SCORE = 31
+      function shouldLabel(e: EntityScore): boolean {
+        return (e.regulatory_events_7d ?? 0) > 0 || e.loro_score >= LABEL_THRESHOLD_SCORE
+      }
+
+      // Labels — only rendered for notable entities
       const lblG = g.append('g').attr('pointer-events', 'none')
       entities.forEach((e, i) => {
+        if (!shouldLabel(e)) return  // dot-only for clustered entities
+
         const lx = labelNodes[i].x, ly = labelNodes[i].y
         const cn = cleanName(e.entity_name)
         const wH = labelW(cn) / 2
