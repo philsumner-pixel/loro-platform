@@ -55,9 +55,9 @@ export default function EntityLandscape({ entities }: Props) {
       const maxEvents = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
       const maxScore  = Math.max(...entities.map(e => e.loro_score), 60)
 
-      const xSc = d3.scaleLinear().domain([0, maxEvents + 2]).range([0, pw])
+      const xSc = d3.scaleLinear().domain([-0.6, maxEvents + 2]).range([0, pw])
       const ySc = d3.scaleLinear().domain([15, Math.ceil(maxScore / 10) * 10 + 8]).range([ph, 0])
-      const rSc = d3.scaleSqrt().domain([0, maxEvents]).range([5, 18])
+      const rSc = d3.scaleSqrt().domain([0, maxEvents]).range([5, 14])
 
       const isDark = matchMedia('(prefers-color-scheme:dark)').matches
       const LAPIS   = isDark ? '#5A9EC4' : '#1A3A6B'
@@ -68,16 +68,43 @@ export default function EntityLandscape({ entities }: Props) {
       const COL_SEC = cs.getPropertyValue('--color-text-secondary').trim() || '#555'
       const COL_BDR = cs.getPropertyValue('--color-border-tertiary').trim() || '#eee'
 
-      function dotColor(e: EntityScore) {
-        return e === highlighted ? RED : LAPIS
+      // Clean display names — strip legal suffixes
+      function cleanName(raw: string): string {
+        return raw
+          .replace(/\s+Holdings$/i, ' Holdings')
+          .replace(/\s+(Group\s+)?Ltd\.?$/i, '')
+          .replace(/\s+Limited$/i, '')
+          .replace(/\s+Inc\.?$/i, '')
+          .replace(/\s+NV$/i, '')
+          .replace(/\s+Payments\s+Ltd$/i, '')
+          .replace(/\s+Finance\s+Ltd$/i, ' Finance')
+          .replace(/\s+Bank\s+Ltd$/i, ' Bank')
+          .trim()
       }
 
       function labelW(name: string) { return Math.max(name.length * 5.8 + 4, 28) }
       const labelH = 22
 
+      // For entities with 0 regulatory events, add deterministic horizontal jitter
+      // so dots don't all stack at x=0 — spread them from -0.45 to +0.45
+      // based on their rank in the score ordering
+      const zeroEventEntities = entities
+        .filter(e => (e.regulatory_events_7d ?? 0) === 0)
+        .sort((a, b) => b.loro_score - a.loro_score)
+
+      function getJitteredX(e: EntityScore): number {
+        const raw = e.regulatory_events_7d ?? 0
+        if (raw > 0) return raw
+        const idx = zeroEventEntities.indexOf(e)
+        const n = zeroEventEntities.length
+        if (n <= 1) return 0
+        // Spread from -0.45 to +0.45, centre near 0
+        return (idx / (n - 1)) * 0.9 - 0.45
+      }
+
       // Smart initial offsets
       const dotPos = entities.map(e => ({
-        x: xSc(e.regulatory_events_7d ?? 0),
+        x: xSc(getJitteredX(e)),
         y: ySc(e.loro_score),
         fx: xSc(e.regulatory_events_7d ?? 0),
         fy: ySc(e.loro_score),
@@ -87,18 +114,29 @@ export default function EntityLandscape({ entities }: Props) {
 
       const labelNodes: LabelNode[] = entities.map((e, i) => {
         const dx = dotPos[i].x, dy = dotPos[i].y
-        const isRight = dx > pw * 0.7
-        const isTop   = dy < ph * 0.35
-        let ox = 18, oy = 0
-        if (isRight && isTop) { ox = -62; oy = -18 }
-        else if (isRight)     { ox = -60; oy = 0   }
-        else if (dx < pw * 0.2) { ox = -56; oy = 0 }
-        else if (isTop)       { ox = 0;   oy = -24 }
+        const isRight = dx > pw * 0.65
+        const isTop   = dy < ph * 0.4
+        const isLeft  = dx < pw * 0.15
+        const cn = cleanName(e.entity_name)
+        let ox = 16, oy = 0
+        if (e === highlighted) { ox = -80; oy = -20 }  // highlighted: always go far left + up
+        else if (isRight && isTop) { ox = -65; oy = -18 }
+        else if (isRight)          { ox = -65; oy = 0   }
+        else if (isLeft)           { ox = 14;  oy = 0   }
+        else if (isTop)            { ox = 14;  oy = -22 }
+        else                       { ox = 14;  oy = 0   }
+        // Stagger left-cluster labels vertically to reduce initial overlap
+        if (!isRight && (e.regulatory_events_7d ?? 0) === 0) {
+          const rank = zeroEventEntities.indexOf(e)
+          oy = -22 + rank * 3  // spread vertically
+        }
         return { x: dx + ox, y: dy + oy, vx: 0, vy: 0, i }
       })
 
       const links = entities.map((_, i) => ({
-        source: labelNodes[i], target: dotPos[i], strength: 0.6, distance: 20,
+        source: labelNodes[i], target: dotPos[i],
+        strength: entities[i] === highlighted ? 0.3 : 0.5,
+        distance: entities[i] === highlighted ? 50 : 18,
       }))
 
       function forceRectCollide() {
@@ -106,17 +144,19 @@ export default function EntityLandscape({ entities }: Props) {
         function force(alpha: number) {
           for (let i = 0; i < ns.length; i++) {
             const ni = ns[i]
-            const wiH = labelW(entities[ni.i].entity_name) / 2 + 3
-            const hiH = labelH / 2 + 3
+            const cn = cleanName(entities[ni.i].entity_name)
+            const wiH = labelW(cn) / 2 + 4
+            const hiH = labelH / 2 + 4
             for (let j = i + 1; j < ns.length; j++) {
               const nj = ns[j]
-              const wjH = labelW(entities[nj.i].entity_name) / 2 + 3
-              const hjH = labelH / 2 + 3
+              const cnj = cleanName(entities[nj.i].entity_name)
+              const wjH = labelW(cnj) / 2 + 4
+              const hjH = labelH / 2 + 4
               const dx = nj.x - ni.x, dy = nj.y - ni.y
               const ox = wiH + wjH - Math.abs(dx)
               const oy = hiH + hjH - Math.abs(dy)
               if (ox > 0 && oy > 0) {
-                const push = Math.min(ox, oy) * 0.6 * alpha
+                const push = Math.min(ox, oy) * 0.65 * alpha
                 if (ox < oy) {
                   const d2 = dx > 0 ? push : -push
                   ni.x -= d2 * 0.5; nj.x += d2 * 0.5
@@ -126,7 +166,8 @@ export default function EntityLandscape({ entities }: Props) {
                 }
               }
             }
-            ni.x = Math.max(labelW(entities[ni.i].entity_name) / 2 + 2, Math.min(pw - labelW(entities[ni.i].entity_name) / 2 - 2, ni.x))
+            const maxW = labelW(cn) / 2 + 2
+            ni.x = Math.max(maxW, Math.min(pw - maxW, ni.x))
             ni.y = Math.max(labelH / 2 + 2, Math.min(ph - labelH / 2 - 2, ni.y))
           }
         }
@@ -136,12 +177,12 @@ export default function EntityLandscape({ entities }: Props) {
 
       const sim = d3.forceSimulation<LabelNode>(labelNodes)
         .force('rect', forceRectCollide())
-        .force('link', d3.forceLink(links).strength(0.6).distance(20))
-        .force('dotX', d3.forceX<LabelNode>().x(d => dotPos[d.i].x).strength(0.05))
-        .force('dotY', d3.forceY<LabelNode>().y(d => dotPos[d.i].y).strength(0.05))
+        .force('link', d3.forceLink(links).strength(d => (d as {strength: number}).strength).distance(d => (d as {distance: number}).distance))
+        .force('dotX', d3.forceX<LabelNode>().x(d => dotPos[d.i].x).strength(0.03))
+        .force('dotY', d3.forceY<LabelNode>().y(d => dotPos[d.i].y).strength(0.03))
         .stop()
 
-      for (let t = 0; t < 320; t++) sim.tick()
+      for (let t = 0; t < 450; t++) sim.tick()
 
       // ── Render ─────────────────────────────────────────────────────
       const root = d3.select(svg)
@@ -217,7 +258,8 @@ export default function EntityLandscape({ entities }: Props) {
       const lblG = g.append('g').attr('pointer-events', 'none')
       entities.forEach((e, i) => {
         const lx = labelNodes[i].x, ly = labelNodes[i].y
-        const wH = labelW(e.entity_name) / 2
+        const cn = cleanName(e.entity_name)
+        const wH = labelW(cn) / 2
         const anchor = lx > dotPos[i].x ? 'start' : 'end'
         const ax = anchor === 'start' ? lx - wH : lx + wH
 
@@ -228,7 +270,7 @@ export default function EntityLandscape({ entities }: Props) {
           .attr('font-size', e === highlighted ? 11 : 10)
           .style('font-family', 'var(--font-sans)')
           .attr('font-weight', e === highlighted ? '500' : '400')
-          .text(e.entity_name.split(' ')[0] === 'PayPal' ? 'PayPal Holdings' : e.entity_name)
+          .text(cn)
 
         lblG.append('text').attr('class', `lbl-s-${i}`)
           .attr('x', ax).attr('y', ly + 10)
