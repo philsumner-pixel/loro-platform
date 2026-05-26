@@ -68,6 +68,8 @@ export default function EntityLandscape({ entities }: Props) {
       const COL_SEC = cs.getPropertyValue('--color-text-secondary').trim() || '#555'
       const COL_BDR = cs.getPropertyValue('--color-border-tertiary').trim() || '#eee'
 
+      function dotColor(e: EntityScore) { return e === highlighted ? RED : LAPIS }
+
       // Clean display names — strip legal suffixes
       function cleanName(raw: string): string {
         return raw
