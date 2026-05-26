@@ -70,7 +70,7 @@ export default function EntityLandscape({ entities }: Props) {
       const pw  = W - ml - mr
       const ph  = H - mt - mb
 
-      // ── Adaptive scale selection ──────────────────────────────────
+      // -- Adaptive scale selection ----------------------------------
       // Examine the spread of regulatory_score values.
       // If the highest entity is >2.5x the 75th-percentile value,
       // use a sqrt (power 0.5) scale to compress the outlier and
@@ -96,7 +96,7 @@ export default function EntityLandscape({ entities }: Props) {
       const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
       const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([4, 13])
 
-      // ── Colours ───────────────────────────────────────────────────
+      // -- Colours ---------------------------------------------------
       const isDark  = matchMedia('(prefers-color-scheme:dark)').matches
       const LAPIS   = isDark ? '#5A9EC4' : '#1A3A6B'
       const RED     = isDark ? '#F09595' : '#A32D2D'
@@ -107,7 +107,7 @@ export default function EntityLandscape({ entities }: Props) {
 
       function dotColor(e: EntityScore) { return e === highlighted ? RED : LAPIS }
 
-      // ── Dot positions (fixed) ──────────────────────────────────────
+      // -- Dot positions (fixed) --------------------------------------
       const dotPos = entities.map(e => ({
         x:  xSc(e.regulatory_score ?? 0),
         y:  ySc(e.loro_score),
@@ -115,7 +115,7 @@ export default function EntityLandscape({ entities }: Props) {
         fy: ySc(e.loro_score),
       }))
 
-      // ── Force-directed label placement ────────────────────────────
+      // -- Force-directed label placement ----------------------------
       const labelH = 22
 
       interface LabelNode {
@@ -196,7 +196,7 @@ export default function EntityLandscape({ entities }: Props) {
 
       for (let t = 0; t < 480; t++) sim.tick()
 
-      // ── Render ────────────────────────────────────────────────────
+      // -- Render ----------------------------------------------------
       const root = d3.select(svg)
       root.selectAll('*').remove()
       root.attr('viewBox', `0 0 ${W} ${H}`)
@@ -232,7 +232,7 @@ export default function EntityLandscape({ entities }: Props) {
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
         .text(isSkewed
-          ? 'REGULATORY SIGNAL SCORE (sqrt scale — outlier compressed)'
+          ? 'REGULATORY SIGNAL SCORE (sqrt scale - outlier compressed)'
           : 'REGULATORY SIGNAL SCORE (0-100)')
 
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
@@ -300,7 +300,7 @@ export default function EntityLandscape({ entities }: Props) {
           .text(Math.round(e.loro_score))
       })
 
-      // ── Interactions ──────────────────────────────────────────────
+      // -- Interactions ----------------------------------------------
       nodes.on('mouseenter', function(_, d) {
         d3.select(this).select('.dot')
           .attr('stroke', dotColor(d)).attr('stroke-width', 2).attr('fill-opacity', 1)
@@ -390,7 +390,7 @@ export default function EntityLandscape({ entities }: Props) {
                 color: 'var(--color-text-tertiary)', marginBottom: 14 }}>
                 {selected.score_delta != null
                   ? `${selected.score_delta > 0 ? '+' : ''}${selected.score_delta.toFixed(1)} from yesterday`
-                  : 'Day 1 — baseline establishing'}
+                  : 'Day 1 - baseline establishing'}
               </div>
               <div style={{ height: '.5px', background: 'var(--color-border-tertiary)', marginBottom: 12 }} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
