@@ -88,36 +88,56 @@ export default function EntityLandscape({ entities }: Props) {
         ? d3.scalePow().exponent(0.5).domain([0, xMax + 8]).range([0, pw])
         : d3.scaleLinear().domain([0, xMax + 8]).range([0, pw])
 
-      // -- Adaptive Y scale ------------------------------------------
-      // Round scores to integers first: entities with floats 32.1, 32.8, 33.4
-      // all belong to the same visual tier. Without rounding, 12 entities
-      // produce 12 unique float tiers; 11 x MIN_GAP consumes the entire chart
-      // height and availPx collapses to ~0 (no space left for PayPal outlier).
-      // With integer rounding ~12 floats -> ~7 tiers, leaving real proportional
-      // space so the outlier gap gets its fair share of the chart height.
-      const rawScores   = entities.map(e => Math.round(e.loro_score))
-      const sortedUniq  = [...new Set(rawScores)].sort((a, b) => a - b)
-      const nu          = sortedUniq.length
-      const PAD_TOP     = 16   // px above highest score
-      const PAD_BOT     = 12   // px below lowest score
-      const MIN_GAP     = 20   // guaranteed px between adjacent integer tiers
-      const availPx     = Math.max(ph - PAD_TOP - PAD_BOT - MIN_GAP * (nu - 1), 0)
-      const dataRange   = sortedUniq[nu - 1] - sortedUniq[0]
+      // -- Rank-based Y positioning ------------------------------------
+      // Piecewise / linear scales all fail when 10+ entities cluster in
+      // a narrow score band (23-34): no matter how you distribute space,
+      // the cluster stays compressed. The correct solve for this data shape
+      // is rank-based positioning: each entity gets an equal vertical slot
+      // determined by sort order. Actual scores are shown as axis labels.
+      // This guarantees every entity is legible regardless of score bunching.
+      //
+      // A subtle proportional nudge is added on top of equal spacing:
+      // gaps proportional to actual score differences give a hint of the
+      // real distance while keeping everything readable.
+      const PAD_TOP = 16
+      const PAD_BOT = 12
+      const yBand   = ph - PAD_TOP - PAD_BOT
 
-      // Build pixel positions from bottom (lowest tier) to top (highest)
-      const yPixels: number[] = [ph - PAD_BOT]
-      for (let i = 1; i < nu; i++) {
-        const gap   = sortedUniq[i] - sortedUniq[i - 1]
-        const extra = dataRange > 0 ? (gap / dataRange) * availPx : 0
-        yPixels.push(yPixels[i - 1] - MIN_GAP - extra)
+      // Sort entities by score ascending to assign ranks
+      const byScore = [...entities].sort((a, b) => a.loro_score - b.loro_score)
+      const rankMap = new Map(byScore.map((e, i) => [e.entity_id, i]))
+      const n       = byScore.length
+
+      // Base: equal slot height per entity
+      const baseSlot = yBand / Math.max(n - 1, 1)
+
+      // Proportional nudge: redistribute a fraction of yBand by actual gaps
+      const PROP_WEIGHT = 0.35  // 35% proportional, 65% equal
+      const scoreMin  = byScore[0].loro_score
+      const scoreMax  = byScore[n - 1].loro_score
+      const scoreRange = scoreMax - scoreMin || 1
+
+      // Compute cumulative proportional positions (0..1)
+      const propPos: number[] = byScore.map(e =>
+        (e.loro_score - scoreMin) / scoreRange
+      )
+
+      // Blend equal-rank and proportional positions
+      function yForId(entityId: string): number {
+        const rank = rankMap.get(entityId) ?? 0
+        const equalPos  = rank / Math.max(n - 1, 1)          // 0..1
+        const blendPos  = (1 - PROP_WEIGHT) * equalPos + PROP_WEIGHT * propPos[rank]
+        return ph - PAD_BOT - blendPos * yBand
       }
 
-      // Piecewise linear: each integer tier maps to a pixel position.
-      // Entities sharing the same rounded score land at the same y.
-      const ySc = d3.scaleLinear()
-        .domain(sortedUniq)
-        .range(yPixels)
-        .clamp(true)
+      // Thin compatibility shim so axis/grid code can call ySc(score)
+      // Maps score -> approximate pixel via nearest rank lookup
+      const ySc = (score: number) => {
+        const closest = byScore.reduce((best, e) =>
+          Math.abs(e.loro_score - score) < Math.abs(best.loro_score - score) ? e : best
+        )
+        return yForId(closest.entity_id)
+      }
 
       const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
       const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([4, 13])
@@ -136,9 +156,9 @@ export default function EntityLandscape({ entities }: Props) {
       // -- Dot positions (fixed) --------------------------------------
       const dotPos = entities.map(e => ({
         x:  xSc(e.regulatory_score ?? 0),
-        y:  ySc(e.loro_score),
+        y:  yForId(e.entity_id),
         fx: xSc(e.regulatory_score ?? 0),
-        fy: ySc(e.loro_score),
+        fy: yForId(e.entity_id),
       }))
 
       // -- Force-directed label placement ----------------------------
@@ -229,13 +249,14 @@ export default function EntityLandscape({ entities }: Props) {
 
       const g = root.append('g').attr('transform', `translate(${ml},${mt})`)
 
-      // Grid — horizontal lines at each entity's exact score position
-      g.selectAll('.gx').data(sortedUniq).join('line')
+      // Grid — horizontal lines at each entity's rank position
+      g.selectAll('.gx').data(entities).join('line')
         .attr('x1', 0).attr('x2', pw)
-        .attr('y1', d => ySc(d)).attr('y2', d => ySc(d))
+        .attr('y1', (d: EntityScore) => yForId(d.entity_id))
+        .attr('y2', (d: EntityScore) => yForId(d.entity_id))
         .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
 
-      // Axes
+      // X axis
       g.append('g').attr('transform', `translate(0,${ph})`)
         .call(d3.axisBottom(xSc).ticks(6).tickSize(3).tickPadding(5)
           .tickFormat(n => isSkewed ? String(Math.round((n as number) ** 2)) : String(n)))
@@ -246,18 +267,23 @@ export default function EntityLandscape({ entities }: Props) {
             .style('font-family', 'var(--font-mono)')
         })
 
-      // Y axis — ticks at actual entity score values (not generated ticks)
-      g.append('g').call(
-        d3.axisLeft(ySc)
-          .tickValues(sortedUniq)
-          .tickSize(3).tickPadding(5)
-          .tickFormat(d => String(Math.round(d as number)))
-      ).call(a => {
-          a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
-          a.selectAll('line').attr('stroke', COL_BDR)
-          a.selectAll('text').attr('fill', COL_TER).attr('font-size', 9.5)
-            .style('font-family', 'var(--font-mono)')
-        })
+      // Y axis — manual ticks at each entity's rank position, labelled with actual score
+      const yAxisG = g.append('g')
+      yAxisG.append('line')
+        .attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', ph)
+        .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
+      entities.forEach(e => {
+        const yp = yForId(e.entity_id)
+        yAxisG.append('line')
+          .attr('x1', -3).attr('x2', 0).attr('y1', yp).attr('y2', yp)
+          .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
+        yAxisG.append('text')
+          .attr('x', -5).attr('y', yp)
+          .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
+          .attr('fill', COL_TER).attr('font-size', 9.5)
+          .style('font-family', 'var(--font-mono)')
+          .text(Math.round(e.loro_score))
+      })
 
       // Axis labels
       root.append('text').attr('x', ml + pw / 2).attr('y', H - 4)
@@ -270,7 +296,7 @@ export default function EntityLandscape({ entities }: Props) {
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
-        .text('LORO SCORE (adaptive scale)')
+        .text('LORO SCORE (rank order)')
 
       // Leader lines
       const ldrG = g.append('g').attr('pointer-events', 'none')
