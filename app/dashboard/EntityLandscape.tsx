@@ -89,22 +89,22 @@ export default function EntityLandscape({ entities }: Props) {
         : d3.scaleLinear().domain([0, xMax + 8]).range([0, pw])
 
       // -- Adaptive Y scale ------------------------------------------
-      // Builds a piecewise-linear scale so that:
-      //   1. Every adjacent pair of score tiers gets a guaranteed minimum
-      //      pixel separation (MIN_GAP) — clusters stay legible.
-      //   2. Remaining vertical space is distributed proportionally to the
-      //      actual numeric gaps in the data — outliers keep their distance.
-      // Result: layout adapts to whatever scores are in the current dataset.
-      const rawScores   = entities.map(e => e.loro_score)
+      // Round scores to integers first: entities with floats 32.1, 32.8, 33.4
+      // all belong to the same visual tier. Without rounding, 12 entities
+      // produce 12 unique float tiers; 11 x MIN_GAP consumes the entire chart
+      // height and availPx collapses to ~0 (no space left for PayPal outlier).
+      // With integer rounding ~12 floats -> ~7 tiers, leaving real proportional
+      // space so the outlier gap gets its fair share of the chart height.
+      const rawScores   = entities.map(e => Math.round(e.loro_score))
       const sortedUniq  = [...new Set(rawScores)].sort((a, b) => a - b)
       const nu          = sortedUniq.length
-      const PAD_TOP     = 14   // px above highest score
-      const PAD_BOT     = 10   // px below lowest score
-      const MIN_GAP     = 24   // guaranteed px between adjacent score tiers
+      const PAD_TOP     = 16   // px above highest score
+      const PAD_BOT     = 12   // px below lowest score
+      const MIN_GAP     = 20   // guaranteed px between adjacent integer tiers
       const availPx     = Math.max(ph - PAD_TOP - PAD_BOT - MIN_GAP * (nu - 1), 0)
       const dataRange   = sortedUniq[nu - 1] - sortedUniq[0]
 
-      // Build pixel positions from bottom (lowest score) to top (highest)
+      // Build pixel positions from bottom (lowest tier) to top (highest)
       const yPixels: number[] = [ph - PAD_BOT]
       for (let i = 1; i < nu; i++) {
         const gap   = sortedUniq[i] - sortedUniq[i - 1]
@@ -112,7 +112,8 @@ export default function EntityLandscape({ entities }: Props) {
         yPixels.push(yPixels[i - 1] - MIN_GAP - extra)
       }
 
-      // d3.scaleLinear with arrays = piecewise linear interpolation
+      // Piecewise linear: each integer tier maps to a pixel position.
+      // Entities sharing the same rounded score land at the same y.
       const ySc = d3.scaleLinear()
         .domain(sortedUniq)
         .range(yPixels)
