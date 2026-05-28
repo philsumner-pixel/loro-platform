@@ -82,9 +82,10 @@ export default function EntityLandscape({ entities }: Props) {
       // -- Y scale: linear loro_score -----------------------------------
       // Simple linear scale. Floor set to 5 below min score so the
       // bottom entity has breathing room above the x-axis.
-      const yMin   = Math.max(0, Math.floor(Math.min(...entities.map(e => e.loro_score)) / 5) * 5 - 5)
-      const yMax2  = Math.ceil(Math.max(...entities.map(e => e.loro_score)) / 5) * 5 + 5
-      const ySc    = d3.scaleLinear().domain([yMin, yMax2]).range([ph, 0])
+      const scores  = entities.map(e => e.loro_score)
+      const yMin    = Math.max(0, Math.floor(Math.min(...scores) / 5) * 5 - 5)
+      const yMax2   = Math.ceil(Math.max(...scores) / 5) * 5 + 8
+      const ySc     = d3.scaleLinear().domain([yMin, yMax2]).range([ph, 0])
 
       // yForId: convenience wrapper used in dotPos and grid
       function yForId(entityId: string): number {
@@ -93,7 +94,7 @@ export default function EntityLandscape({ entities }: Props) {
       }
 
       const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
-      const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([4, 13])
+      const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([7, 20])
 
       // -- Colours ---------------------------------------------------
       const isDark  = matchMedia('(prefers-color-scheme:dark)').matches
@@ -327,7 +328,7 @@ export default function EntityLandscape({ entities }: Props) {
       nodes.select('.dot').transition().duration(700).delay((_, i) => i * 48)
         .attrTween('r', function(d: EntityScore) {
           const base = rSc(d.regulatory_events_7d ?? 0)
-          const r    = Math.max(base, d === highlighted ? 7 : 4.5)
+          const r    = Math.max(base, d === highlighted ? 10 : 7)
           return (t: number) => String(d3.easeBackOut.overshoot(1.3)(t) * r)
         })
     })
