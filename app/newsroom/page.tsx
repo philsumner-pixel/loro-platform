@@ -62,6 +62,9 @@ interface SignalDigest {
   status: string
   triggered_at: string
   generated_at: string | null
+  social_linkedin: string | null
+  social_twitter: string | null
+  social_generated_at: string | null
 }
 
 const TABS = [
@@ -431,6 +434,8 @@ export default function NewsroomPage() {
   const [digests, setDigests] = useState<SignalDigest[]>([])
   const [selectedDigest, setSelectedDigest] = useState<SignalDigest | null>(null)
   const [generatingDigest, setGeneratingDigest] = useState<string | null>(null)
+  const [generatingSocial, setGeneratingSocial] = useState<string | null>(null)
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -475,6 +480,32 @@ export default function NewsroomPage() {
     })
     setDigests(prev => prev.map(d => d.id === id ? { ...d, status } : d))
     if (selectedDigest?.id === id) setSelectedDigest(prev => prev ? { ...prev, status } : null)
+  }
+
+  async function generateSocial(id: string) {
+    setGeneratingSocial(id)
+    try {
+      const res = await fetch('/api/newsroom/generate-social', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ digest_id: id }),
+      })
+      const data = await res.json()
+      if (data.linkedin) {
+        setDigests(prev => prev.map(d => d.id === id
+          ? { ...d, social_linkedin: data.linkedin, social_twitter: data.twitter }
+          : d))
+        setSelectedDigest(prev => prev?.id === id
+          ? { ...prev, social_linkedin: data.linkedin, social_twitter: data.twitter }
+          : prev)
+      }
+    } finally { setGeneratingSocial(null) }
+  }
+
+  function copyToClipboard(text: string, field: string) {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedField(field)
+      setTimeout(() => setCopiedField(null), 2000)
+    })
   }
 
   async function updateStatus(id: string, status: string, extra: Record<string,string> = {}) {
@@ -749,8 +780,73 @@ export default function NewsroomPage() {
                         </div>
                       )}
                       {d.status === 'approved' && (
-                        <div style={{fontSize:12,color:'var(--green)',fontWeight:500}}>
-                          &#10003; Approved — ready for newsletter or publication
+                        <div>
+                          <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',
+                            marginBottom:14,paddingTop:4}}>
+                            <div style={{fontSize:12,color:'var(--green)',fontWeight:500}}>
+                              &#10003; Approved
+                            </div>
+                            <button className="loro-nr-btn primary" style={{fontSize:10,padding:'3px 12px'}}
+                              onClick={() => generateSocial(d.id)}
+                              disabled={generatingSocial === d.id}>
+                              {generatingSocial === d.id
+                                ? 'Generating...'
+                                : d.social_linkedin ? '↻ Regenerate social posts' : '❖ Generate social posts'}
+                            </button>
+                          </div>
+
+                          {generatingSocial === d.id && (
+                            <div style={{fontSize:12,color:'var(--ink5)',fontStyle:'italic',marginBottom:12}}>
+                              Generating LinkedIn + Twitter/X posts with Claude Haiku...
+                            </div>
+                          )}
+
+                          {d.social_linkedin && d.social_twitter && (
+                            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:1,background:'var(--border)'}}>
+
+                              {/* LinkedIn */}
+                              <div style={{background:'var(--paper)',padding:'16px 18px'}}>
+                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                                  <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',
+                                    textTransform:'uppercase',color:'var(--ink5)'}}>
+                                    LinkedIn
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(d.social_linkedin!, `linkedin-${d.id}`)}
+                                    style={{fontSize:10,padding:'3px 10px',cursor:'pointer',fontFamily:'inherit',
+                                      border:'1px solid var(--border)',background: copiedField===`linkedin-${d.id}` ? 'var(--green-bg)' : 'var(--paper)',
+                                      color: copiedField===`linkedin-${d.id}` ? 'var(--green)' : 'var(--ink4)'}}>
+                                    {copiedField===`linkedin-${d.id}` ? 'Copied!' : 'Copy'}
+                                  </button>
+                                </div>
+                                <div style={{fontSize:12,lineHeight:1.75,color:'var(--ink3)',
+                                  whiteSpace:'pre-wrap',maxHeight:280,overflowY:'auto'}}>
+                                  {d.social_linkedin}
+                                </div>
+                              </div>
+
+                              {/* Twitter/X */}
+                              <div style={{background:'var(--paper)',padding:'16px 18px'}}>
+                                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                                  <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',
+                                    textTransform:'uppercase',color:'var(--ink5)'}}>
+                                    Twitter / X thread
+                                  </div>
+                                  <button
+                                    onClick={() => copyToClipboard(d.social_twitter!, `twitter-${d.id}`)}
+                                    style={{fontSize:10,padding:'3px 10px',cursor:'pointer',fontFamily:'inherit',
+                                      border:'1px solid var(--border)',background: copiedField===`twitter-${d.id}` ? 'var(--green-bg)' : 'var(--paper)',
+                                      color: copiedField===`twitter-${d.id}` ? 'var(--green)' : 'var(--ink4)'}}>
+                                    {copiedField===`twitter-${d.id}` ? 'Copied!' : 'Copy'}
+                                  </button>
+                                </div>
+                                <div style={{fontSize:12,lineHeight:1.75,color:'var(--ink3)',
+                                  whiteSpace:'pre-wrap',maxHeight:280,overflowY:'auto'}}>
+                                  {d.social_twitter}
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
