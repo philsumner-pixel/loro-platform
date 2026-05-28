@@ -70,73 +70,26 @@ export default function EntityLandscape({ entities }: Props) {
       const pw  = W - ml - mr
       const ph  = H - mt - mb
 
-      // -- Adaptive scale selection ----------------------------------
-      // Examine the spread of regulatory_score values.
-      // If the highest entity is >2.5x the 75th-percentile value,
-      // use a sqrt (power 0.5) scale to compress the outlier and
-      // give the cluster more readable space.
-      const xVals = entities
-        .map(e => e.regulatory_score ?? 0)
-        .sort((a, b) => a - b)
-      const p75    = xVals[Math.floor(xVals.length * 0.75)] || 1
-      const xMax   = xVals[xVals.length - 1] || 100
-      const isSkewed = (xMax / p75) > 2.5
+      // -- X scale: news_score (0-100) ----------------------------------
+      // regulatory_score is 0 for all entities except the one with live
+      // filings — useless for horizontal spread. news_score has real
+      // variance today (0-75) and will continue to differentiate entities
+      // as more articles flow in. Simple linear scale, no skew detection.
+      const isSkewed = false  // kept for tickFormat compat below
+      const xMax = 100
+      const xSc  = d3.scaleLinear().domain([0, xMax]).range([0, pw])
 
-      // Sqrt scale naturally compresses outliers without hiding them.
-      // Linear when data is well-spread (no compression needed).
-      const xSc = isSkewed
-        ? d3.scalePow().exponent(0.5).domain([0, xMax + 8]).range([0, pw])
-        : d3.scaleLinear().domain([0, xMax + 8]).range([0, pw])
+      // -- Y scale: linear loro_score -----------------------------------
+      // Simple linear scale. Floor set to 5 below min score so the
+      // bottom entity has breathing room above the x-axis.
+      const yMin   = Math.max(0, Math.floor(Math.min(...entities.map(e => e.loro_score)) / 5) * 5 - 5)
+      const yMax2  = Math.ceil(Math.max(...entities.map(e => e.loro_score)) / 5) * 5 + 5
+      const ySc    = d3.scaleLinear().domain([yMin, yMax2]).range([ph, 0])
 
-      // -- Rank-based Y positioning ------------------------------------
-      // Piecewise / linear scales all fail when 10+ entities cluster in
-      // a narrow score band (23-34): no matter how you distribute space,
-      // the cluster stays compressed. The correct solve for this data shape
-      // is rank-based positioning: each entity gets an equal vertical slot
-      // determined by sort order. Actual scores are shown as axis labels.
-      // This guarantees every entity is legible regardless of score bunching.
-      //
-      // A subtle proportional nudge is added on top of equal spacing:
-      // gaps proportional to actual score differences give a hint of the
-      // real distance while keeping everything readable.
-      const PAD_TOP = 16
-      const PAD_BOT = 12
-      const yBand   = ph - PAD_TOP - PAD_BOT
-
-      // Sort entities by score ascending to assign ranks
-      const byScore = [...entities].sort((a, b) => a.loro_score - b.loro_score)
-      const rankMap = new Map(byScore.map((e, i) => [e.entity_id, i]))
-      const n       = byScore.length
-
-      // Base: equal slot height per entity
-      const baseSlot = yBand / Math.max(n - 1, 1)
-
-      // Proportional nudge: redistribute a fraction of yBand by actual gaps
-      const PROP_WEIGHT = 0.35  // 35% proportional, 65% equal
-      const scoreMin  = byScore[0].loro_score
-      const scoreMax  = byScore[n - 1].loro_score
-      const scoreRange = scoreMax - scoreMin || 1
-
-      // Compute cumulative proportional positions (0..1)
-      const propPos: number[] = byScore.map(e =>
-        (e.loro_score - scoreMin) / scoreRange
-      )
-
-      // Blend equal-rank and proportional positions
+      // yForId: convenience wrapper used in dotPos and grid
       function yForId(entityId: string): number {
-        const rank = rankMap.get(entityId) ?? 0
-        const equalPos  = rank / Math.max(n - 1, 1)          // 0..1
-        const blendPos  = (1 - PROP_WEIGHT) * equalPos + PROP_WEIGHT * propPos[rank]
-        return ph - PAD_BOT - blendPos * yBand
-      }
-
-      // Thin compatibility shim so axis/grid code can call ySc(score)
-      // Maps score -> approximate pixel via nearest rank lookup
-      const ySc = (score: number) => {
-        const closest = byScore.reduce((best, e) =>
-          Math.abs(e.loro_score - score) < Math.abs(best.loro_score - score) ? e : best
-        )
-        return yForId(closest.entity_id)
+        const e = entities.find(en => en.entity_id === entityId)
+        return ySc(e?.loro_score ?? yMin)
       }
 
       const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
@@ -155,9 +108,9 @@ export default function EntityLandscape({ entities }: Props) {
 
       // -- Dot positions (fixed) --------------------------------------
       const dotPos = entities.map(e => ({
-        x:  xSc(e.regulatory_score ?? 0),
+        x:  xSc(e.news_score ?? 0),
         y:  yForId(e.entity_id),
-        fx: xSc(e.regulatory_score ?? 0),
+        fx: xSc(e.news_score ?? 0),
         fy: yForId(e.entity_id),
       }))
 
@@ -249,17 +202,16 @@ export default function EntityLandscape({ entities }: Props) {
 
       const g = root.append('g').attr('transform', `translate(${ml},${mt})`)
 
-      // Grid — horizontal lines at each entity's rank position
-      g.selectAll('.gx').data(entities).join('line')
+      // Grid lines + axes
+      g.selectAll('.gx').data(ySc.ticks(5)).join('line')
         .attr('x1', 0).attr('x2', pw)
-        .attr('y1', (d: EntityScore) => yForId(d.entity_id))
-        .attr('y2', (d: EntityScore) => yForId(d.entity_id))
+        .attr('y1', d => ySc(d)).attr('y2', d => ySc(d))
         .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
 
       // X axis
       g.append('g').attr('transform', `translate(0,${ph})`)
-        .call(d3.axisBottom(xSc).ticks(6).tickSize(3).tickPadding(5)
-          .tickFormat(n => isSkewed ? String(Math.round((n as number) ** 2)) : String(n)))
+        .call(d3.axisBottom(xSc).ticks(5).tickSize(3).tickPadding(5)
+          .tickFormat(n => String(Math.round(n as number))))
         .call(a => {
           a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
           a.selectAll('line').attr('stroke', COL_BDR)
@@ -267,36 +219,25 @@ export default function EntityLandscape({ entities }: Props) {
             .style('font-family', 'var(--font-mono)')
         })
 
-      // Y axis — manual ticks at each entity's rank position, labelled with actual score
-      const yAxisG = g.append('g')
-      yAxisG.append('line')
-        .attr('x1', 0).attr('x2', 0).attr('y1', 0).attr('y2', ph)
-        .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
-      entities.forEach(e => {
-        const yp = yForId(e.entity_id)
-        yAxisG.append('line')
-          .attr('x1', -3).attr('x2', 0).attr('y1', yp).attr('y2', yp)
-          .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
-        yAxisG.append('text')
-          .attr('x', -5).attr('y', yp)
-          .attr('text-anchor', 'end').attr('dominant-baseline', 'middle')
-          .attr('fill', COL_TER).attr('font-size', 9.5)
-          .style('font-family', 'var(--font-mono)')
-          .text(Math.round(e.loro_score))
-      })
+      // Y axis
+      g.append('g').call(d3.axisLeft(ySc).ticks(5).tickSize(3).tickPadding(5))
+        .call(a => {
+          a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
+          a.selectAll('line').attr('stroke', COL_BDR)
+          a.selectAll('text').attr('fill', COL_TER).attr('font-size', 9.5)
+            .style('font-family', 'var(--font-mono)')
+        })
 
       // Axis labels
       root.append('text').attr('x', ml + pw / 2).attr('y', H - 4)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
-        .text(isSkewed
-          ? 'REGULATORY SIGNAL SCORE (sqrt scale - outlier compressed)'
-          : 'REGULATORY SIGNAL SCORE (0-100)')
+        .text('NEWS SIGNAL SCORE (0-100)')
 
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
-        .text('LORO SCORE (rank order)')
+        .text('LORO SCORE')
 
       // Leader lines
       const ldrG = g.append('g').attr('pointer-events', 'none')
