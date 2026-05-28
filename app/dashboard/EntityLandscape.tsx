@@ -88,10 +88,35 @@ export default function EntityLandscape({ entities }: Props) {
         ? d3.scalePow().exponent(0.5).domain([0, xMax + 8]).range([0, pw])
         : d3.scaleLinear().domain([0, xMax + 8]).range([0, pw])
 
-      const yMax = Math.max(...entities.map(e => e.loro_score), 60)
-      const ySc  = d3.scaleLinear()
-        .domain([15, Math.ceil(yMax / 10) * 10 + 8])
-        .range([ph, 0])
+      // -- Adaptive Y scale ------------------------------------------
+      // Builds a piecewise-linear scale so that:
+      //   1. Every adjacent pair of score tiers gets a guaranteed minimum
+      //      pixel separation (MIN_GAP) — clusters stay legible.
+      //   2. Remaining vertical space is distributed proportionally to the
+      //      actual numeric gaps in the data — outliers keep their distance.
+      // Result: layout adapts to whatever scores are in the current dataset.
+      const rawScores   = entities.map(e => e.loro_score)
+      const sortedUniq  = [...new Set(rawScores)].sort((a, b) => a - b)
+      const nu          = sortedUniq.length
+      const PAD_TOP     = 14   // px above highest score
+      const PAD_BOT     = 10   // px below lowest score
+      const MIN_GAP     = 24   // guaranteed px between adjacent score tiers
+      const availPx     = Math.max(ph - PAD_TOP - PAD_BOT - MIN_GAP * (nu - 1), 0)
+      const dataRange   = sortedUniq[nu - 1] - sortedUniq[0]
+
+      // Build pixel positions from bottom (lowest score) to top (highest)
+      const yPixels: number[] = [ph - PAD_BOT]
+      for (let i = 1; i < nu; i++) {
+        const gap   = sortedUniq[i] - sortedUniq[i - 1]
+        const extra = dataRange > 0 ? (gap / dataRange) * availPx : 0
+        yPixels.push(yPixels[i - 1] - MIN_GAP - extra)
+      }
+
+      // d3.scaleLinear with arrays = piecewise linear interpolation
+      const ySc = d3.scaleLinear()
+        .domain(sortedUniq)
+        .range(yPixels)
+        .clamp(true)
 
       const maxEv = Math.max(...entities.map(e => e.regulatory_events_7d ?? 0), 1)
       const rSc   = d3.scaleSqrt().domain([0, maxEv]).range([4, 13])
@@ -203,9 +228,10 @@ export default function EntityLandscape({ entities }: Props) {
 
       const g = root.append('g').attr('transform', `translate(${ml},${mt})`)
 
-      // Grid
-      g.selectAll('.gx').data(ySc.ticks(6)).join('line')
-        .attr('x1', 0).attr('x2', pw).attr('y1', d => ySc(d)).attr('y2', d => ySc(d))
+      // Grid — horizontal lines at each entity's exact score position
+      g.selectAll('.gx').data(sortedUniq).join('line')
+        .attr('x1', 0).attr('x2', pw)
+        .attr('y1', d => ySc(d)).attr('y2', d => ySc(d))
         .attr('stroke', COL_BDR).attr('stroke-width', 0.5)
 
       // Axes
@@ -219,8 +245,13 @@ export default function EntityLandscape({ entities }: Props) {
             .style('font-family', 'var(--font-mono)')
         })
 
-      g.append('g').call(d3.axisLeft(ySc).ticks(6).tickSize(3).tickPadding(5))
-        .call(a => {
+      // Y axis — ticks at actual entity score values (not generated ticks)
+      g.append('g').call(
+        d3.axisLeft(ySc)
+          .tickValues(sortedUniq)
+          .tickSize(3).tickPadding(5)
+          .tickFormat(d => String(Math.round(d as number)))
+      ).call(a => {
           a.select('.domain').attr('stroke', COL_BDR).attr('stroke-width', 0.5)
           a.selectAll('line').attr('stroke', COL_BDR)
           a.selectAll('text').attr('fill', COL_TER).attr('font-size', 9.5)
@@ -238,7 +269,7 @@ export default function EntityLandscape({ entities }: Props) {
       root.append('text').attr('transform', `translate(10,${mt + ph / 2})rotate(-90)`)
         .attr('text-anchor', 'middle').attr('fill', COL_TER).attr('font-size', 9)
         .style('font-family', 'var(--font-sans)').attr('letter-spacing', '.1em')
-        .text('LORO SCORE')
+        .text('LORO SCORE (adaptive scale)')
 
       // Leader lines
       const ldrG = g.append('g').attr('pointer-events', 'none')
