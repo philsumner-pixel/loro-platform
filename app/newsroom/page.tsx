@@ -50,11 +50,31 @@ interface DraftState {
   standfirst: string; body: string; category: string
 }
 
+interface SignalDigest {
+  id: string
+  entity_name: string
+  trigger_type: string
+  score_before: number | null
+  score_after: number | null
+  score_delta: number | null
+  trigger_summary: string
+  generated_story: string | null
+  status: string
+  triggered_at: string
+  generated_at: string | null
+}
+
 const TABS = [
   { key: 'new,shortlisted', label: 'Inbox', statuses: ['new','shortlisted'] },
   { key: 'in_draft',        label: 'In draft', statuses: ['in_draft'] },
   { key: 'published',       label: 'Published', statuses: ['published'] },
+  { key: 'signal_digest',   label: 'Signal Digest', statuses: [] },
 ]
+
+const TRIGGER_LABELS: Record<string, string> = {
+  score_drop: 'Score drop', score_rise: 'Score rise',
+  pdmr: 'PDMR filing', alert: 'Alert', sentiment_spike: 'Sentiment', news_spike: 'News spike',
+}
 
 const COLUMNS = [
   {
@@ -357,6 +377,7 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: 
         {c.status === 'published' && c.published_slug && (
           <a href={`/news/${c.published_slug}`} className="loro-nr-btn success">Read published article →</a>
         )}
+        
       </div>
     </div>
   )
@@ -407,6 +428,9 @@ export default function NewsroomPage() {
   const [draft, setDraft] = useState<DraftState | null>(null)
   const [publishing, setPublishing] = useState(false)
   const [publishedUrl, setPublishedUrl] = useState<string | null>(null)
+  const [digests, setDigests] = useState<SignalDigest[]>([])
+  const [selectedDigest, setSelectedDigest] = useState<SignalDigest | null>(null)
+  const [generatingDigest, setGeneratingDigest] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -419,6 +443,39 @@ export default function NewsroomPage() {
   }, [activeTab.key])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    if (activeTab.key === 'signal_digest') {
+      fetch('/api/newsroom/generate-digest')
+        .then(r => r.json())
+        .then(d => setDigests(d.digests ?? []))
+        .catch(() => {})
+    }
+  }, [activeTab.key])
+
+  async function generateDigest(id: string) {
+    setGeneratingDigest(id)
+    try {
+      const res = await fetch('/api/newsroom/generate-digest', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ digest_id: id }),
+      })
+      const data = await res.json()
+      if (data.story) {
+        setDigests(prev => prev.map(d => d.id === id ? { ...d, generated_story: data.story } : d))
+        setSelectedDigest(prev => prev?.id === id ? { ...prev, generated_story: data.story } : prev)
+      }
+    } finally { setGeneratingDigest(null) }
+  }
+
+  async function updateDigestStatus(id: string, status: string) {
+    await fetch('/api/newsroom/generate-digest', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ digest_id: id, status }),
+    })
+    setDigests(prev => prev.map(d => d.id === id ? { ...d, status } : d))
+    if (selectedDigest?.id === id) setSelectedDigest(prev => prev ? { ...prev, status } : null)
+  }
 
   async function updateStatus(id: string, status: string, extra: Record<string,string> = {}) {
     setUpdating(id)
@@ -488,6 +545,8 @@ export default function NewsroomPage() {
               <span className="loro-nr-tab-count">
                 {tab.key === 'new,shortlisted'
                   ? Object.values(inboxCounts).reduce((a,b)=>a+b,0)
+                  : tab.key === 'signal_digest'
+                  ? digests.filter(d => d.status === 'pending').length
                   : candidates.filter(c=>tab.statuses.includes(c.status)).length}
               </span>
             </button>
@@ -591,8 +650,119 @@ export default function NewsroomPage() {
             )
         )}
 
+        {/* Signal Digest tab */}
+        {activeTab.key === 'signal_digest' && (
+          <div>
+            <div style={{marginBottom:20,padding:'14px 20px',background:'var(--paper2)',border:'1px solid var(--border)',borderLeft:'3px solid var(--blue)'}}>
+              <div style={{fontSize:12,fontWeight:600,color:'var(--ink)',marginBottom:4}}>Signal Digest — data-led short stories</div>
+              <div style={{fontSize:12,color:'var(--ink4)',lineHeight:1.6}}>
+                Auto-detected signals from the scoring engine. Generate a 150-word digest story, check it, approve or discard. Fast-turnaround content for the site and newsletter.
+              </div>
+            </div>
+
+            {digests.length === 0 && (
+              <div className="loro-nr-empty">No signal digests yet — they auto-generate when significant score moves are detected.</div>
+            )}
+
+            <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)'}}>
+              {digests.map(d => (
+                <div key={d.id}>
+                  <div
+                    onClick={() => setSelectedDigest(selectedDigest?.id === d.id ? null : d)}
+                    style={{
+                      background: selectedDigest?.id === d.id ? 'var(--paper2)' : 'var(--paper)',
+                      padding:'16px 20px', cursor:'pointer',
+                      display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:16
+                    }}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                        <span style={{fontSize:9,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',
+                          padding:'2px 8px',background:'var(--blue)',color:'#fff'}}>
+                          {TRIGGER_LABELS[d.trigger_type] ?? d.trigger_type}
+                        </span>
+                        {d.score_delta != null && (
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:600,
+                            color: d.score_delta < 0 ? 'var(--red-data)' : 'var(--green)'}}>
+                            {d.score_delta > 0 ? '+' : ''}{d.score_delta.toFixed(1)} pts
+                          </span>
+                        )}
+                        <span style={{fontSize:10,
+                          padding:'2px 8px',border:'1px solid var(--border)',
+                          background: d.status === 'approved' ? 'var(--green-bg)' : d.status === 'discarded' ? 'var(--red-bg)' : 'var(--paper2)',
+                          color: d.status === 'approved' ? 'var(--green)' : d.status === 'discarded' ? 'var(--red-data)' : 'var(--ink5)'}}>
+                          {d.status}
+                        </span>
+                      </div>
+                      <div style={{fontSize:14,fontWeight:600,color:'var(--ink)',marginBottom:4,lineHeight:1.35}}>
+                        {d.entity_name}
+                      </div>
+                      <div style={{fontSize:12,color:'var(--ink4)',lineHeight:1.5}}>{d.trigger_summary}</div>
+                    </div>
+                    <div style={{fontSize:10,color:'var(--ink5)',whiteSpace:'nowrap',flexShrink:0,marginTop:2}}>
+                      {timeAgo(d.triggered_at)}
+                    </div>
+                  </div>
+
+                  {selectedDigest?.id === d.id && (
+                    <div style={{background:'var(--paper)',borderTop:'1px solid var(--border)',padding:'24px 20px'}}>
+
+                      {/* Story */}
+                      <div style={{marginBottom:20}}>
+                        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
+                          <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)'}}>
+                            Digest story
+                          </div>
+                          <button className="loro-nr-btn primary" style={{fontSize:10,padding:'3px 12px'}}
+                            onClick={() => generateDigest(d.id)}
+                            disabled={generatingDigest === d.id}>
+                            {generatingDigest === d.id ? 'Generating...' : d.generated_story ? '↻ Regenerate' : '❖ Generate story'}
+                          </button>
+                        </div>
+
+                        {d.generated_story ? (
+                          <div style={{background:'var(--paper2)',border:'1px solid var(--border)',padding:'20px 24px',
+                            fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.8,color:'var(--ink3)',
+                            whiteSpace:'pre-wrap'}}>
+                            {d.generated_story}
+                          </div>
+                        ) : (
+                          <div style={{padding:'20px 24px',background:'var(--paper2)',border:'1px solid var(--border)',
+                            fontSize:13,color:'var(--ink5)',fontStyle:'italic'}}>
+                            {generatingDigest === d.id
+                              ? 'Generating with Claude Haiku — takes 5-10 seconds...'
+                              : 'Click Generate story to produce a 150-word data-led digest from this signal.'}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Actions */}
+                      {d.status === 'pending' && d.generated_story && (
+                        <div style={{display:'flex',gap:8}}>
+                          <button className="loro-nr-btn success" style={{fontSize:11}}
+                            onClick={() => updateDigestStatus(d.id, 'approved')}>
+                            Approve for publication
+                          </button>
+                          <button className="loro-nr-btn danger" style={{fontSize:11}}
+                            onClick={() => updateDigestStatus(d.id, 'discarded')}>
+                            Discard
+                          </button>
+                        </div>
+                      )}
+                      {d.status === 'approved' && (
+                        <div style={{fontSize:12,color:'var(--green)',fontWeight:500}}>
+                          &#10003; Approved — ready for newsletter or publication
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Draft / Published — flat list */}
-        {!loading && activeTab.key !== 'new,shortlisted' && (
+        {!loading && activeTab.key !== 'new,shortlisted' && activeTab.key !== 'signal_digest' && (
           candidates.length === 0
             ? <div className="loro-nr-empty">No candidates in this queue.</div>
             : (
