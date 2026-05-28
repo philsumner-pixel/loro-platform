@@ -76,7 +76,7 @@ export default function EntityLandscape({ entities }: Props) {
       // variance today (0-75) and will continue to differentiate entities
       // as more articles flow in. Simple linear scale, no skew detection.
       const isSkewed = false  // kept for tickFormat compat below
-      const xMax = 100
+      const xMax = Math.ceil(Math.max(...entities.map(e => e.news_score ?? 0)) * 1.1)
       const xSc  = d3.scaleLinear().domain([0, xMax]).range([0, pw])
 
       // -- Y scale: linear loro_score -----------------------------------
