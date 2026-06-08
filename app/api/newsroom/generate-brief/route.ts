@@ -151,6 +151,16 @@ REPORTER NOTE: [One sentence for Chris — what call to make, what document to r
 
 ---
 
+EVIDENCE STANDARD (non-negotiable — this is how Loro content earns trust and gets cited)
+Every brief must, wherever the source data allows:
+- Use a SPECIFIC, SOURCED NUMBER in place of any vague quantifier. Never "shares fell sharply" — write "shares fell 12.4%". Never "several filings" — write "four filings". Every vague claim is a missed citation.
+- Attribute each substantive claim to its PRIMARY SOURCE by name (FCA, SEC EDGAR, Companies House, the specific filing or register entry) — not "reports suggest". Name the document.
+- Include a NAMED, ATTRIBUTABLE QUOTE where one exists in the source material (a regulator statement, a disclosed remark, a filing note). Named quotes outperform paraphrase.
+- Write in clear, fluent prose for a skeptical professional reader. No keyword padding, no jargon for its own sake.
+This is not stylistic preference: quotes, specific statistics, and named primary citations are the three things generative answer-engines reward most, and they are exactly what makes the brief credible to a human editor. The same evidence serves both readers.
+
+---
+
 Write only the structured brief above. No preamble. Do not editorialize beyond what the data supports. Do not state conclusions as facts. Report what the data shows.`
 
   try {

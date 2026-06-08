@@ -92,6 +92,32 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ---
 
+## Editorial evidence standard (contemporary-by-design — locked)
+
+Loro is built for how people find information now: generative answer-engines that
+synthesise one answer and cite their sources, not just ranked blue links. Peer-reviewed
+research (Aggarwal et al., Princeton/Georgia Tech, arXiv:2311.09735) found three content
+tactics each lift source visibility in AI answers by 30–40% — direct quotes, specific
+statistics, and named credible citations — while keyword stuffing was the ONLY tactic with
+a consistently negative outcome. Finance/regulated content benefits most from leading with
+statistics, and mid-/un-ranked domains gain the most (a #5 page saw +115% citation share),
+which is exactly Loro's position as a new entrant.
+
+Loro is structurally optimal for this: its sources (FCA PDMR, SEC EDGAR, Companies House,
+market data) are inherently statistic-dense, primary-source-cited and quotable. We do not
+retrofit credibility signals onto thin content — the engine emits them natively.
+
+Therefore every content generator (`generate-brief`, `generate-digest`, `generate-social`)
+must enforce the same evidence standard:
+- Specific sourced numbers, never vague quantifiers ("fell 12.4%", not "fell sharply")
+- Each substantive claim attributed to its named primary source (name the filing/register)
+- A named, attributable quote wherever the source material contains one
+- Clear fluent prose for a skeptical professional reader; never keyword padding
+This is the single rule that makes content both citable by an answer-engine and trustworthy
+to a human editor. Keep it in every brief, audit and scoring criterion. Do not remove it.
+
+---
+
 ## Git workflow
 
 - Commit email: `claude@anthropic.com`
