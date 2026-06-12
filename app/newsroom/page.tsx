@@ -483,7 +483,13 @@ export default function NewsroomPage() {
     if (activeTab.key === 'video') {
       fetch('/api/newsroom/videos')
         .then(r => r.json())
-        .then(d => { setVideos(d.videos ?? []); setVideoSources(d.sources ?? []) })
+        .then(d => {
+          setVideos(d.videos ?? [])
+          setVideoSources(d.sources ?? [])
+          ;(d.videos ?? []).forEach((v: LoroVideo) => {
+            if (v.status === 'rendering' && v.creatomate_job_id) pollRenderStatus(v.id)
+          })
+        })
         .catch(() => {})
     }
   }, [activeTab.key])
@@ -574,6 +580,43 @@ export default function NewsroomPage() {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: video.id, disposition }),
     })
+  }
+
+  function pollRenderStatus(id: string, attempt = 0) {
+    if (attempt > 60) return
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/newsroom/render-status?id=${id}`)
+        const data = await res.json()
+        if (data.ready && data.video_url) {
+          setVideos(prev => prev.map(v => v.id === id ? { ...v, status: 'ready', video_url: data.video_url } : v))
+          return
+        }
+        if (data.status === 'failed') {
+          setVideos(prev => prev.map(v => v.id === id ? { ...v, status: 'failed' } : v))
+          return
+        }
+      } catch { /* keep polling */ }
+      pollRenderStatus(id, attempt + 1)
+    }, 5000)
+  }
+
+  async function generateVideo(video: LoroVideo) {
+    setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'rendering', error: null } : v))
+    try {
+      const res = await fetch('/api/newsroom/generate-video', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: video.id }),
+      })
+      const data = await res.json()
+      if (data.error) {
+        setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'failed', error: data.error } : v))
+        return
+      }
+      pollRenderStatus(video.id)
+    } catch {
+      setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'failed' } : v))
+    }
   }
 
   function copyToClipboard(text: string, field: string) {
@@ -1130,13 +1173,14 @@ export default function NewsroomPage() {
                           onClick={() => saveVideoScript(v)} disabled={savingScript === v.id}>
                           {savingScript === v.id ? 'Saving...' : dirty ? 'Save script' : 'Script saved'}
                         </button>
-                        <button className="loro-nr-btn primary" style={{fontSize:11,opacity:0.5,cursor:'not-allowed'}}
-                          disabled title="Connects once the render keys are added">
-                          ▶ Generate video
+                        <button className="loro-nr-btn primary" style={{fontSize:11}}
+                          onClick={() => generateVideo(v)} disabled={v.status === 'rendering'}>
+                          {v.status === 'rendering' ? '● Rendering…' : v.status === 'ready' ? '↻ Re-render' : '▶ Generate video'}
                         </button>
                         <span style={{fontSize:11,color:'var(--ink5)'}}>
                           Voice: <strong style={{color:'var(--ink4)'}}>{v.voice_persona}</strong>
-                          {' · '}render lane connects next
+                          {v.status === 'rendering' ? ' · rendering, ~1–2 min' : ''}
+                          {v.error ? ` · ${v.error}` : ''}
                         </span>
                         <div style={{marginLeft:'auto',display:'flex',gap:6}}>
                           {v.disposition !== 'shortlisted' ? (
