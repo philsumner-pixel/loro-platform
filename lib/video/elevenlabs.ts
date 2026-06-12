@@ -4,8 +4,8 @@
 const VOICE_IDS: Record<string, string | undefined> = {
   steve: process.env.ELEVENLABS_VOICE_STEVE,
   phil: process.env.ELEVENLABS_VOICE_PHIL,
-  lucy: process.env.ELEVENLABS_VOICE_LUCY,
   sophie: process.env.ELEVENLABS_VOICE_SOPHIE,
+  emily: process.env.ELEVENLABS_VOICE_EMILY,
 }
 
 export function resolveVoiceId(persona: string): string {
