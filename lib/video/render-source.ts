@@ -28,7 +28,7 @@ function brandCard(durationSec: number, lines: { text: string; font: string; siz
   lines.forEach((l, i) => {
     elements.push({
       name: `Brand-${i}`, type: 'text', track: i + 2, time: 0,
-      width: '84%', x_alignment: '50%', y_alignment: l.y,
+      width: '84%', x_alignment: '50%', y: l.y, y_alignment: '50%',
       font_family: l.font, font_weight: l.weight ?? '400', font_size: l.size,
       fill_color: l.color, text: l.text,
     })
@@ -64,12 +64,12 @@ function textEl(name: string, text: string, opts: Partial<El>): El {
 
 function dataOverlay(dp: LoroDataPoint): El[] {
   const els: El[] = [
-    textEl('dp-label', dp.label, { y_alignment: '40%', font_size: '3.4 vmin', font_weight: '600', fill_color: ACCENT, letter_spacing: '8%' }),
-    textEl('dp-value', dp.value, { y_alignment: '50%', font_family: SERIF, font_size: '15 vmin', font_weight: '700' }),
+    textEl('dp-label', dp.label, { y: '38%', font_size: '3.4 vmin', font_weight: '600', fill_color: ACCENT, letter_spacing: '8%' }),
+    textEl('dp-value', dp.value, { y: '50%', font_family: SERIF, font_size: '15 vmin', font_weight: '700' }),
   ]
   if (dp.delta) {
     els.push(textEl('dp-delta', dp.delta, {
-      y_alignment: '62%', font_size: '5 vmin', font_weight: '700',
+      y: '63%', font_size: '5 vmin', font_weight: '700',
       fill_color: String(dp.delta).trim().startsWith('-') ? NEG : POS,
     }))
   }
@@ -121,13 +121,13 @@ export function buildLoroRenderSource(
 
   // Context
   scenes.push(contentScene('Context', nextBroll(),
-    [textEl('context', script.context || '', { y_alignment: '50%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' })],
+    [textEl('context', script.context || '', { y: '50%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' })],
     durs[di++], di % 2 === 0))
 
   // What to watch
   scenes.push(contentScene('Watch', nextBroll(), [
-    textEl('watch-eyebrow', 'WHAT TO WATCH', { y_alignment: '38%', font_size: '3.2 vmin', font_weight: '700', fill_color: ACCENT, letter_spacing: '10%' }),
-    textEl('watch', script.what_to_watch || '', { y_alignment: '50%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' }),
+    textEl('watch-eyebrow', 'WHAT TO WATCH', { y: '40%', font_size: '3.2 vmin', font_weight: '700', fill_color: ACCENT, letter_spacing: '10%' }),
+    textEl('watch', script.what_to_watch || '', { y: '52%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' }),
   ], durs[di++], di % 2 === 0))
 
   // Exit card (CTA) — carries the closing narration line
@@ -142,7 +142,7 @@ export function buildLoroRenderSource(
 
   const subtitles: El = {
     name: 'Subtitles', type: 'text', track: 3, time: 0, duration: total,
-    width: '88%', height: '24%', x_alignment: '50%', y_alignment: '80%',
+    width: '88%', height: '20%', x_alignment: '50%', y: '76%',
     font_family: SANS, font_weight: '700', font_size: '5.4 vmin',
     fill_color: WHITE, stroke_color: '#0a1424', stroke_width: '0.7 vmin',
     transcript_source: AUDIO, transcript_effect: 'highlight', transcript_color: ACCENT,
@@ -151,7 +151,7 @@ export function buildLoroRenderSource(
 
   const watermark: El = {
     name: 'Watermark', type: 'text', track: 4, time: 0, duration: total,
-    x_alignment: '50%', y_alignment: '94%',
+    x_alignment: '50%', y: '94%',
     font_family: SERIF, font_weight: '700', font_size: '3.4 vmin',
     fill_color: 'rgba(255,255,255,0.6)', text: 'Loro',
   }
