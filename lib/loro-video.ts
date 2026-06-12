@@ -52,3 +52,14 @@ export interface LoroVideo {
 
 // Default voice for Loro payments intelligence: authoritative, neutral.
 export const LORO_DEFAULT_VOICE = 'steve'
+
+// Selectable voices (must match ELEVENLABS_VOICE_* env vars configured in Vercel).
+export const LORO_VOICES: { id: string; label: string; hint: string }[] = [
+  { id: 'steve', label: 'Steve', hint: 'Authoritative male' },
+  { id: 'phil', label: 'Phil', hint: 'Warm male' },
+  { id: 'sophie', label: 'Sophie', hint: 'Clear female' },
+  { id: 'emily', label: 'Emily', hint: 'Bright female' },
+]
+
+// Consistent closing strapline shown on every exit card.
+export const LORO_STRAPLINE = 'Visit Loro — subscribe for more'

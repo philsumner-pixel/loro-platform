@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const brollUrls = await sourcePhotos(queries)
 
     // 4. Assemble + submit
-    const source = buildLoroRenderSource(script, audioUrl, brollUrls)
+    const source = buildLoroRenderSource(script, audioUrl, brollUrls, process.env.LORO_MUSIC_URL || undefined)
     const job = await submitRender(source)
 
     await db.from('loro_videos').update({

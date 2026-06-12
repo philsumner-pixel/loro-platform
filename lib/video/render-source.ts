@@ -1,4 +1,5 @@
 import type { LoroVideoScript, LoroDataPoint } from '@/lib/loro-video'
+import { LORO_STRAPLINE } from '@/lib/loro-video'
 
 // Loro brand palette for video
 const LAPIS = '#10243f'        // deep lapis panel background
@@ -82,6 +83,7 @@ export function buildLoroRenderSource(
   script: LoroVideoScript,
   audioUrl: string,
   brollUrls: string[],
+  musicUrl?: string,
 ): object {
   const D = estimateAudioDuration(script.narration || '')
   const dataPoints: LoroDataPoint[] = Array.isArray(script.data_points) ? script.data_points : []
@@ -132,10 +134,10 @@ export function buildLoroRenderSource(
     textEl('watch', script.what_to_watch || '', { y: '52%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' }),
   ], durs[di++], di % 2 === 0))
 
-  // Exit card (CTA) — carries the closing narration line
+  // Exit card (CTA) — consistent closing strapline on every clip
   scenes.push(brandCard(durs[di++], [
     { text: 'Loro', font: SERIF, size: '11 vmin', color: WHITE, y: '38%', weight: '700' },
-    { text: script.cta || 'Follow Loro for payments intelligence.', font: SANS, size: '4.2 vmin', color: WHITE, y: '54%', weight: '500' },
+    { text: LORO_STRAPLINE, font: SANS, size: '4.4 vmin', color: WHITE, y: '54%', weight: '500' },
     { text: 'loro.media', font: SANS, size: '3.2 vmin', color: ACCENT, y: '64%', weight: '500' },
   ]))
 
@@ -167,11 +169,21 @@ export function buildLoroRenderSource(
     letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
+  const elements: El[] = [...scenes, rootAudio, subtitles, footerBar, footerMark, footerTag]
+
+  if (musicUrl) {
+    elements.push({
+      name: 'Music', type: 'audio', track: 7, time: 0, duration: total,
+      source: musicUrl, loop: true, volume: '11%',
+      animations: [{ type: 'fade', scope: 'element', fade_out: true, duration: 0.8 }],
+    })
+  }
+
   return {
     output_format: 'mp4',
     width: 720,
     height: 1280,
     snapshot_time: 1,
-    elements: [...scenes, rootAudio, subtitles, footerBar, footerMark, footerTag],
+    elements,
   }
 }

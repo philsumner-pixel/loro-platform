@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
+import { LORO_VOICES } from '@/lib/loro-video'
 
 interface EvidencePacket {
   timeline?: Array<{ date: string; event: string }>
@@ -456,6 +457,7 @@ export default function NewsroomPage() {
   const [scriptEdit, setScriptEdit] = useState<Record<string, LoroVideoScript>>({})
   const [savingScript, setSavingScript] = useState<string | null>(null)
   const [showArchive, setShowArchive] = useState(false)
+  const [previewingVoice, setPreviewingVoice] = useState<string | null>(null)
   const [videoFilter, setVideoFilter] = useState<'inbox' | 'shortlisted' | 'archived'>('inbox')
 
   const load = useCallback(async () => {
@@ -617,6 +619,24 @@ export default function NewsroomPage() {
     } catch {
       setVideos(prev => prev.map(v => v.id === video.id ? { ...v, status: 'failed' } : v))
     }
+  }
+
+  async function changeVoice(video: LoroVideo, persona: string) {
+    setVideos(prev => prev.map(v => v.id === video.id ? { ...v, voice_persona: persona } : v))
+    await fetch('/api/newsroom/videos', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: video.id, voice_persona: persona }),
+    })
+  }
+
+  async function previewVoice(persona: string) {
+    setPreviewingVoice(persona)
+    try {
+      const res = await fetch(`/api/newsroom/voice-preview?persona=${persona}`)
+      const data = await res.json()
+      if (data.url) { const a = new Audio(data.url); await a.play() }
+    } catch { /* ignore */ }
+    finally { setPreviewingVoice(null) }
   }
 
   function copyToClipboard(text: string, field: string) {
@@ -1167,6 +1187,30 @@ export default function NewsroomPage() {
                         </div>
                       )}
 
+                      {/* Voice */}
+                      <div style={{marginBottom:18}}>
+                        <div style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:8}}>Voice</div>
+                        <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                          {LORO_VOICES.map(voice => {
+                            const selected = (v.voice_persona || 'steve') === voice.id
+                            return (
+                              <div key={voice.id} style={{display:'flex',alignItems:'stretch',border:'1px solid var(--border)',
+                                background: selected ? 'var(--paper2)' : 'var(--paper)'}}>
+                                <div onClick={() => changeVoice(v, voice.id)} style={{padding:'6px 11px',cursor:'pointer',
+                                  borderLeft: selected ? '2px solid var(--blue)' : '2px solid transparent'}}>
+                                  <div style={{fontSize:12,fontWeight:600,color: selected ? 'var(--ink)' : 'var(--ink4)'}}>{voice.label}</div>
+                                  <div style={{fontSize:10,color:'var(--ink5)'}}>{voice.hint}</div>
+                                </div>
+                                <div onClick={() => previewVoice(voice.id)} title="Preview voice"
+                                  style={{display:'flex',alignItems:'center',padding:'0 10px',cursor:'pointer',borderLeft:'1px solid var(--border)',color:'var(--ink4)',fontSize:12}}>
+                                  {previewingVoice === voice.id ? '…' : '▶'}
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+
                       {/* Actions */}
                       <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                         <button className="loro-nr-btn success" style={{fontSize:11}}
@@ -1178,9 +1222,8 @@ export default function NewsroomPage() {
                           {v.status === 'rendering' ? '● Rendering…' : v.status === 'ready' ? '↻ Re-render' : '▶ Generate video'}
                         </button>
                         <span style={{fontSize:11,color:'var(--ink5)'}}>
-                          Voice: <strong style={{color:'var(--ink4)'}}>{v.voice_persona}</strong>
-                          {v.status === 'rendering' ? ' · rendering, ~1–2 min' : ''}
-                          {v.error ? ` · ${v.error}` : ''}
+                          {v.status === 'rendering' ? 'rendering, ~1–2 min' : ''}
+                          {v.error ? `${v.status === 'rendering' ? ' · ' : ''}${v.error}` : ''}
                         </span>
                         <div style={{marginLeft:'auto',display:'flex',gap:6}}>
                           {v.disposition !== 'shortlisted' ? (

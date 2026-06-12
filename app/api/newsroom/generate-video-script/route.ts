@@ -80,8 +80,8 @@ Return ONLY a valid JSON object, no markdown, no backticks, no preamble, matchin
   ],
   "context": "one sentence explaining what actually happened",
   "what_to_watch": "one sentence on what to watch next",
-  "cta": "Follow Loro for payments intelligence.",
-  "narration": "the full spoken voiceover as one flowing block: hook, then the data spoken naturally, then context, then what to watch, then the CTA. 110-140 words. Spoken English, no on-screen labels, no markdown.",
+  "cta": "Visit Loro and subscribe for more.",
+  "narration": "the full spoken voiceover as one flowing block: hook, then the data spoken naturally, then context, then what to watch. 110-140 words. End with exactly this closing line: 'Visit Loro and subscribe for more.' Spoken English, no on-screen labels, no markdown.",
   "broll_keywords": ["3 to 5 concrete Pexels search terms for neutral fintech/payments background footage"]
 }
 

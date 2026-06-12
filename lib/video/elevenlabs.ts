@@ -20,6 +20,9 @@ function buildSSML(narration: string): string {
   return `<speak>${sentences.join(' ' + SHORT + ' ')}</speak>`
 }
 
+// A fixed line used for voice previews in the newsroom.
+export const VOICE_SAMPLE_LINE = 'This is Loro. Payments intelligence, in sixty seconds.'
+
 export async function synthesiseVoice(narration: string, voiceId: string): Promise<Buffer> {
   const ssml = buildSSML(narration)
   const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -32,7 +35,7 @@ export async function synthesiseVoice(narration: string, voiceId: string): Promi
       text: ssml,
       model_id: 'eleven_multilingual_v2',
       enable_ssml_parsing: true,
-      voice_settings: { stability: 0.5, similarity_boost: 0.75, style: 0.15, use_speaker_boost: true },
+      voice_settings: { stability: 0.62, similarity_boost: 0.8, style: 0.0, use_speaker_boost: true },
     }),
   })
   if (!res.ok) {
