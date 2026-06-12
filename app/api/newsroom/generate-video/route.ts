@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { resolveVoiceId, synthesiseVoice } from '@/lib/video/elevenlabs'
+import { resolveVoiceId, synthesiseVoiceTimed } from '@/lib/video/elevenlabs'
 import { normaliseText } from '@/lib/video/text-normalize'
 import { sourcePhotos } from '@/lib/video/pexels'
 import { submitRender } from '@/lib/video/creatomate'
@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     // 1. Voice
     const voiceId = resolveVoiceId(video.voice_persona || LORO_DEFAULT_VOICE)
     if (!voiceId) return NextResponse.json({ error: 'No ElevenLabs voice id configured' }, { status: 500 })
-    const audioBuffer = await synthesiseVoice(normaliseText(script.narration), voiceId)
+    const { audio: audioBuffer, cues, durationSec } = await synthesiseVoiceTimed(normaliseText(script.narration), voiceId)
 
     // 2. Store audio
     const filename = `${id}-${Date.now()}.mp3`
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     const brollUrls = await sourcePhotos(queries)
 
     // 4. Assemble + submit
-    const source = buildLoroRenderSource(script, audioUrl, brollUrls, process.env.LORO_MUSIC_URL || undefined)
+    const source = buildLoroRenderSource(script, audioUrl, brollUrls, cues, durationSec, process.env.LORO_MUSIC_URL || undefined)
     const job = await submitRender(source)
 
     await db.from('loro_videos').update({
@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       creatomate_job_id: job.id,
       status: 'rendering',
       video_url: job.url ?? null,
+      duration_seconds: durationSec || null,
     }).eq('id', id)
 
     return NextResponse.json({ job_id: job.id, status: job.status, audio_url: audioUrl })

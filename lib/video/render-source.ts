@@ -1,5 +1,6 @@
 import type { LoroVideoScript, LoroDataPoint } from '@/lib/loro-video'
 import { LORO_STRAPLINE } from '@/lib/loro-video'
+import type { Cue } from '@/lib/video/elevenlabs'
 
 // Loro brand palette for video
 const LAPIS = '#10243f'        // deep lapis panel background
@@ -83,9 +84,11 @@ export function buildLoroRenderSource(
   script: LoroVideoScript,
   audioUrl: string,
   brollUrls: string[],
+  cues: Cue[],
+  audioDuration: number,
   musicUrl?: string,
 ): object {
-  const D = estimateAudioDuration(script.narration || '')
+  const D = audioDuration > 0 ? audioDuration : estimateAudioDuration(script.narration || '')
   const dataPoints: LoroDataPoint[] = Array.isArray(script.data_points) ? script.data_points : []
 
   // The hook is spoken over the clean Loro entry card (no entity name on the open).
@@ -144,14 +147,16 @@ export function buildLoroRenderSource(
   const AUDIO = 'Narration'
   const rootAudio: El = { name: AUDIO, type: 'audio', track: 2, time: 0, source: audioUrl }
 
-  const subtitles: El = {
-    name: 'Subtitles', type: 'text', track: 3, time: 0, duration: total,
-    width: '88%', height: '16%', x_alignment: '50%', y: '73%',
-    font_family: SANS, font_weight: '700', font_size: '5.4 vmin',
+  // Captions: timed cues from the EXACT script text (no speech-to-text).
+  const cueEls: El[] = cues.map((c, i) => ({
+    name: `Cue-${i}`, type: 'text', track: 3,
+    time: Math.round(c.start * 100) / 100,
+    duration: Math.max(0.4, Math.round((c.end - c.start) * 100) / 100),
+    width: '86%', x_alignment: '50%', y: '74%',
+    font_family: SANS, font_weight: '700', font_size: '5.2 vmin',
     fill_color: WHITE, stroke_color: '#0a1424', stroke_width: '0.7 vmin',
-    transcript_source: AUDIO, transcript_effect: 'highlight', transcript_color: ACCENT,
-    transcript_maximum_length: 32,
-  }
+    text: c.text,
+  }))
 
   const footerBar: El = {
     name: 'FooterBar', type: 'text', track: 4, time: 0, duration: total,
@@ -169,7 +174,7 @@ export function buildLoroRenderSource(
     letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
-  const elements: El[] = [...scenes, rootAudio, subtitles, footerBar, footerMark, footerTag]
+  const elements: El[] = [...scenes, rootAudio, ...cueEls, footerBar, footerMark, footerTag]
 
   if (musicUrl) {
     elements.push({

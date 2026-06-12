@@ -44,3 +44,74 @@ export async function synthesiseVoice(narration: string, voiceId: string): Promi
   }
   return Buffer.from(await res.arrayBuffer())
 }
+
+export interface Cue { text: string; start: number; end: number }
+
+interface Alignment {
+  characters: string[]
+  character_start_times_seconds: number[]
+  character_end_times_seconds: number[]
+}
+
+// Group character-level timings into short caption cues, using OUR exact text.
+function cuesFromAlignment(a: Alignment, maxWords = 6, maxChars = 34): Cue[] {
+  const chars = a.characters || []
+  const starts = a.character_start_times_seconds || []
+  const ends = a.character_end_times_seconds || []
+
+  const words: { text: string; start: number; end: number }[] = []
+  let cur = '', curStart = -1, curEnd = 0
+  for (let i = 0; i < chars.length; i++) {
+    const c = chars[i]
+    if (/\s/.test(c)) {
+      if (cur) { words.push({ text: cur, start: curStart, end: curEnd }); cur = ''; curStart = -1 }
+    } else {
+      if (curStart < 0) curStart = starts[i] ?? curEnd
+      cur += c
+      curEnd = ends[i] ?? curEnd
+    }
+  }
+  if (cur) words.push({ text: cur, start: curStart, end: curEnd })
+
+  const cues: Cue[] = []
+  let line: typeof words = []
+  let lineChars = 0
+  const flush = () => {
+    if (!line.length) return
+    cues.push({ text: line.map(w => w.text).join(' '), start: line[0].start, end: line[line.length - 1].end })
+    line = []; lineChars = 0
+  }
+  for (const w of words) {
+    if (line.length >= maxWords || lineChars + w.text.length > maxChars) flush()
+    line.push(w); lineChars += w.text.length + 1
+  }
+  flush()
+  return cues
+}
+
+// Synthesise with character timestamps. Captions are built from the EXACT input
+// text — no speech-to-text round-trip, so brand words like "Loro" stay correct.
+export async function synthesiseVoiceTimed(
+  text: string, voiceId: string,
+): Promise<{ audio: Buffer; cues: Cue[]; durationSec: number }> {
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/with-timestamps`, {
+    method: 'POST',
+    headers: { 'xi-api-key': process.env.ELEVENLABS_API_KEY!, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      model_id: 'eleven_multilingual_v2',
+      voice_settings: { stability: 0.62, similarity_boost: 0.8, style: 0.0, use_speaker_boost: true },
+    }),
+  })
+  if (!res.ok) {
+    const errText = await res.text()
+    throw new Error(`ElevenLabs error: ${res.status} — ${errText}`)
+  }
+  const data = await res.json()
+  const audio = Buffer.from(data.audio_base64, 'base64')
+  const align: Alignment | undefined = data.alignment ?? data.normalized_alignment
+  const cues = align ? cuesFromAlignment(align) : []
+  const durationSec = align?.character_end_times_seconds?.length
+    ? Math.max(...align.character_end_times_seconds) : 0
+  return { audio, cues, durationSec }
+}
