@@ -40,7 +40,7 @@ function contentScene(name: string, broll: string, overlay: El[], durationSec: n
   const bg: El = broll
     ? {
         name: `${name}-img`, type: 'image', track: 1, time: 0, source: broll,
-        fit: 'cover', color_overlay: 'rgba(8,14,28,0.58)',
+        fit: 'cover', color_overlay: 'rgba(16,36,63,0.62)',
         animations: [{
           type: 'pan', scope: 'element', easing: 'linear',
           start_x: '50%', end_x: '50%',
@@ -64,13 +64,15 @@ function textEl(name: string, text: string, opts: Partial<El>): El {
 
 function dataOverlay(dp: LoroDataPoint): El[] {
   const els: El[] = [
-    textEl('dp-label', dp.label, { y: '38%', font_size: '3.4 vmin', font_weight: '600', fill_color: ACCENT, letter_spacing: '8%' }),
-    textEl('dp-value', dp.value, { y: '50%', font_family: SERIF, font_size: '15 vmin', font_weight: '700' }),
+    textEl('dp-label', dp.label, { y: '30%', font_size: '3.4 vmin', font_weight: '600', fill_color: ACCENT, letter_spacing: '8%' }),
+    textEl('dp-value', dp.value, { y: '44%', font_family: SERIF, font_size: '15 vmin', font_weight: '700' }),
   ]
   if (dp.delta) {
+    const d = String(dp.delta).trim()
+    const signed = /^[+-]/.test(d)
     els.push(textEl('dp-delta', dp.delta, {
-      y: '63%', font_size: '5 vmin', font_weight: '700',
-      fill_color: String(dp.delta).trim().startsWith('-') ? NEG : POS,
+      y: '56%', font_size: '4.6 vmin', font_weight: '700',
+      fill_color: signed ? (d.startsWith('-') ? NEG : POS) : ACCENT,
     }))
   }
   return els
@@ -142,18 +144,27 @@ export function buildLoroRenderSource(
 
   const subtitles: El = {
     name: 'Subtitles', type: 'text', track: 3, time: 0, duration: total,
-    width: '88%', height: '20%', x_alignment: '50%', y: '76%',
+    width: '88%', height: '16%', x_alignment: '50%', y: '73%',
     font_family: SANS, font_weight: '700', font_size: '5.4 vmin',
     fill_color: WHITE, stroke_color: '#0a1424', stroke_width: '0.7 vmin',
     transcript_source: AUDIO, transcript_effect: 'highlight', transcript_color: ACCENT,
     transcript_maximum_length: 32,
   }
 
-  const watermark: El = {
-    name: 'Watermark', type: 'text', track: 4, time: 0, duration: total,
-    x_alignment: '50%', y: '94%',
-    font_family: SERIF, font_weight: '700', font_size: '3.4 vmin',
-    fill_color: 'rgba(255,255,255,0.6)', text: 'Loro',
+  const footerBar: El = {
+    name: 'FooterBar', type: 'text', track: 4, time: 0, duration: total,
+    width: '100%', height: '9%', x_alignment: '50%', y: '95.5%',
+    background_color: 'rgba(16,36,63,0.85)', fill_color: 'rgba(16,36,63,0.85)', text: ' ',
+  }
+  const footerMark: El = {
+    name: 'FooterMark', type: 'text', track: 5, time: 0, duration: total,
+    x_alignment: '50%', y: '94.4%', font_family: SERIF, font_weight: '700', font_size: '3.2 vmin',
+    fill_color: WHITE, text: 'Loro',
+  }
+  const footerTag: El = {
+    name: 'FooterTag', type: 'text', track: 6, time: 0, duration: total,
+    x_alignment: '50%', y: '97.4%', font_family: SANS, font_weight: '500', font_size: '1.9 vmin',
+    letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
   return {
@@ -161,6 +172,6 @@ export function buildLoroRenderSource(
     width: 720,
     height: 1280,
     snapshot_time: 1,
-    elements: [...scenes, rootAudio, subtitles, watermark],
+    elements: [...scenes, rootAudio, subtitles, footerBar, footerMark, footerTag],
   }
 }
