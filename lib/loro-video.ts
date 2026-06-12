@@ -35,6 +35,7 @@ export interface LoroVideo {
   entity_name: string | null
   script: LoroVideoScript
   voice_persona: string
+  disposition: 'inbox' | 'shortlisted' | 'archived'
   audio_url: string | null
   video_url: string | null
   thumbnail_url: string | null

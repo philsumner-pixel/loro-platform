@@ -456,6 +456,7 @@ export default function NewsroomPage() {
   const [scriptEdit, setScriptEdit] = useState<Record<string, LoroVideoScript>>({})
   const [savingScript, setSavingScript] = useState<string | null>(null)
   const [showArchive, setShowArchive] = useState(false)
+  const [videoFilter, setVideoFilter] = useState<'inbox' | 'shortlisted' | 'archived'>('inbox')
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -567,6 +568,14 @@ export default function NewsroomPage() {
     } finally { setSavingScript(null) }
   }
 
+  async function setVideoDisposition(video: LoroVideo, disposition: 'inbox' | 'shortlisted' | 'archived') {
+    setVideos(prev => prev.map(v => v.id === video.id ? { ...v, disposition } : v))
+    await fetch('/api/newsroom/videos', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: video.id, disposition }),
+    })
+  }
+
   function copyToClipboard(text: string, field: string) {
     navigator.clipboard.writeText(text).then(() => {
       setCopiedField(field)
@@ -622,6 +631,13 @@ export default function NewsroomPage() {
 
   const activeSignalSources = videoSources.filter(s => !s.has_video && !isStaleSignal(s.triggered_at))
   const archivedSignalSources = videoSources.filter(s => !s.has_video && isStaleSignal(s.triggered_at))
+
+  const videoCounts = {
+    inbox: videos.filter(v => (v.disposition ?? 'inbox') === 'inbox').length,
+    shortlisted: videos.filter(v => v.disposition === 'shortlisted').length,
+    archived: videos.filter(v => v.disposition === 'archived').length,
+  }
+  const filteredVideos = videos.filter(v => (v.disposition ?? 'inbox') === videoFilter)
 
   function renderSourceRow(s: VideoSource) {
     return (
@@ -972,7 +988,7 @@ export default function NewsroomPage() {
             </div>
 
             {/* Draft from a signal */}
-            {activeSignalSources.length > 0 && (
+            {videoFilter === 'inbox' && activeSignalSources.length > 0 && (
               <div style={{marginBottom:24}}>
                 <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:10}}>
                   Draft from a signal
@@ -984,7 +1000,7 @@ export default function NewsroomPage() {
             )}
 
             {/* Archive — signals with no action in over a week */}
-            {archivedSignalSources.length > 0 && (
+            {videoFilter === 'inbox' && archivedSignalSources.length > 0 && (
               <div style={{marginBottom:24}}>
                 <div onClick={() => setShowArchive(a => !a)}
                   style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:10,cursor:'pointer',userSelect:'none'}}>
@@ -998,13 +1014,29 @@ export default function NewsroomPage() {
               </div>
             )}
 
-            {videos.length === 0 && (
-              <div className="loro-nr-empty">No video drafts yet — draft one from a signal above.</div>
+            {/* Video triage filter */}
+            <div style={{display:'flex',gap:1,background:'var(--border)',marginBottom:16,width:'fit-content'}}>
+              {(['inbox','shortlisted','archived'] as const).map(f => (
+                <div key={f} onClick={() => setVideoFilter(f)}
+                  style={{padding:'7px 16px',cursor:'pointer',fontSize:11,letterSpacing:'0.04em',textTransform:'capitalize',userSelect:'none',
+                    background: videoFilter===f ? 'var(--ink)' : 'var(--paper)',
+                    color: videoFilter===f ? '#fff' : 'var(--ink4)'}}>
+                  {f} <span style={{opacity:0.6,marginLeft:2}}>{videoCounts[f]}</span>
+                </div>
+              ))}
+            </div>
+
+            {filteredVideos.length === 0 && (
+              <div className="loro-nr-empty">
+                {videoFilter === 'inbox' ? 'No video drafts yet — draft one from a signal above.'
+                  : videoFilter === 'shortlisted' ? 'No shortlisted videos.'
+                  : 'No archived videos.'}
+              </div>
             )}
 
-            {/* Video suggestion inbox */}
+            {/* Video list */}
             <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)'}}>
-              {videos.map(v => {
+              {filteredVideos.map(v => {
                 const sc = scriptEdit[v.id] ?? v.script
                 const dirty = !!scriptEdit[v.id]
                 return (
@@ -1059,12 +1091,12 @@ export default function NewsroomPage() {
                         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
                           <div>
                             <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Context</label>
-                            <textarea value={sc.context ?? ''} onChange={e => editScriptField(v, 'context', e.target.value)} rows={2}
+                            <textarea value={sc.context ?? ''} onChange={e => editScriptField(v, 'context', e.target.value)} rows={4}
                               style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.6,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
                           </div>
                           <div>
                             <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>What to watch</label>
-                            <textarea value={sc.what_to_watch ?? ''} onChange={e => editScriptField(v, 'what_to_watch', e.target.value)} rows={2}
+                            <textarea value={sc.what_to_watch ?? ''} onChange={e => editScriptField(v, 'what_to_watch', e.target.value)} rows={4}
                               style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.6,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
                           </div>
                         </div>
@@ -1106,6 +1138,18 @@ export default function NewsroomPage() {
                           Voice: <strong style={{color:'var(--ink4)'}}>{v.voice_persona}</strong>
                           {' · '}render lane connects next
                         </span>
+                        <div style={{marginLeft:'auto',display:'flex',gap:6}}>
+                          {v.disposition !== 'shortlisted' ? (
+                            <button className="loro-nr-btn" style={{fontSize:11}} onClick={() => setVideoDisposition(v, 'shortlisted')}>☆ Shortlist</button>
+                          ) : (
+                            <button className="loro-nr-btn" style={{fontSize:11}} onClick={() => setVideoDisposition(v, 'inbox')}>★ Shortlisted</button>
+                          )}
+                          {v.disposition !== 'archived' ? (
+                            <button className="loro-nr-btn danger" style={{fontSize:11}} onClick={() => setVideoDisposition(v, 'archived')}>Archive</button>
+                          ) : (
+                            <button className="loro-nr-btn" style={{fontSize:11}} onClick={() => setVideoDisposition(v, 'inbox')}>Restore</button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}

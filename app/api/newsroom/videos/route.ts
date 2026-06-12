@@ -41,7 +41,7 @@ export async function GET() {
 
 // PATCH: save a journalist-edited script (and/or move status / change voice).
 export async function PATCH(req: NextRequest) {
-  const { id, script, status, voice_persona } = await req.json()
+  const { id, script, status, voice_persona, disposition } = await req.json()
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 })
 
   const updates: Record<string, unknown> = {}
@@ -51,6 +51,7 @@ export async function PATCH(req: NextRequest) {
   }
   if (status) updates.status = status
   if (voice_persona) updates.voice_persona = voice_persona
+  if (disposition) updates.disposition = disposition
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: 'nothing to update' }, { status: 400 })
