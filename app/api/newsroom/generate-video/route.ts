@@ -41,17 +41,17 @@ export async function POST(req: NextRequest) {
     const { data: urlData } = db.storage.from('loro-video-audio').getPublicUrl(filename)
     const audioUrl = urlData.publicUrl
 
-    // 3. B-roll — one photo per content scene, in scene order
+    // 3. B-roll — one photo per content scene (data, context, watch), in order
     const kws = (Array.isArray(script.broll_keywords) ? script.broll_keywords : []).filter(Boolean)
     const kw = (i: number) => kws.length ? kws[i % kws.length] : `${video.entity_name} payments fintech`
     const dataCount = Array.isArray(script.data_points) ? script.data_points.length : 0
-    const queries: string[] = [kw(0)]
-    for (let i = 0; i < dataCount; i++) queries.push(kw(i + 1))
-    queries.push(kw(dataCount + 1), kw(dataCount + 2))
+    const queries: string[] = []
+    for (let i = 0; i < dataCount; i++) queries.push(kw(i))
+    queries.push(kw(dataCount), kw(dataCount + 1))
     const brollUrls = await sourcePhotos(queries)
 
     // 4. Assemble + submit
-    const source = buildLoroRenderSource(script, audioUrl, brollUrls, video.entity_name || 'Loro')
+    const source = buildLoroRenderSource(script, audioUrl, brollUrls)
     const job = await submitRender(source)
 
     await db.from('loro_videos').update({

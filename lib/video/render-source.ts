@@ -80,14 +80,16 @@ export function buildLoroRenderSource(
   script: LoroVideoScript,
   audioUrl: string,
   brollUrls: string[],
-  entityName: string,
 ): object {
-  const introDur = 2.3
   const D = estimateAudioDuration(script.narration || '')
   const dataPoints: LoroDataPoint[] = Array.isArray(script.data_points) ? script.data_points : []
 
+  // The hook is spoken over the clean Loro entry card (no entity name on the open).
+  const hookWords = (script.hook || '').trim().split(/\s+/).filter(Boolean).length
+  const introDur = Math.min(4.5, Math.max(2.2, Math.round(hookWords * 0.5 * 10) / 10))
+
+  // Remaining narration time is split across the content + exit beats.
   const beatTexts: string[] = [
-    script.hook || entityName,
     ...dataPoints.map(dp => `${dp.label} ${dp.value} ${dp.delta ?? ''}`),
     script.context || '',
     script.what_to_watch || '',
@@ -95,7 +97,8 @@ export function buildLoroRenderSource(
   ]
   const weights = beatTexts.map(t => Math.max(10, t.length))
   const totalW = weights.reduce((a, b) => a + b, 0)
-  const durs = weights.map(w => Math.max(1.8, Math.round((D * w / totalW) * 10) / 10))
+  const remaining = Math.max(4, D - introDur)
+  const durs = weights.map(w => Math.max(1.8, Math.round((remaining * w / totalW) * 10) / 10))
   const contentTotal = Math.round(durs.reduce((a, b) => a + b, 0) * 10) / 10
   const total = Math.round((introDur + contentTotal) * 10) / 10
 
@@ -105,17 +108,11 @@ export function buildLoroRenderSource(
 
   const scenes: El[] = []
 
-  // Entry card
+  // Entry card — clean Loro ident, voiceover introduces over it
   scenes.push(brandCard(introDur, [
-    { text: 'Loro', font: SERIF, size: '13 vmin', color: WHITE, y: '40%', weight: '700' },
-    { text: 'Payment Intelligence', font: SANS, size: '3.4 vmin', color: ACCENT, y: '52%', weight: '500' },
-    { text: entityName, font: SANS, size: '4.6 vmin', color: WHITE, y: '62%', weight: '600' },
+    { text: 'Loro', font: SERIF, size: '15 vmin', color: WHITE, y: '44%', weight: '700' },
+    { text: 'Payment Intelligence', font: SANS, size: '3.6 vmin', color: ACCENT, y: '56%', weight: '500' },
   ]))
-
-  // Hook
-  scenes.push(contentScene('Hook', nextBroll(),
-    [textEl('hook', script.hook || '', { y_alignment: '48%', font_family: SERIF, font_size: '7.5 vmin', font_weight: '700' })],
-    durs[di++], di % 2 === 0))
 
   // Data points
   dataPoints.forEach((dp, i) => {
@@ -141,10 +138,10 @@ export function buildLoroRenderSource(
   ]))
 
   const AUDIO = 'Narration'
-  const rootAudio: El = { name: AUDIO, type: 'audio', track: 2, time: introDur, source: audioUrl }
+  const rootAudio: El = { name: AUDIO, type: 'audio', track: 2, time: 0, source: audioUrl }
 
   const subtitles: El = {
-    name: 'Subtitles', type: 'text', track: 3, time: introDur, duration: contentTotal,
+    name: 'Subtitles', type: 'text', track: 3, time: 0, duration: total,
     width: '88%', height: '24%', x_alignment: '50%', y_alignment: '80%',
     font_family: SANS, font_weight: '700', font_size: '5.4 vmin',
     fill_color: WHITE, stroke_color: '#0a1424', stroke_width: '0.7 vmin',
