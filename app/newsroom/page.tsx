@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
 
 interface EvidencePacket {
   timeline?: Array<{ date: string; event: string }>
@@ -67,11 +68,22 @@ interface SignalDigest {
   social_generated_at: string | null
 }
 
+interface VideoSource {
+  id: string
+  entity_name: string
+  trigger_type: string
+  score_delta: number | null
+  triggered_at: string
+  digest_status: string
+  has_video: boolean
+}
+
 const TABS = [
   { key: 'new,shortlisted', label: 'Inbox', statuses: ['new','shortlisted'] },
   { key: 'in_draft',        label: 'In draft', statuses: ['in_draft'] },
   { key: 'published',       label: 'Published', statuses: ['published'] },
   { key: 'signal_digest',   label: 'Signal Digest', statuses: [] },
+  { key: 'video',           label: 'Video', statuses: [] },
 ]
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -436,6 +448,12 @@ export default function NewsroomPage() {
   const [generatingDigest, setGeneratingDigest] = useState<string | null>(null)
   const [generatingSocial, setGeneratingSocial] = useState<string | null>(null)
   const [copiedField, setCopiedField] = useState<string | null>(null)
+  const [videos, setVideos] = useState<LoroVideo[]>([])
+  const [videoSources, setVideoSources] = useState<VideoSource[]>([])
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null)
+  const [draftingScript, setDraftingScript] = useState<string | null>(null)
+  const [scriptEdit, setScriptEdit] = useState<Record<string, LoroVideoScript>>({})
+  const [savingScript, setSavingScript] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -454,6 +472,15 @@ export default function NewsroomPage() {
       fetch('/api/newsroom/generate-digest')
         .then(r => r.json())
         .then(d => setDigests(d.digests ?? []))
+        .catch(() => {})
+    }
+  }, [activeTab.key])
+
+  useEffect(() => {
+    if (activeTab.key === 'video') {
+      fetch('/api/newsroom/videos')
+        .then(r => r.json())
+        .then(d => { setVideos(d.videos ?? []); setVideoSources(d.sources ?? []) })
         .catch(() => {})
     }
   }, [activeTab.key])
@@ -499,6 +526,43 @@ export default function NewsroomPage() {
           : prev)
       }
     } finally { setGeneratingSocial(null) }
+  }
+
+  async function draftVideoScript(digestId: string) {
+    setDraftingScript(digestId)
+    try {
+      const res = await fetch('/api/newsroom/generate-video-script', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ digest_id: digestId }),
+      })
+      const data = await res.json()
+      if (data.video) {
+        setVideos(prev => [data.video, ...prev.filter(v => v.id !== data.video.id)])
+        setVideoSources(prev => prev.map(s => s.id === digestId ? { ...s, has_video: true } : s))
+        setSelectedVideo(data.video.id)
+      }
+    } finally { setDraftingScript(null) }
+  }
+
+  function editScriptField(video: LoroVideo, field: keyof LoroVideoScript, value: string) {
+    const base = scriptEdit[video.id] ?? video.script
+    setScriptEdit(prev => ({ ...prev, [video.id]: { ...base, [field]: value } }))
+  }
+
+  async function saveVideoScript(video: LoroVideo) {
+    const edited = scriptEdit[video.id] ?? video.script
+    setSavingScript(video.id)
+    try {
+      const res = await fetch('/api/newsroom/videos', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: video.id, script: edited, status: 'script_ready' }),
+      })
+      const data = await res.json()
+      if (data.video) {
+        setVideos(prev => prev.map(v => v.id === video.id ? data.video : v))
+        setScriptEdit(prev => { const n = { ...prev }; delete n[video.id]; return n })
+      }
+    } finally { setSavingScript(null) }
   }
 
   function copyToClipboard(text: string, field: string) {
@@ -578,6 +642,8 @@ export default function NewsroomPage() {
                   ? Object.values(inboxCounts).reduce((a,b)=>a+b,0)
                   : tab.key === 'signal_digest'
                   ? digests.filter(d => d.status === 'pending').length
+                  : tab.key === 'video'
+                  ? videos.filter(v => v.status === 'suggested' || v.status === 'script_ready').length
                   : candidates.filter(c=>tab.statuses.includes(c.status)).length}
               </span>
             </button>
@@ -853,6 +919,162 @@ export default function NewsroomPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {activeTab.key === 'video' && (
+          <div>
+            <div style={{marginBottom:20,padding:'14px 20px',background:'var(--paper2)',border:'1px solid var(--border)',borderLeft:'3px solid var(--blue)'}}>
+              <div style={{fontSize:12,fontWeight:600,color:'var(--ink)',marginBottom:4}}>Video — 60-second single-reveal shorts</div>
+              <div style={{fontSize:12,color:'var(--ink4)',lineHeight:1.6}}>
+                Signals become a suggested script: hook, the data, what to watch. Edit the script, then generate the video. Each short carries the same Loro entry and exit cards.
+              </div>
+            </div>
+
+            {/* Draft from a signal */}
+            {videoSources.filter(s => !s.has_video).length > 0 && (
+              <div style={{marginBottom:24}}>
+                <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:10}}>
+                  Draft from a signal
+                </div>
+                <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)'}}>
+                  {videoSources.filter(s => !s.has_video).map(s => (
+                    <div key={s.id} style={{background:'var(--paper)',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
+                      <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0,flexWrap:'wrap'}}>
+                        <span style={{fontSize:9,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',padding:'2px 8px',background:'var(--blue)',color:'#fff'}}>
+                          {TRIGGER_LABELS[s.trigger_type] ?? s.trigger_type}
+                        </span>
+                        <span style={{fontSize:13,fontWeight:600,color:'var(--ink)'}}>{s.entity_name}</span>
+                        {s.score_delta != null && (
+                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:600,color: s.score_delta < 0 ? 'var(--red-data)' : 'var(--green)'}}>
+                            {s.score_delta > 0 ? '+' : ''}{s.score_delta.toFixed(1)} pts
+                          </span>
+                        )}
+                      </div>
+                      <button className="loro-nr-btn primary" style={{fontSize:10,padding:'4px 12px',whiteSpace:'nowrap'}}
+                        onClick={() => draftVideoScript(s.id)} disabled={draftingScript === s.id}>
+                        {draftingScript === s.id ? 'Drafting...' : '❖ Draft video script'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {videos.length === 0 && (
+              <div className="loro-nr-empty">No video drafts yet — draft one from a signal above.</div>
+            )}
+
+            {/* Video suggestion inbox */}
+            <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)'}}>
+              {videos.map(v => {
+                const sc = scriptEdit[v.id] ?? v.script
+                const dirty = !!scriptEdit[v.id]
+                return (
+                <div key={v.id}>
+                  <div onClick={() => setSelectedVideo(selectedVideo === v.id ? null : v.id)}
+                    style={{background: selectedVideo === v.id ? 'var(--paper2)' : 'var(--paper)',padding:'16px 20px',cursor:'pointer',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:16}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6,flexWrap:'wrap'}}>
+                        <span style={{fontSize:10,padding:'2px 8px',border:'1px solid var(--border)',
+                          background: v.status === 'ready' || v.status === 'published' ? 'var(--green-bg)' : v.status === 'failed' ? 'var(--red-bg)' : 'var(--paper2)',
+                          color: v.status === 'ready' || v.status === 'published' ? 'var(--green)' : v.status === 'failed' ? 'var(--red-data)' : 'var(--ink5)'}}>
+                          {v.status}
+                        </span>
+                        <span style={{fontSize:14,fontWeight:600,color:'var(--ink)'}}>{v.entity_name}</span>
+                      </div>
+                      <div style={{fontSize:13,color:'var(--ink3)',lineHeight:1.5,fontStyle:'italic'}}>{sc?.hook}</div>
+                    </div>
+                    <div style={{fontSize:10,color:'var(--ink5)',whiteSpace:'nowrap',flexShrink:0,marginTop:2}}>
+                      {timeAgo(v.created_at)}
+                    </div>
+                  </div>
+
+                  {selectedVideo === v.id && sc && (
+                    <div style={{background:'var(--paper)',borderTop:'1px solid var(--border)',padding:'24px 20px'}}>
+
+                      {/* Data points */}
+                      {Array.isArray(sc.data_points) && sc.data_points.length > 0 && (
+                        <div style={{display:'flex',gap:1,background:'var(--border)',marginBottom:20,flexWrap:'wrap'}}>
+                          {sc.data_points.map((dp, i) => (
+                            <div key={i} style={{background:'var(--paper2)',padding:'10px 16px',flex:'1 1 120px'}}>
+                              <div style={{fontSize:10,color:'var(--ink5)',letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:4}}>{dp.label}</div>
+                              <div style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:20,fontWeight:500,color:'var(--ink)'}}>
+                                {dp.value}{dp.delta && <span style={{fontSize:12,marginLeft:6,color: String(dp.delta).startsWith('-') ? 'var(--red-data)' : 'var(--green)'}}>{dp.delta}</span>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Editable script */}
+                      <div style={{display:'flex',flexDirection:'column',gap:14,marginBottom:20}}>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Hook</label>
+                          <input value={sc.hook ?? ''} onChange={e => editScriptField(v, 'hook', e.target.value)}
+                            style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:14,fontWeight:600,color:'var(--ink)',background:'var(--paper)',outline:'none'}}/>
+                        </div>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Narration (voiceover)</label>
+                          <textarea value={sc.narration ?? ''} onChange={e => editScriptField(v, 'narration', e.target.value)} rows={6}
+                            style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.7,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
+                        </div>
+                        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}}>
+                          <div>
+                            <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Context</label>
+                            <textarea value={sc.context ?? ''} onChange={e => editScriptField(v, 'context', e.target.value)} rows={2}
+                              style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.6,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
+                          </div>
+                          <div>
+                            <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>What to watch</label>
+                            <textarea value={sc.what_to_watch ?? ''} onChange={e => editScriptField(v, 'what_to_watch', e.target.value)} rows={2}
+                              style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,lineHeight:1.6,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
+                          </div>
+                        </div>
+                        <div>
+                          <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Call to action</label>
+                          <input value={sc.cta ?? ''} onChange={e => editScriptField(v, 'cta', e.target.value)}
+                            style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:13,color:'var(--ink3)',background:'var(--paper)',outline:'none'}}/>
+                        </div>
+                        {Array.isArray(sc.broll_keywords) && sc.broll_keywords.length > 0 && (
+                          <div>
+                            <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>B-roll keywords</label>
+                            <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+                              {sc.broll_keywords.map((k, i) => (
+                                <span key={i} style={{fontSize:11,padding:'3px 10px',border:'1px solid var(--border)',background:'var(--paper2)',color:'var(--ink4)'}}>{k}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Video preview (once render lane is live) */}
+                      {v.video_url && (
+                        <div style={{marginBottom:20}}>
+                          <video src={v.video_url} controls style={{width:'100%',maxWidth:360,border:'1px solid var(--border)'}} />
+                        </div>
+                      )}
+
+                      {/* Actions */}
+                      <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                        <button className="loro-nr-btn success" style={{fontSize:11}}
+                          onClick={() => saveVideoScript(v)} disabled={savingScript === v.id}>
+                          {savingScript === v.id ? 'Saving...' : dirty ? 'Save script' : 'Script saved'}
+                        </button>
+                        <button className="loro-nr-btn primary" style={{fontSize:11,opacity:0.5,cursor:'not-allowed'}}
+                          disabled title="Connects once the render keys are added">
+                          ▶ Generate video
+                        </button>
+                        <span style={{fontSize:11,color:'var(--ink5)'}}>
+                          Voice: <strong style={{color:'var(--ink4)'}}>{v.voice_persona}</strong>
+                          {' · '}render lane connects next
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )})}
             </div>
           </div>
         )}
