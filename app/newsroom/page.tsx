@@ -75,6 +75,7 @@ interface VideoSource {
   score_delta: number | null
   triggered_at: string
   digest_status: string
+  trigger_summary: string | null
   has_video: boolean
 }
 
@@ -454,6 +455,7 @@ export default function NewsroomPage() {
   const [draftingScript, setDraftingScript] = useState<string | null>(null)
   const [scriptEdit, setScriptEdit] = useState<Record<string, LoroVideoScript>>({})
   const [savingScript, setSavingScript] = useState<string | null>(null)
+  const [showArchive, setShowArchive] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -614,6 +616,44 @@ export default function NewsroomPage() {
 
   const inboxCounts = { novel: candidates.filter(COLUMNS[0].filter).length, angle: candidates.filter(COLUMNS[1].filter).length, depth: candidates.filter(COLUMNS[2].filter).length }
 
+  const DAY_MS = 86400000
+  function isNewSignal(iso: string) { return Date.now() - new Date(iso).getTime() < DAY_MS }
+  function isStaleSignal(iso: string) { return Date.now() - new Date(iso).getTime() > 7 * DAY_MS }
+
+  const activeSignalSources = videoSources.filter(s => !s.has_video && !isStaleSignal(s.triggered_at))
+  const archivedSignalSources = videoSources.filter(s => !s.has_video && isStaleSignal(s.triggered_at))
+
+  function renderSourceRow(s: VideoSource) {
+    return (
+      <div key={s.id} style={{background:'var(--paper)',padding:'12px 16px',display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:12}}>
+        <div style={{minWidth:0,flex:1}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:5,flexWrap:'wrap'}}>
+            {isNewSignal(s.triggered_at) && (
+              <span style={{fontSize:8,fontWeight:700,letterSpacing:'0.12em',padding:'2px 6px',background:'var(--red-data)',color:'#fff'}}>NEW</span>
+            )}
+            <span style={{fontSize:9,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',padding:'2px 8px',background:'var(--blue)',color:'#fff'}}>
+              {TRIGGER_LABELS[s.trigger_type] ?? s.trigger_type}
+            </span>
+            <span style={{fontSize:13,fontWeight:600,color:'var(--ink)'}}>{s.entity_name}</span>
+            {s.score_delta != null && (
+              <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:600,color: s.score_delta < 0 ? 'var(--red-data)' : 'var(--green)'}}>
+                {s.score_delta > 0 ? '+' : ''}{s.score_delta.toFixed(1)} pts
+              </span>
+            )}
+            <span style={{fontSize:10,color:'var(--ink5)'}}>{timeAgo(s.triggered_at)}</span>
+          </div>
+          {s.trigger_summary && (
+            <div style={{fontSize:12,color:'var(--ink4)',lineHeight:1.5}}>{s.trigger_summary}</div>
+          )}
+        </div>
+        <button className="loro-nr-btn primary" style={{fontSize:10,padding:'4px 12px',whiteSpace:'nowrap',flexShrink:0}}
+          onClick={() => draftVideoScript(s.id)} disabled={draftingScript === s.id}>
+          {draftingScript === s.id ? 'Drafting...' : '❖ Draft video script'}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="loro-newsroom">
       {/* Header */}
@@ -625,7 +665,6 @@ export default function NewsroomPage() {
           </div>
           <div style={{display:'flex',alignItems:'center',gap:20}}>
             <a href="/" style={{fontSize:12,color:'rgba(255,255,255,0.4)',letterSpacing:'0.04em'}}>← View site</a>
-            <span className="loro-nr-user">Chris Cannon</span>
           </div>
         </div>
       </div>
@@ -933,32 +972,29 @@ export default function NewsroomPage() {
             </div>
 
             {/* Draft from a signal */}
-            {videoSources.filter(s => !s.has_video).length > 0 && (
+            {activeSignalSources.length > 0 && (
               <div style={{marginBottom:24}}>
                 <div style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:10}}>
                   Draft from a signal
                 </div>
                 <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)'}}>
-                  {videoSources.filter(s => !s.has_video).map(s => (
-                    <div key={s.id} style={{background:'var(--paper)',padding:'12px 16px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:12}}>
-                      <div style={{display:'flex',alignItems:'center',gap:10,minWidth:0,flexWrap:'wrap'}}>
-                        <span style={{fontSize:9,fontWeight:600,letterSpacing:'0.1em',textTransform:'uppercase',padding:'2px 8px',background:'var(--blue)',color:'#fff'}}>
-                          {TRIGGER_LABELS[s.trigger_type] ?? s.trigger_type}
-                        </span>
-                        <span style={{fontSize:13,fontWeight:600,color:'var(--ink)'}}>{s.entity_name}</span>
-                        {s.score_delta != null && (
-                          <span style={{fontFamily:"'IBM Plex Mono',monospace",fontSize:11,fontWeight:600,color: s.score_delta < 0 ? 'var(--red-data)' : 'var(--green)'}}>
-                            {s.score_delta > 0 ? '+' : ''}{s.score_delta.toFixed(1)} pts
-                          </span>
-                        )}
-                      </div>
-                      <button className="loro-nr-btn primary" style={{fontSize:10,padding:'4px 12px',whiteSpace:'nowrap'}}
-                        onClick={() => draftVideoScript(s.id)} disabled={draftingScript === s.id}>
-                        {draftingScript === s.id ? 'Drafting...' : '❖ Draft video script'}
-                      </button>
-                    </div>
-                  ))}
+                  {activeSignalSources.map(renderSourceRow)}
                 </div>
+              </div>
+            )}
+
+            {/* Archive — signals with no action in over a week */}
+            {archivedSignalSources.length > 0 && (
+              <div style={{marginBottom:24}}>
+                <div onClick={() => setShowArchive(a => !a)}
+                  style={{fontSize:10,fontWeight:600,letterSpacing:'0.12em',textTransform:'uppercase',color:'var(--ink5)',marginBottom:10,cursor:'pointer',userSelect:'none'}}>
+                  {showArchive ? '▾' : '▸'} Archive ({archivedSignalSources.length}) — no action in over a week
+                </div>
+                {showArchive && (
+                  <div style={{display:'flex',flexDirection:'column',gap:1,background:'var(--border)',opacity:0.72}}>
+                    {archivedSignalSources.map(renderSourceRow)}
+                  </div>
+                )}
               </div>
             )}
 

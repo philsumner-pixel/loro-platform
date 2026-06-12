@@ -20,7 +20,7 @@ export async function GET() {
 
   const { data: digests } = await db
     .from('loro_signal_digests')
-    .select('id, entity_name, trigger_type, score_delta, triggered_at, status')
+    .select('id, entity_name, trigger_type, score_delta, triggered_at, status, trigger_summary')
     .order('triggered_at', { ascending: false })
     .limit(30)
 
@@ -32,6 +32,7 @@ export async function GET() {
     score_delta: d.score_delta,
     triggered_at: d.triggered_at,
     digest_status: d.status,
+    trigger_summary: d.trigger_summary,
     has_video: videoDigestIds.has(d.id),
   }))
 
