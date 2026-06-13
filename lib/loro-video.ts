@@ -59,6 +59,7 @@ export const LORO_VOICES: { id: string; label: string; hint: string }[] = [
   { id: 'phil', label: 'Phil', hint: 'Warm male' },
   { id: 'sophie', label: 'Sophie', hint: 'Clear female' },
   { id: 'emily', label: 'Emily', hint: 'Bright female' },
+  { id: 'narrator', label: 'Narrator', hint: 'New voice' },
 ]
 
 // Consistent closing strapline shown on every exit card.

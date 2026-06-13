@@ -6,6 +6,7 @@ const VOICE_IDS: Record<string, string | undefined> = {
   phil: process.env.ELEVENLABS_VOICE_PHIL,
   sophie: process.env.ELEVENLABS_VOICE_SOPHIE,
   emily: process.env.ELEVENLABS_VOICE_EMILY,
+  narrator: process.env.ELEVENLABS_VOICE_NARRATOR,
 }
 
 export function resolveVoiceId(persona: string): string {
