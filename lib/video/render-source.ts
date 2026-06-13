@@ -19,14 +19,16 @@ function estimateAudioDuration(narration: string): number {
   return Math.min(75, Math.max(9, Math.round(words * 0.5 * 10) / 10))
 }
 
-// Enter transitions (kept to fade + scale, the primitives we've confirmed render)
+// Enter transitions (fade + scale — the primitives confirmed to render)
 const FADE = (duration = 0.5, time = 0): El => ({ type: 'fade', scope: 'element', time, duration })
 const POP = (start = '55%', duration = 0.6, time = 0): El =>
   ({ type: 'scale', scope: 'element', start_scale: start, end_scale: '100%', easing: 'quadratic-out', time, duration })
 
-function lapisBg(name: string): El {
-  return { name: `${name}-bg`, type: 'text', track: 1, time: 0, width: '100%', height: '100%',
-    background_color: LAPIS, fill_color: LAPIS, text: ' ' }
+// Solid rectangle. Creatomate paints text background_color only behind glyphs,
+// so all fills must be real shape elements with a full-box path.
+function rect(name: string, fillColor: string, opts: Partial<El>): El {
+  return { name, type: 'shape', time: 0, fill_color: fillColor,
+    path: 'M 0 0 L 100 0 L 100 100 L 0 100 Z', ...opts }
 }
 
 function txt(name: string, text: string, opts: Partial<El>): El {
@@ -35,7 +37,7 @@ function txt(name: string, text: string, opts: Partial<El>): El {
 }
 
 function worldScene(name: string, durationSec: number, overlay: El[]): El {
-  return { name, type: 'composition', track: 1, duration: durationSec, elements: [lapisBg(name), ...overlay] }
+  return { name, type: 'composition', track: 2, duration: durationSec, elements: overlay }
 }
 
 function dataOverlay(dp: LoroDataPoint, withBars: boolean): El[] {
@@ -44,8 +46,8 @@ function dataOverlay(dp: LoroDataPoint, withBars: boolean): El[] {
       fill_color: ACCENT, letter_spacing: '8%', animations: [FADE(0.4)] }),
     txt('dp-value', dp.value, { y: '45%', track: 3, font_family: SERIF, font_size: '17 vmin',
       font_weight: '700', fill_color: WARM, animations: [FADE(0.5), POP('45%', 0.7)] }),
-    { name: 'dp-rule', type: 'text', track: 2, time: 0, width: '16%', height: '0.4%', x_alignment: '50%',
-      y: '53%', background_color: ACCENT, fill_color: ACCENT, text: ' ', animations: [FADE(0.5, 0.2)] },
+    rect('dp-rule', ACCENT, { track: 2, width: '16%', height: '0.6%', x_alignment: '50%', y: '53%',
+      animations: [FADE(0.5, 0.2)] }),
   ]
   if (dp.delta) {
     const d = String(dp.delta).trim()
@@ -56,13 +58,11 @@ function dataOverlay(dp: LoroDataPoint, withBars: boolean): El[] {
   if (withBars) {
     const heights = [38, 60, 30, 80]
     heights.forEach((h, i) => {
-      els.push({
-        name: `bar-${i}`, type: 'text', track: 3, time: 0,
-        width: '7%', height: `${(h * 0.18).toFixed(1)}%`, x: `${36 + i * 9}%`, y: '72%', y_alignment: '100%',
-        background_color: i === 3 ? '#7fb6ea' : i === 2 ? '#3f6fa0' : ACCENT,
-        fill_color: 'transparent', text: ' ',
+      els.push(rect(`bar-${i}`, i === 3 ? '#7fb6ea' : i === 2 ? '#3f6fa0' : ACCENT, {
+        track: 3, width: '7%', height: `${(h * 0.18).toFixed(1)}%`,
+        x: `${36 + i * 9}%`, y: '72%', y_alignment: '100%',
         animations: [FADE(0.4, 0.4 + i * 0.12), POP('60%', 0.5, 0.4 + i * 0.12)],
-      })
+      }))
     })
   }
   return els
@@ -119,9 +119,9 @@ export function buildLoroRenderSource(
 
   // What to watch
   scenes.push(worldScene('Watch', durs[di++], [
-    txt('watch-eyebrow', 'WHAT TO WATCH', { y: '38%', font_size: '3.2 vmin', font_weight: '700',
+    txt('watch-eyebrow', 'WHAT TO WATCH', { y: '36%', font_size: '3.2 vmin', font_weight: '700',
       fill_color: ACCENT, letter_spacing: '10%', animations: [FADE(0.4)] }),
-    txt('watch', script.what_to_watch || '', { y: '50%', font_size: '5.4 vmin', font_weight: '500',
+    txt('watch', script.what_to_watch || '', { y: '48%', font_size: '5.4 vmin', font_weight: '500',
       line_height: '132%', animations: [FADE(0.5, 0.15)] }),
   ]))
 
@@ -135,12 +135,16 @@ export function buildLoroRenderSource(
       fill_color: ACCENT, animations: [FADE(0.5, 0.3)] }),
   ]))
 
+  // World floor — full-frame lapis behind everything
+  const world = rect('World', LAPIS, { track: 1, time: 0, duration: total,
+    width: '100%', height: '100%', x_alignment: '50%', y_alignment: '50%' })
+
   const AUDIO = 'Narration'
-  const rootAudio: El = { name: AUDIO, type: 'audio', track: 2, time: 0, source: audioUrl }
+  const rootAudio: El = { name: AUDIO, type: 'audio', track: 3, time: 0, source: audioUrl }
 
   // Persistent entity label across the content
   const entityHeader: El[] = entityName ? [{
-    name: 'EntityName', type: 'text', track: 6, time: introDur, duration: contentTotal,
+    name: 'EntityName', type: 'text', track: 5, time: introDur, duration: contentTotal,
     x_alignment: '50%', y: '13%', font_family: SANS, font_weight: '600', font_size: '4.4 vmin',
     fill_color: WHITE, text: entityName, animations: [FADE(0.5)],
   }] : []
@@ -156,28 +160,27 @@ export function buildLoroRenderSource(
     text: c.text,
   }))
 
-  const footerBar: El = {
-    name: 'FooterBar', type: 'text', track: 7, time: 0, duration: total,
-    width: '100%', height: '9%', x_alignment: '50%', y: '95.5%',
-    background_color: 'rgba(6,16,30,0.92)', fill_color: 'rgba(6,16,30,0.92)', text: ' ',
-  }
+  const footerBar = rect('FooterBar', 'rgba(6,16,30,0.92)', {
+    track: 6, time: 0, duration: total, width: '100%', height: '9%',
+    x_alignment: '50%', y: '100%', y_alignment: '100%',
+  })
   const footerMark: El = {
-    name: 'FooterMark', type: 'text', track: 8, time: 0, duration: total,
+    name: 'FooterMark', type: 'text', track: 7, time: 0, duration: total,
     x_alignment: '50%', y: '94.4%', font_family: SERIF, font_weight: '700', font_size: '3.2 vmin',
     fill_color: WHITE, text: 'Loro',
   }
   const footerTag: El = {
-    name: 'FooterTag', type: 'text', track: 9, time: 0, duration: total,
+    name: 'FooterTag', type: 'text', track: 8, time: 0, duration: total,
     x_alignment: '50%', y: '97.4%', font_family: SANS, font_weight: '500', font_size: '1.9 vmin',
     letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
-  const elements: El[] = [...scenes, rootAudio, ...entityHeader, ...cueEls, footerBar, footerMark, footerTag]
+  const elements: El[] = [world, ...scenes, rootAudio, ...entityHeader, ...cueEls, footerBar, footerMark, footerTag]
   if (musicUrl) {
-    elements.push({ name: 'Music', type: 'audio', track: 10, time: 0, duration: total,
+    elements.push({ name: 'Music', type: 'audio', track: 9, time: 0, duration: total,
       source: musicUrl, loop: true, volume: '11%',
       animations: [{ type: 'fade', scope: 'element', fade_out: true, duration: 0.8 }] })
   }
 
-  return { output_format: 'mp4', width: 720, height: 1280, snapshot_time: 1, elements }
+  return { output_format: 'mp4', width: 720, height: 1280, fill_color: LAPIS, snapshot_time: 1, elements }
 }
