@@ -113,16 +113,16 @@ export function buildLoroRenderSource(
 
   // Context
   scenes.push(worldScene('Context', durs[di++], [
-    txt('context', script.context || '', { y: '46%', font_size: '5.4 vmin', font_weight: '500',
-      line_height: '132%', animations: [FADE(0.5), POP('88%', 0.6)] }),
+    txt('context', script.context || '', { y: '46%', font_family: SERIF, font_size: '5.8 vmin',
+      font_weight: '400', line_height: '136%', animations: [FADE(0.5), POP('90%', 0.6)] }),
   ]))
 
   // What to watch
   scenes.push(worldScene('Watch', durs[di++], [
     txt('watch-eyebrow', 'WHAT TO WATCH', { y: '36%', font_size: '3.2 vmin', font_weight: '700',
       fill_color: ACCENT, letter_spacing: '10%', animations: [FADE(0.4)] }),
-    txt('watch', script.what_to_watch || '', { y: '48%', font_size: '5.4 vmin', font_weight: '500',
-      line_height: '132%', animations: [FADE(0.5, 0.15)] }),
+    txt('watch', script.what_to_watch || '', { y: '48%', font_family: SERIF, font_size: '5.8 vmin',
+      font_weight: '400', line_height: '136%', animations: [FADE(0.5, 0.15), POP('92%', 0.6, 0.15)] }),
   ]))
 
   // Exit — consistent strapline
@@ -142,11 +142,16 @@ export function buildLoroRenderSource(
   const AUDIO = 'Narration'
   const rootAudio: El = { name: AUDIO, type: 'audio', track: 3, time: 0, source: audioUrl }
 
-  // Persistent entity label across the content
+  // Persistent Loro wordmark (channel bug) + entity line
+  const loroBug: El = {
+    name: 'LoroBug', type: 'text', track: 5, time: 0, duration: total,
+    x_alignment: '50%', y: '5.5%', font_family: SERIF, font_weight: '700', font_size: '3.6 vmin',
+    fill_color: WHITE, text: 'Loro',
+  }
   const entityHeader: El[] = entityName ? [{
-    name: 'EntityName', type: 'text', track: 5, time: introDur, duration: contentTotal,
-    x_alignment: '50%', y: '13%', font_family: SANS, font_weight: '600', font_size: '4.4 vmin',
-    fill_color: WHITE, text: entityName, animations: [FADE(0.5)],
+    name: 'EntityName', type: 'text', track: 6, time: introDur, duration: contentTotal,
+    x_alignment: '50%', y: '13.5%', font_family: SANS, font_weight: '600', font_size: '3.8 vmin',
+    letter_spacing: '2%', fill_color: ACCENT, text: entityName, animations: [FADE(0.5)],
   }] : []
 
   // Captions from the exact script text
@@ -161,23 +166,23 @@ export function buildLoroRenderSource(
   }))
 
   const footerBar = rect('FooterBar', 'rgba(6,16,30,0.92)', {
-    track: 6, time: 0, duration: total, width: '100%', height: '9%',
+    track: 7, time: 0, duration: total, width: '100%', height: '9%',
     x_alignment: '50%', y: '100%', y_alignment: '100%',
   })
   const footerMark: El = {
-    name: 'FooterMark', type: 'text', track: 7, time: 0, duration: total,
+    name: 'FooterMark', type: 'text', track: 8, time: 0, duration: total,
     x_alignment: '50%', y: '94.4%', font_family: SERIF, font_weight: '700', font_size: '3.2 vmin',
     fill_color: WHITE, text: 'Loro',
   }
   const footerTag: El = {
-    name: 'FooterTag', type: 'text', track: 8, time: 0, duration: total,
+    name: 'FooterTag', type: 'text', track: 9, time: 0, duration: total,
     x_alignment: '50%', y: '97.4%', font_family: SANS, font_weight: '500', font_size: '1.9 vmin',
     letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
-  const elements: El[] = [world, ...scenes, rootAudio, ...entityHeader, ...cueEls, footerBar, footerMark, footerTag]
+  const elements: El[] = [world, ...scenes, rootAudio, loroBug, ...entityHeader, ...cueEls, footerBar, footerMark, footerTag]
   if (musicUrl) {
-    elements.push({ name: 'Music', type: 'audio', track: 9, time: 0, duration: total,
+    elements.push({ name: 'Music', type: 'audio', track: 10, time: 0, duration: total,
       source: musicUrl, loop: true, volume: '11%',
       animations: [{ type: 'fade', scope: 'element', fade_out: true, duration: 0.8 }] })
   }
