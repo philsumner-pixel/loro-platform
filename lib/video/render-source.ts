@@ -2,12 +2,13 @@ import type { LoroVideoScript, LoroDataPoint } from '@/lib/loro-video'
 import { LORO_STRAPLINE } from '@/lib/loro-video'
 import type { Cue } from '@/lib/video/elevenlabs'
 
-// Loro brand palette for video
-const LAPIS = '#10243f'        // deep lapis panel background
-const ACCENT = '#5b9bd5'       // light lapis accent
-const WHITE = '#ffffff'
-const POS = '#3fae6b'
-const NEG = '#d4502f'
+// Loro "data world" palette
+const LAPIS = '#0a1a2f'
+const ACCENT = '#6aa6e0'
+const WHITE = '#eaf1f9'
+const WARM = '#f4ecdf'
+const POS = '#4ec07e'
+const NEG = '#e0654a'
 const SERIF = 'Playfair Display'
 const SANS = 'Inter'
 
@@ -18,64 +19,51 @@ function estimateAudioDuration(narration: string): number {
   return Math.min(75, Math.max(9, Math.round(words * 0.5 * 10) / 10))
 }
 
-function brandCard(durationSec: number, lines: { text: string; font: string; size: string; color: string; y: string; weight?: string }[]): El {
-  const elements: El[] = [
-    // Full-frame lapis panel (a text element whose box fills the frame)
-    {
-      name: 'Panel', type: 'text', track: 1, time: 0,
-      width: '100%', height: '100%', x_alignment: '50%', y_alignment: '50%',
-      background_color: LAPIS, fill_color: LAPIS, text: ' ',
-    },
-  ]
-  lines.forEach((l, i) => {
-    elements.push({
-      name: `Brand-${i}`, type: 'text', track: i + 2, time: 0,
-      width: '84%', x_alignment: '50%', y: l.y, y_alignment: '50%',
-      font_family: l.font, font_weight: l.weight ?? '400', font_size: l.size,
-      fill_color: l.color, text: l.text,
-    })
-  })
-  return { name: 'BrandCard', type: 'composition', track: 1, duration: durationSec, elements }
+// Enter transitions (kept to fade + scale, the primitives we've confirmed render)
+const FADE = (duration = 0.5, time = 0): El => ({ type: 'fade', scope: 'element', time, duration })
+const POP = (start = '55%', duration = 0.6, time = 0): El =>
+  ({ type: 'scale', scope: 'element', start_scale: start, end_scale: '100%', easing: 'quadratic-out', time, duration })
+
+function lapisBg(name: string): El {
+  return { name: `${name}-bg`, type: 'text', track: 1, time: 0, width: '100%', height: '100%',
+    background_color: LAPIS, fill_color: LAPIS, text: ' ' }
 }
 
-function contentScene(name: string, broll: string, overlay: El[], durationSec: number, panIn: boolean): El {
-  const bg: El = broll
-    ? {
-        name: `${name}-img`, type: 'image', track: 1, time: 0, source: broll,
-        fit: 'cover', color_overlay: 'rgba(16,36,63,0.62)',
-        animations: [{
-          type: 'pan', scope: 'element', easing: 'linear',
-          start_x: '50%', end_x: '50%',
-          start_scale: panIn ? '100%' : '118%', end_scale: panIn ? '118%' : '100%',
-        }],
-      }
-    : {
-        name: `${name}-bg`, type: 'text', track: 1, time: 0,
-        width: '100%', height: '100%', background_color: LAPIS, fill_color: LAPIS, text: ' ',
-      }
-  return { name, type: 'composition', track: 1, duration: durationSec, elements: [bg, ...overlay] }
+function txt(name: string, text: string, opts: Partial<El>): El {
+  return { name, type: 'text', track: 2, time: 0, width: '86%', x_alignment: '50%',
+    font_family: SANS, fill_color: WHITE, text, ...opts }
 }
 
-function textEl(name: string, text: string, opts: Partial<El>): El {
-  return {
-    name, type: 'text', track: 2, time: 0,
-    width: '86%', x_alignment: '50%', font_family: SANS, fill_color: WHITE,
-    text, ...opts,
-  }
+function worldScene(name: string, durationSec: number, overlay: El[]): El {
+  return { name, type: 'composition', track: 1, duration: durationSec, elements: [lapisBg(name), ...overlay] }
 }
 
-function dataOverlay(dp: LoroDataPoint): El[] {
+function dataOverlay(dp: LoroDataPoint, withBars: boolean): El[] {
   const els: El[] = [
-    textEl('dp-label', dp.label, { y: '30%', font_size: '3.4 vmin', font_weight: '600', fill_color: ACCENT, letter_spacing: '8%' }),
-    textEl('dp-value', dp.value, { y: '44%', font_family: SERIF, font_size: '15 vmin', font_weight: '700' }),
+    txt('dp-label', dp.label, { y: '32%', track: 2, font_size: '3.4 vmin', font_weight: '600',
+      fill_color: ACCENT, letter_spacing: '8%', animations: [FADE(0.4)] }),
+    txt('dp-value', dp.value, { y: '45%', track: 3, font_family: SERIF, font_size: '17 vmin',
+      font_weight: '700', fill_color: WARM, animations: [FADE(0.5), POP('45%', 0.7)] }),
+    { name: 'dp-rule', type: 'text', track: 2, time: 0, width: '16%', height: '0.4%', x_alignment: '50%',
+      y: '53%', background_color: ACCENT, fill_color: ACCENT, text: ' ', animations: [FADE(0.5, 0.2)] },
   ]
   if (dp.delta) {
     const d = String(dp.delta).trim()
     const signed = /^[+-]/.test(d)
-    els.push(textEl('dp-delta', dp.delta, {
-      y: '56%', font_size: '4.6 vmin', font_weight: '700',
-      fill_color: signed ? (d.startsWith('-') ? NEG : POS) : ACCENT,
-    }))
+    els.push(txt('dp-delta', dp.delta, { y: '60%', track: 4, font_size: '4.4 vmin', font_weight: '700',
+      fill_color: signed ? (d.startsWith('-') ? NEG : POS) : ACCENT, animations: [FADE(0.4, 0.3)] }))
+  }
+  if (withBars) {
+    const heights = [38, 60, 30, 80]
+    heights.forEach((h, i) => {
+      els.push({
+        name: `bar-${i}`, type: 'text', track: 3, time: 0,
+        width: '7%', height: `${(h * 0.18).toFixed(1)}%`, x: `${36 + i * 9}%`, y: '72%', y_alignment: '100%',
+        background_color: i === 3 ? '#7fb6ea' : i === 2 ? '#3f6fa0' : ACCENT,
+        fill_color: 'transparent', text: ' ',
+        animations: [FADE(0.4, 0.4 + i * 0.12), POP('60%', 0.5, 0.4 + i * 0.12)],
+      })
+    })
   }
   return els
 }
@@ -83,24 +71,22 @@ function dataOverlay(dp: LoroDataPoint): El[] {
 export function buildLoroRenderSource(
   script: LoroVideoScript,
   audioUrl: string,
-  brollUrls: string[],
   cues: Cue[],
   audioDuration: number,
+  entityName: string,
   musicUrl?: string,
 ): object {
   const D = audioDuration > 0 ? audioDuration : estimateAudioDuration(script.narration || '')
   const dataPoints: LoroDataPoint[] = Array.isArray(script.data_points) ? script.data_points : []
 
-  // The hook is spoken over the clean Loro entry card (no entity name on the open).
   const hookWords = (script.hook || '').trim().split(/\s+/).filter(Boolean).length
   const introDur = Math.min(4.5, Math.max(2.2, Math.round(hookWords * 0.5 * 10) / 10))
 
-  // Remaining narration time is split across the content + exit beats.
   const beatTexts: string[] = [
     ...dataPoints.map(dp => `${dp.label} ${dp.value} ${dp.delta ?? ''}`),
     script.context || '',
     script.what_to_watch || '',
-    script.cta || 'Follow Loro for payments intelligence.',
+    script.cta || LORO_STRAPLINE,
   ]
   const weights = beatTexts.map(t => Math.max(10, t.length))
   const totalW = weights.reduce((a, b) => a + b, 0)
@@ -109,86 +95,89 @@ export function buildLoroRenderSource(
   const contentTotal = Math.round(durs.reduce((a, b) => a + b, 0) * 10) / 10
   const total = Math.round((introDur + contentTotal) * 10) / 10
 
-  let bi = 0
-  const nextBroll = () => brollUrls[bi++] ?? ''
   let di = 0
-
   const scenes: El[] = []
 
-  // Entry card — clean Loro ident, voiceover introduces over it
-  scenes.push(brandCard(introDur, [
-    { text: 'Loro', font: SERIF, size: '15 vmin', color: WHITE, y: '44%', weight: '700' },
-    { text: 'Payment Intelligence', font: SANS, size: '3.6 vmin', color: ACCENT, y: '56%', weight: '500' },
+  // Entry — clean Loro ident in the lapis world
+  scenes.push(worldScene('Entry', introDur, [
+    txt('ident', 'Loro', { y: '44%', font_family: SERIF, font_size: '15 vmin', font_weight: '700',
+      fill_color: WHITE, animations: [FADE(0.6), POP('70%', 0.8)] }),
+    txt('ident-tag', 'Payment Intelligence', { y: '56%', font_size: '3.6 vmin', font_weight: '500',
+      fill_color: ACCENT, animations: [FADE(0.6, 0.3)] }),
   ]))
 
-  // Data points
+  // Data scenes (first carries the bar motif)
   dataPoints.forEach((dp, i) => {
-    scenes.push(contentScene(`Data-${i}`, nextBroll(), dataOverlay(dp), durs[di++], di % 2 === 0))
+    scenes.push(worldScene(`Data-${i}`, durs[di++], dataOverlay(dp, i === 0)))
   })
 
   // Context
-  scenes.push(contentScene('Context', nextBroll(),
-    [textEl('context', script.context || '', { y: '50%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' })],
-    durs[di++], di % 2 === 0))
+  scenes.push(worldScene('Context', durs[di++], [
+    txt('context', script.context || '', { y: '46%', font_size: '5.4 vmin', font_weight: '500',
+      line_height: '132%', animations: [FADE(0.5), POP('88%', 0.6)] }),
+  ]))
 
   // What to watch
-  scenes.push(contentScene('Watch', nextBroll(), [
-    textEl('watch-eyebrow', 'WHAT TO WATCH', { y: '40%', font_size: '3.2 vmin', font_weight: '700', fill_color: ACCENT, letter_spacing: '10%' }),
-    textEl('watch', script.what_to_watch || '', { y: '52%', font_size: '5.2 vmin', font_weight: '500', line_height: '128%' }),
-  ], durs[di++], di % 2 === 0))
+  scenes.push(worldScene('Watch', durs[di++], [
+    txt('watch-eyebrow', 'WHAT TO WATCH', { y: '38%', font_size: '3.2 vmin', font_weight: '700',
+      fill_color: ACCENT, letter_spacing: '10%', animations: [FADE(0.4)] }),
+    txt('watch', script.what_to_watch || '', { y: '50%', font_size: '5.4 vmin', font_weight: '500',
+      line_height: '132%', animations: [FADE(0.5, 0.15)] }),
+  ]))
 
-  // Exit card (CTA) — consistent closing strapline on every clip
-  scenes.push(brandCard(durs[di++], [
-    { text: 'Loro', font: SERIF, size: '11 vmin', color: WHITE, y: '38%', weight: '700' },
-    { text: LORO_STRAPLINE, font: SANS, size: '4.4 vmin', color: WHITE, y: '54%', weight: '500' },
-    { text: 'loro.media', font: SANS, size: '3.2 vmin', color: ACCENT, y: '64%', weight: '500' },
+  // Exit — consistent strapline
+  scenes.push(worldScene('Exit', durs[di++], [
+    txt('exit-mark', 'Loro', { y: '38%', font_family: SERIF, font_size: '11 vmin', font_weight: '700',
+      fill_color: WHITE, animations: [FADE(0.5), POP('70%', 0.6)] }),
+    txt('exit-strap', LORO_STRAPLINE, { y: '54%', font_size: '4.4 vmin', font_weight: '500',
+      fill_color: WHITE, animations: [FADE(0.5, 0.2)] }),
+    txt('exit-url', 'loro.media', { y: '64%', font_size: '3.2 vmin', font_weight: '500',
+      fill_color: ACCENT, animations: [FADE(0.5, 0.3)] }),
   ]))
 
   const AUDIO = 'Narration'
   const rootAudio: El = { name: AUDIO, type: 'audio', track: 2, time: 0, source: audioUrl }
 
-  // Captions: timed cues from the EXACT script text (no speech-to-text).
+  // Persistent entity label across the content
+  const entityHeader: El[] = entityName ? [{
+    name: 'EntityName', type: 'text', track: 6, time: introDur, duration: contentTotal,
+    x_alignment: '50%', y: '13%', font_family: SANS, font_weight: '600', font_size: '4.4 vmin',
+    fill_color: WHITE, text: entityName, animations: [FADE(0.5)],
+  }] : []
+
+  // Captions from the exact script text
   const cueEls: El[] = cues.map((c, i) => ({
-    name: `Cue-${i}`, type: 'text', track: 3,
+    name: `Cue-${i}`, type: 'text', track: 4,
     time: Math.round(c.start * 100) / 100,
     duration: Math.max(0.4, Math.round((c.end - c.start) * 100) / 100),
-    width: '86%', x_alignment: '50%', y: '74%',
-    font_family: SANS, font_weight: '700', font_size: '5.2 vmin',
-    fill_color: WHITE, stroke_color: '#0a1424', stroke_width: '0.7 vmin',
+    width: '86%', x_alignment: '50%', y: '80%',
+    font_family: SANS, font_weight: '700', font_size: '5 vmin',
+    fill_color: WHITE, stroke_color: '#04101f', stroke_width: '0.7 vmin',
     text: c.text,
   }))
 
   const footerBar: El = {
-    name: 'FooterBar', type: 'text', track: 4, time: 0, duration: total,
+    name: 'FooterBar', type: 'text', track: 7, time: 0, duration: total,
     width: '100%', height: '9%', x_alignment: '50%', y: '95.5%',
-    background_color: 'rgba(16,36,63,0.85)', fill_color: 'rgba(16,36,63,0.85)', text: ' ',
+    background_color: 'rgba(6,16,30,0.92)', fill_color: 'rgba(6,16,30,0.92)', text: ' ',
   }
   const footerMark: El = {
-    name: 'FooterMark', type: 'text', track: 5, time: 0, duration: total,
+    name: 'FooterMark', type: 'text', track: 8, time: 0, duration: total,
     x_alignment: '50%', y: '94.4%', font_family: SERIF, font_weight: '700', font_size: '3.2 vmin',
     fill_color: WHITE, text: 'Loro',
   }
   const footerTag: El = {
-    name: 'FooterTag', type: 'text', track: 6, time: 0, duration: total,
+    name: 'FooterTag', type: 'text', track: 9, time: 0, duration: total,
     x_alignment: '50%', y: '97.4%', font_family: SANS, font_weight: '500', font_size: '1.9 vmin',
     letter_spacing: '6%', fill_color: ACCENT, text: 'PAYMENT INTELLIGENCE',
   }
 
-  const elements: El[] = [...scenes, rootAudio, ...cueEls, footerBar, footerMark, footerTag]
-
+  const elements: El[] = [...scenes, rootAudio, ...entityHeader, ...cueEls, footerBar, footerMark, footerTag]
   if (musicUrl) {
-    elements.push({
-      name: 'Music', type: 'audio', track: 7, time: 0, duration: total,
+    elements.push({ name: 'Music', type: 'audio', track: 10, time: 0, duration: total,
       source: musicUrl, loop: true, volume: '11%',
-      animations: [{ type: 'fade', scope: 'element', fade_out: true, duration: 0.8 }],
-    })
+      animations: [{ type: 'fade', scope: 'element', fade_out: true, duration: 0.8 }] })
   }
 
-  return {
-    output_format: 'mp4',
-    width: 720,
-    height: 1280,
-    snapshot_time: 1,
-    elements,
-  }
+  return { output_format: 'mp4', width: 720, height: 1280, snapshot_time: 1, elements }
 }

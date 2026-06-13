@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { resolveVoiceId, synthesiseVoiceTimed } from '@/lib/video/elevenlabs'
 import { normaliseText } from '@/lib/video/text-normalize'
-import { sourcePhotos } from '@/lib/video/pexels'
 import { submitRender } from '@/lib/video/creatomate'
 import { buildLoroRenderSource } from '@/lib/video/render-source'
 import { LORO_DEFAULT_VOICE, type LoroVideoScript } from '@/lib/loro-video'
@@ -41,17 +40,8 @@ export async function POST(req: NextRequest) {
     const { data: urlData } = db.storage.from('loro-video-audio').getPublicUrl(filename)
     const audioUrl = urlData.publicUrl
 
-    // 3. B-roll — one photo per content scene (data, context, watch), in order
-    const kws = (Array.isArray(script.broll_keywords) ? script.broll_keywords : []).filter(Boolean)
-    const kw = (i: number) => kws.length ? kws[i % kws.length] : `${video.entity_name} payments fintech`
-    const dataCount = Array.isArray(script.data_points) ? script.data_points.length : 0
-    const queries: string[] = []
-    for (let i = 0; i < dataCount; i++) queries.push(kw(i))
-    queries.push(kw(dataCount), kw(dataCount + 1))
-    const brollUrls = await sourcePhotos(queries)
-
-    // 4. Assemble + submit
-    const source = buildLoroRenderSource(script, audioUrl, brollUrls, cues, durationSec, process.env.LORO_MUSIC_URL || undefined)
+    // 3. Assemble + submit (data-world style — no stock b-roll)
+    const source = buildLoroRenderSource(script, audioUrl, cues, durationSec, video.entity_name || '', process.env.LORO_MUSIC_URL || undefined)
     const job = await submitRender(source)
 
     await db.from('loro_videos').update({
