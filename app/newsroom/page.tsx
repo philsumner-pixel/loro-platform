@@ -1181,9 +1181,9 @@ export default function NewsroomPage() {
                       </div>
 
                       {/* Video preview (once render lane is live) */}
-                      {v.video_url && (
+                      {v.video_url && v.status !== 'rendering' && (
                         <div style={{marginBottom:20}}>
-                          <video src={v.video_url} controls style={{width:'100%',maxWidth:360,border:'1px solid var(--border)'}} />
+                          <video key={v.video_url} src={v.video_url} controls style={{width:'100%',maxWidth:360,border:'1px solid var(--border)'}} />
                         </div>
                       )}
 
