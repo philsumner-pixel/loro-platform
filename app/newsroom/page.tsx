@@ -151,11 +151,12 @@ function noveltyLabel(s: string) { return s==='novel'?'Novel':s==='lightly_cover
 function oppLabel(s: string | null) { return {exclusive:'Exclusive',depth_play:'Depth play',angle_play:'Angle play',context_only:'Context only',watch:'Watching'}[s??'']??'' }
 
 // ── Detail panel ─────────────────────────────────────────────────────
-function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: {
+function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, onBriefGenerated, updating }: {
   c: Candidate
   onVoteAngle: (id: string, vote: 'up'|'down') => void
   onUpdateStatus: (id: string, status: string, extra?: Record<string,string>) => void
   onOpenDraft: (c: Candidate) => void
+  onBriefGenerated: (id: string, brief: string) => void
   updating: string | null
 }) {
   const [voteDir, setVoteDir] = useState<'up'|'down'|null>(null)
@@ -176,7 +177,8 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: 
       })
       const data = await res.json()
       if (data.error) setBriefError(data.error)
-      else onUpdateStatus(c.id, c.status)  // reload
+      else if (data.brief) onBriefGenerated(c.id, data.brief)
+      else setBriefError('No brief returned — try again')
     } catch {
       setBriefError('Generation failed — check ANTHROPIC_API_KEY is set in Vercel')
     } finally {
@@ -663,6 +665,14 @@ export default function NewsroomPage() {
     })
   }
 
+  // Apply a freshly generated brief in place. Previously this forced a full
+  // reload via updateStatus, and load() clears the selection - so the brief was
+  // saved but the card closed and you were dumped back to the inbox.
+  function applyBrief(id: string, brief: string) {
+    setCandidates(prev => prev.map(c => c.id === id ? { ...c, ai_brief: brief } : c))
+    setSelected(prev => prev && prev.id === id ? { ...prev, ai_brief: brief } : prev)
+  }
+
   async function updateStatus(id: string, status: string, extra: Record<string,string> = {}) {
     setUpdating(id)
     try {
@@ -869,7 +879,7 @@ export default function NewsroomPage() {
                               </div>
                             </div>
                             {selected?.id===c.id && (
-                              <DetailPanel c={c} onVoteAngle={() => load()} onUpdateStatus={updateStatus} onOpenDraft={openDraft} updating={updating}/>
+                              <DetailPanel c={c} onVoteAngle={() => load()} onUpdateStatus={updateStatus} onOpenDraft={openDraft} onBriefGenerated={applyBrief} updating={updating}/>
                             )}
                           </div>
                         ))
@@ -1293,7 +1303,7 @@ export default function NewsroomPage() {
                       </div>
                     </div>
                     {selected?.id===c.id && (
-                      <DetailPanel c={c} onVoteAngle={() => load()} onUpdateStatus={updateStatus} onOpenDraft={openDraft} updating={updating}/>
+                      <DetailPanel c={c} onVoteAngle={() => load()} onUpdateStatus={updateStatus} onOpenDraft={openDraft} onBriefGenerated={applyBrief} updating={updating}/>
                     )}
                   </div>
                 ))}

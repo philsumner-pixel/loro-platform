@@ -78,12 +78,21 @@ export async function PATCH(req: NextRequest) {
   if (status === 'discarded') updates.discarded_at = new Date().toISOString()
   if (assigned_to) updates.assigned_to = assigned_to
 
-  // Restoring out of the archive: clear the discard trail and reset the clock
-  // so it doesn't immediately auto-expire again.
+  // Restoring OUT of the archive: clear the discard trail and reset the clock
+  // so it doesn't immediately auto-expire again. Only do this when the row is
+  // actually archived — otherwise an ordinary status write (or a no-op refresh)
+  // would reset detected_at and make an old story look brand new.
   if (status === 'new' || status === 'shortlisted') {
-    updates.discarded_at = null
-    updates.discard_reason = null
-    updates.detected_at = new Date().toISOString()
+    const { data: current } = await sb
+      .from('loro_story_candidates')
+      .select('status')
+      .eq('id', id)
+      .single()
+    if (current && (current.status === 'discarded' || current.status === 'expired')) {
+      updates.discarded_at = null
+      updates.discard_reason = null
+      updates.detected_at = new Date().toISOString()
+    }
   }
 
   const { data, error } = await sb
