@@ -95,27 +95,30 @@ const TRIGGER_LABELS: Record<string, string> = {
   pdmr: 'PDMR filing', alert: 'Alert', sentiment_spike: 'Sentiment', news_spike: 'News spike',
 }
 
+// Column routing. The novelty verdict is authoritative: it is computed AFTER
+// detection, whereas editorial_opportunity is the detector's initial guess made
+// before we know whether anyone else has the story. Previously the guess won,
+// so a candidate scored 'novel' could still land in Depth play and the Novel
+// column stayed permanently empty.
+const isNovel = (c: Candidate) =>
+  c.novelty_status === 'novel' || c.editorial_opportunity === 'exclusive'
+
+const isAngle = (c: Candidate) =>
+  !isNovel(c) &&
+  (c.novelty_status === 'widely_covered' || c.editorial_opportunity === 'angle_play')
+
 const COLUMNS = [
   {
     key: 'novel', label: 'Novel', sub: 'Nobody has this — publish now',
-    filter: (c: Candidate) =>
-      c.editorial_opportunity === 'exclusive' ||
-      (c.novelty_status === 'novel' && !c.editorial_opportunity),
+    filter: isNovel,
   },
   {
     key: 'angle', label: 'Angle play', sub: 'Covered — but not this way',
-    filter: (c: Candidate) =>
-      c.editorial_opportunity === 'angle_play' ||
-      (c.novelty_status === 'widely_covered' && !c.editorial_opportunity),
+    filter: isAngle,
   },
   {
     key: 'depth', label: 'Depth play', sub: 'Go deeper than what\'s out there',
-    filter: (c: Candidate) =>
-      c.editorial_opportunity === 'depth_play' ||
-      c.editorial_opportunity === 'context_only' ||
-      c.editorial_opportunity === 'watch' ||
-      (!['exclusive','angle_play','depth_play','context_only','watch'].includes(c.editorial_opportunity ?? '') &&
-       !['novel','widely_covered'].includes(c.novelty_status)),
+    filter: (c: Candidate) => !isNovel(c) && !isAngle(c),
   },
 ]
 
@@ -471,6 +474,7 @@ export default function NewsroomPage() {
   const [showArchive, setShowArchive] = useState(false)
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null)
   const [videoFilter, setVideoFilter] = useState<'inbox' | 'shortlisted' | 'archived'>('inbox')
+  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -478,6 +482,7 @@ export default function NewsroomPage() {
       const res = await fetch(`/api/newsroom?status=${activeTab.key}`)
       const data = await res.json()
       setCandidates(data.candidates ?? [])
+      setStatusCounts(data.statusCounts ?? {})
     } catch { setCandidates([]) }
     finally { setLoading(false) }
   }, [activeTab.key])
@@ -698,7 +703,6 @@ export default function NewsroomPage() {
     } finally { setPublishing(false) }
   }
 
-  const inboxCounts = { novel: candidates.filter(COLUMNS[0].filter).length, angle: candidates.filter(COLUMNS[1].filter).length, depth: candidates.filter(COLUMNS[2].filter).length }
 
   const DAY_MS = 86400000
   function isNewSignal(iso: string) { return Date.now() - new Date(iso).getTime() < DAY_MS }
@@ -769,12 +773,12 @@ export default function NewsroomPage() {
               {tab.label}
               <span className="loro-nr-tab-count">
                 {tab.key === 'new,shortlisted'
-                  ? Object.values(inboxCounts).reduce((a,b)=>a+b,0)
+                  ? (statusCounts['new'] ?? 0) + (statusCounts['shortlisted'] ?? 0)
                   : tab.key === 'signal_digest'
                   ? digests.filter(d => d.status === 'pending').length
                   : tab.key === 'video'
                   ? videos.filter(v => v.status === 'suggested' || v.status === 'script_ready').length
-                  : candidates.filter(c=>tab.statuses.includes(c.status)).length}
+                  : tab.statuses.reduce((n, st) => n + (statusCounts[st] ?? 0), 0)}
               </span>
             </button>
           ))}

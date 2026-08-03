@@ -51,7 +51,17 @@ export async function GET(req: NextRequest) {
     coverage_links: coverageMap[c.id] ?? [],
   }))
 
-  return NextResponse.json({ candidates: enriched })
+  // Real counts across every status, so tab badges don't just reflect the
+  // currently-loaded tab (Archive/Published previously always showed 0).
+  const { data: allStatuses } = await sb
+    .from('loro_story_candidates')
+    .select('status')
+  const statusCounts: Record<string, number> = {}
+  for (const row of (allStatuses ?? []) as Array<{ status: string }>) {
+    statusCounts[row.status] = (statusCounts[row.status] ?? 0) + 1
+  }
+
+  return NextResponse.json({ candidates: enriched, statusCounts })
 }
 
 export async function PATCH(req: NextRequest) {
