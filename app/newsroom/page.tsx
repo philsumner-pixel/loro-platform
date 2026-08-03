@@ -42,6 +42,7 @@ interface Candidate {
   status: string
   assigned_to: string | null
   published_slug: string | null
+  discard_reason: string | null
   evidence_packet: EvidencePacket
   detected_at: string
   coverage_links: CoverageLink[]
@@ -84,6 +85,7 @@ const TABS = [
   { key: 'new,shortlisted', label: 'Inbox', statuses: ['new','shortlisted'] },
   { key: 'in_draft',        label: 'In draft', statuses: ['in_draft'] },
   { key: 'published',       label: 'Published', statuses: ['published'] },
+  { key: 'discarded,expired', label: 'Archive', statuses: ['discarded','expired'] },
   { key: 'signal_digest',   label: 'Signal Digest', statuses: [] },
   { key: 'video',           label: 'Video', statuses: [] },
 ]
@@ -393,6 +395,16 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, updating }: 
         )}
         {c.status === 'published' && c.published_slug && (
           <a href={`/news/${c.published_slug}`} className="loro-nr-btn success">Read published article →</a>
+        )}
+        {(c.status === 'discarded' || c.status === 'expired') && (
+          <>
+            <span className="loro-nr-archive-reason">
+              {c.status === 'expired' ? 'Expired' : 'Discarded'}
+              {c.discard_reason ? ` — ${c.discard_reason}` : ''}
+            </span>
+            <button className="loro-nr-btn primary" disabled={updating===c.id} onClick={() => onUpdateStatus(c.id,'new')}>↩ Restore to inbox</button>
+            <button className="loro-nr-btn success" disabled={updating===c.id} onClick={() => onUpdateStatus(c.id,'shortlisted')}>↩ Restore &amp; shortlist</button>
+          </>
         )}
         
       </div>
@@ -1268,6 +1280,12 @@ export default function NewsroomPage() {
                       <div className="loro-nr-row-actions" onClick={e=>e.stopPropagation()}>
                         {c.status==='published'&&c.published_slug && <a href={`/news/${c.published_slug}`} style={{fontSize:12,fontWeight:500,color:'var(--blue-mid)'}}>Read →</a>}
                         {c.status==='in_draft' && <button className="loro-nr-btn primary" onClick={()=>openDraft(c)}>Open draft</button>}
+                        {(c.status==='discarded'||c.status==='expired') && (
+                          <>
+                            <span className={`loro-nr-archive-pill ${c.status}`}>{c.status==='expired'?'Expired':'Discarded'}</span>
+                            <button className="loro-nr-btn" disabled={updating===c.id} onClick={()=>updateStatus(c.id,'new')}>↩ Restore</button>
+                          </>
+                        )}
                       </div>
                     </div>
                     {selected?.id===c.id && (

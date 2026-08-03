@@ -15,6 +15,11 @@ export async function GET(req: NextRequest) {
 
   const sb = getSupabase()
 
+  // Keep the inbox usable: anything left unreviewed in 'new' for more than
+  // 7 days moves to 'expired' (recoverable from the Archive tab). Runs on
+  // load so the inbox is always current without needing another cron.
+  await sb.rpc('loro_expire_stale_candidates', { days_old: 7 })
+
   const { data: candidates, error } = await sb
     .from('loro_story_candidates')
     .select('*')
@@ -62,6 +67,14 @@ export async function PATCH(req: NextRequest) {
   if (discard_reason) updates.discard_reason = discard_reason
   if (status === 'discarded') updates.discarded_at = new Date().toISOString()
   if (assigned_to) updates.assigned_to = assigned_to
+
+  // Restoring out of the archive: clear the discard trail and reset the clock
+  // so it doesn't immediately auto-expire again.
+  if (status === 'new' || status === 'shortlisted') {
+    updates.discarded_at = null
+    updates.discard_reason = null
+    updates.detected_at = new Date().toISOString()
+  }
 
   const { data, error } = await sb
     .from('loro_story_candidates')
