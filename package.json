@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",
+    "@tiptap/extension-link": "^2.27.2",
+    "@tiptap/react": "^2.27.2",
+    "@tiptap/starter-kit": "^2.27.2",
     "@types/d3": "^7.4.3",
     "d3": "^7.9.0",
     "next": "14.2.15",
@@ -21,8 +24,8 @@
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",
-    "typescript": "^5",
     "eslint": "^8.57.0",
-    "eslint-config-next": "14.2.15"
+    "eslint-config-next": "14.2.15",
+    "typescript": "^5"
   }
 }

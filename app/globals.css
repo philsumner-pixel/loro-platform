@@ -1110,3 +1110,52 @@ input { font-family: inherit; }
   margin-right: auto;
   align-self: center;
 }
+
+/* ── Rich text editor (newsroom draft body) ───────────────────────── */
+.loro-rt { border: 1px solid var(--border); background: var(--paper); }
+.loro-rt-loading { border: 1px solid var(--border); padding: 20px; font-size: 13px; color: var(--ink5); }
+
+.loro-rt-toolbar {
+  display: flex; align-items: center; gap: 4px; flex-wrap: wrap;
+  padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--paper2);
+}
+.loro-rt-btn {
+  font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1;
+  padding: 6px 10px; border: 1px solid transparent; background: transparent;
+  color: var(--ink3); cursor: pointer; border-radius: 0;
+}
+.loro-rt-btn:hover { background: #FFF; border-color: var(--border); color: var(--ink); }
+.loro-rt-btn.active { background: var(--blue, #1A3A6B); border-color: var(--blue, #1A3A6B); color: #FFF; }
+.loro-rt-sep { width: 1px; height: 18px; background: var(--border); margin: 0 4px; }
+.loro-rt-count { margin-left: auto; font-size: 11px; color: var(--ink5); }
+
+.loro-rt-content {
+  min-height: 320px; max-height: 620px; overflow-y: auto;
+  padding: 20px 22px; outline: none;
+  font-family: 'Inter', sans-serif; font-size: 15px; line-height: 1.8; color: var(--ink);
+}
+.loro-rt-content p { margin: 0 0 14px; }
+.loro-rt-content p:last-child { margin-bottom: 0; }
+.loro-rt-content h2 {
+  font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 600;
+  margin: 26px 0 10px; line-height: 1.3;
+}
+.loro-rt-content h3 {
+  font-family: 'Playfair Display', serif; font-size: 17px; font-weight: 600;
+  margin: 22px 0 8px; line-height: 1.35;
+}
+.loro-rt-content ul { margin: 0 0 14px; padding-left: 22px; }
+.loro-rt-content li { margin-bottom: 6px; }
+.loro-rt-content blockquote {
+  margin: 18px 0; padding: 4px 0 4px 18px;
+  border-left: 3px solid var(--blue, #1A3A6B);
+  font-family: 'Playfair Display', serif; font-size: 17px; font-style: italic; color: var(--ink2);
+}
+.loro-rt-content a { color: var(--blue-mid, #2C5AA0); text-decoration: underline; }
+.loro-rt-content:focus { outline: none; }
+/* placeholder on an empty doc */
+.loro-rt-content p.is-editor-empty:first-child::before,
+.loro-rt-content:empty::before {
+  content: attr(data-placeholder);
+  color: var(--ink5); float: left; height: 0; pointer-events: none;
+}

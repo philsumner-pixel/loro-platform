@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
 import { LORO_VOICES } from '@/lib/loro-video'
+import RichEditor from '@/components/RichEditor'
 
 interface EvidencePacket {
   timeline?: Array<{ date: string; event: string }>
@@ -815,9 +816,12 @@ export default function NewsroomPage() {
                   style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:14,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
               </div>
               <div>
-                <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Body (HTML — &lt;p&gt; tags)</label>
-                <textarea value={draft.body} onChange={e => setDraft(d=>d?{...d,body:e.target.value}:null)} rows={14}
-                  style={{width:'100%',padding:'12px 14px',border:'1px solid var(--border)',fontFamily:"'IBM Plex Mono',monospace",fontSize:12,color:'var(--ink)',background:'var(--paper2)',outline:'none',resize:'vertical',lineHeight:1.7}}/>
+                <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Body</label>
+                <RichEditor
+                  value={draft.body}
+                  onChange={html => setDraft(d => d ? { ...d, body: html } : null)}
+                  placeholder="Write the story — the AI brief is a 75% first draft, not the finished piece."
+                />
               </div>
               <div style={{display:'flex',gap:10,alignItems:'center'}}>
                 <button className="loro-nr-btn success" style={{padding:'10px 28px',fontSize:13}}
