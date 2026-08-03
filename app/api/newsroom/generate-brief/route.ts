@@ -172,7 +172,10 @@ Write only the structured brief above. No preamble. Do not editorialize beyond w
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        // claude-sonnet-4-20250514 was retired and started returning
+        // not_found_error. Overridable via env so a future retirement can be
+        // fixed without a redeploy.
+        model: process.env.ANTHROPIC_BRIEF_MODEL || 'claude-sonnet-5',
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }],
       }),
