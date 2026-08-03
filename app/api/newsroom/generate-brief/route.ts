@@ -188,7 +188,21 @@ Write only the structured brief above. No preamble. Do not editorialize beyond w
     }
 
     const data = await res.json()
-    const brief = data.content?.[0]?.text ?? ''
+    // Take the first TEXT block, not content[0]. Newer models can return other
+    // block types (e.g. thinking) first, which made content[0].text undefined
+    // and produced an empty brief with a 200 response.
+    type ContentBlock = { type?: string; text?: string }
+    const brief = (data.content as ContentBlock[] | undefined)
+      ?.filter(b => b?.type === 'text' && typeof b.text === 'string')
+      .map(b => b.text as string)
+      .join('\n')
+      .trim() ?? ''
+
+    if (!brief) {
+      return NextResponse.json({
+        error: `Model returned no text. stop_reason=${data.stop_reason ?? 'unknown'}, blocks=${(data.content ?? []).map((b: ContentBlock) => b?.type).join(',') || 'none'}`,
+      }, { status: 500 })
+    }
 
     // Save to candidate
     await sb.from('loro_story_candidates')
