@@ -126,7 +126,10 @@ export async function GET(req: Request) {
         })
         .eq('id', candidate.id)
 
-      // Check against our own articles
+      // Check against our own PUBLISHED articles only.
+      // NB: this must never compare against the unreviewed candidate queue —
+      // doing so made each repeat candidate match yesterday's queued copy and
+      // auto-flag as widely_covered, suppressing genuinely novel stories.
       const { data: similarArticles } = await sb.rpc('loro_similar_candidates', {
         query_embedding: embedding,
         similarity_threshold: SIMILARITY_THRESHOLD_LIGHT,

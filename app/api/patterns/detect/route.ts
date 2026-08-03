@@ -342,12 +342,26 @@ async function writeCandidate(params: {
 }): Promise<boolean> {
   const sb = getSupabase()
 
-  // Deduplicate — don't create a candidate for the same entity+pattern within 24 hours
+  // Deduplicate. Two rules:
+  //  1. If an OPEN candidate with this headline is already in the queue
+  //     (new / shortlisted / in_draft), never create another — the story is
+  //     already awaiting review. Re-firing daily was flooding the queue with
+  //     near-identical rows and poisoning the internal-corpus novelty check.
+  //  2. Otherwise fall back to a 7-day window so a genuinely recurring pattern
+  //     can resurface later, but not every single day.
+  const { count: openCount } = await sb
+    .from('loro_story_candidates')
+    .select('id', { count: 'exact', head: true })
+    .eq('headline', params.headline)
+    .in('status', ['new', 'shortlisted', 'in_draft'])
+
+  if ((openCount ?? 0) > 0) return false
+
   const { count } = await sb
     .from('loro_story_candidates')
     .select('id', { count: 'exact', head: true })
     .eq('headline', params.headline)
-    .gt('created_at', new Date(Date.now() - 24 * 3600000).toISOString())
+    .gt('created_at', new Date(Date.now() - 7 * 24 * 3600000).toISOString())
 
   if ((count ?? 0) > 0) return false
 
