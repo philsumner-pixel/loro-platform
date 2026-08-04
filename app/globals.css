@@ -1159,3 +1159,22 @@ input { font-family: inherit; }
   content: attr(data-placeholder);
   color: var(--ink5); float: left; height: 0; pointer-events: none;
 }
+
+/* ── Lane filter bar (newsroom) ─────────────────────────────────────── */
+.loro-lane-bar {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  padding: 12px 0 16px; margin-bottom: 4px; border-bottom: 1px solid var(--border);
+}
+.loro-lane-label {
+  font-size: 10px; font-weight: 600; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink5); margin-right: 6px;
+}
+.loro-lane-pill {
+  font-family: 'Inter', sans-serif; font-size: 12px; line-height: 1;
+  padding: 7px 12px; border: 1px solid var(--border); background: var(--paper);
+  color: var(--ink3); cursor: pointer; white-space: nowrap;
+}
+.loro-lane-pill:hover { border-color: var(--ink4); color: var(--ink); }
+.loro-lane-pill.active { background: var(--blue, #1A3A6B); border-color: var(--blue, #1A3A6B); color: #FFF; }
+.loro-lane-pill .n { opacity: 0.6; margin-left: 5px; font-variant-numeric: tabular-nums; }
+.loro-lane-pill.active .n { opacity: 0.75; }

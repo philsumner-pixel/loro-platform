@@ -48,6 +48,8 @@ interface Candidate {
   assigned_to: string | null
   published_slug: string | null
   discard_reason: string | null
+  lane_slug: string | null
+  lane_confidence: number | null
   evidence_packet: EvidencePacket
   detected_at: string
   coverage_links: CoverageLink[]
@@ -86,6 +88,16 @@ interface VideoSource {
   trigger_summary: string | null
   has_video: boolean
 }
+
+const LANES = [
+  { slug: 'ownership-control',        label: 'Ownership & Control' },
+  { slug: 'regulation-enforcement',   label: 'Regulation & Enforcement' },
+  { slug: 'money-markets',            label: 'Money & Markets' },
+  { slug: 'policy-politics',          label: 'Policy & Politics' },
+  { slug: 'energy-sustainability',    label: 'Energy & Sustainability' },
+  { slug: 'technology-infrastructure',label: 'Technology & Infrastructure' },
+]
+const LANE_LABEL: Record<string,string> = Object.fromEntries(LANES.map(l => [l.slug, l.label]))
 
 const TABS = [
   { key: 'new,shortlisted', label: 'Inbox', statuses: ['new','shortlisted'] },
@@ -483,6 +495,7 @@ export default function NewsroomPage() {
   const [previewingVoice, setPreviewingVoice] = useState<string | null>(null)
   const [videoFilter, setVideoFilter] = useState<'inbox' | 'shortlisted' | 'archived'>('inbox')
   const [statusCounts, setStatusCounts] = useState<Record<string, number>>({})
+  const [laneFilter, setLaneFilter] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true); setSelected(null)
@@ -678,6 +691,11 @@ export default function NewsroomPage() {
     setCandidates(prev => prev.map(c => c.id === id ? { ...c, ai_brief: brief } : c))
     setSelected(prev => prev && prev.id === id ? { ...prev, ai_brief: brief } : prev)
   }
+
+  // Lane filter applies to whatever the active tab loaded.
+  const visibleCandidates = laneFilter
+    ? candidates.filter(c => c.lane_slug === laneFilter)
+    : candidates
 
   async function updateStatus(id: string, status: string, extra: Record<string,string> = {}) {
     setUpdating(id)
@@ -880,6 +898,27 @@ export default function NewsroomPage() {
           </div>
         )}
 
+        {!loading && activeTab.key !== 'signal_digest' && activeTab.key !== 'video' && (
+          <div className="loro-lane-bar">
+            <span className="loro-lane-label">Lane</span>
+            <button className={`loro-lane-pill${laneFilter === null ? ' active' : ''}`}
+              onClick={() => setLaneFilter(null)}>
+              All <span className="n">{candidates.length}</span>
+            </button>
+            {LANES.map(l => {
+              const n = candidates.filter(c => c.lane_slug === l.slug).length
+              if (!n && laneFilter !== l.slug) return null
+              return (
+                <button key={l.slug}
+                  className={`loro-lane-pill${laneFilter === l.slug ? ' active' : ''}`}
+                  onClick={() => setLaneFilter(laneFilter === l.slug ? null : l.slug)}>
+                  {l.label} <span className="n">{n}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+
         {loading && <div className="loro-nr-empty">Loading…</div>}
 
         {/* Inbox — three columns */}
@@ -889,7 +928,7 @@ export default function NewsroomPage() {
             : (
               <div className="loro-nr-columns">
                 {COLUMNS.map(col => {
-                  const cols = candidates.filter(col.filter)
+                  const cols = visibleCandidates.filter(col.filter)
                   return (
                     <div key={col.key} className={`loro-nr-col ${col.key}`}>
                       <div className="loro-nr-col-hd">
@@ -906,7 +945,9 @@ export default function NewsroomPage() {
                             <div className={`loro-nr-card${selected?.id===c.id?' selected':''}`}
                               onClick={() => setSelected(selected?.id===c.id?null:c)}>
                               <div className="loro-nr-card-meta">
-                                <span className="loro-nr-cat" style={{fontSize:9}}>{c.category}</span>
+                                <span className="loro-nr-cat" style={{fontSize:9}}>
+                                  {c.lane_slug ? LANE_LABEL[c.lane_slug] ?? c.category : c.category}
+                                </span>
                                 <ScoreBadge c={c} />
                                 <span className={`loro-nr-novelty ${noveltyClass(c.novelty_status)}`}>{noveltyLabel(c.novelty_status)}</span>
                               </div>
@@ -1321,7 +1362,7 @@ export default function NewsroomPage() {
             ? <div className="loro-nr-empty">No candidates in this queue.</div>
             : (
               <div className="loro-nr-list">
-                {candidates.map(c => (
+                {visibleCandidates.map(c => (
                   <div key={c.id}>
                     <div className={`loro-nr-row${selected?.id===c.id?' selected':''}`}
                       onClick={() => setSelected(selected?.id===c.id?null:c)}>
