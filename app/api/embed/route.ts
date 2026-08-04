@@ -8,7 +8,9 @@ import { createClient } from '@supabase/supabase-js'
 // Cron: every 30 minutes (runs after ingest + pattern detection)
 // Manual: GET /api/embed?table=news   — embed news_coverage
 //         GET /api/embed?table=candidates — embed story_candidates
-//         GET /api/embed (no param) — both tables
+//         GET /api/embed?table=events     — embed raw source_events (the corpus)
+//         GET /api/embed?table=lanes      — embed content lane definitions
+//         GET /api/embed (no param) — all tables
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -130,6 +132,74 @@ async function embedCandidates(sb: ReturnType<typeof getSupabase>) {
   return { processed: rows.length, embedded }
 }
 
+
+async function embedSourceEvents(sb: ReturnType<typeof getSupabase>) {
+  // The single corpus. Every raw source event gets embedded so pattern
+  // detection and lane classification work across ALL inbound material,
+  // not just the records the rule-based detector already promoted.
+  const { data: rows } = await sb
+    .from('loro_source_events')
+    .select('id')
+    .is('embedding', null)
+    .limit(BATCH_SIZE)
+
+  if (!rows?.length) return { processed: 0, embedded: 0 }
+
+  const inputs: Array<{ id: string; text: string }> = []
+  for (const row of rows) {
+    const { data: text } = await sb.rpc('build_source_event_embedding_input', {
+      event_id: row.id,
+    })
+    if (text) inputs.push({ id: row.id, text })
+  }
+
+  if (!inputs.length) return { processed: rows.length, embedded: 0 }
+
+  const embeddings = await embedBatch(inputs.map(i => i.text))
+  if (!embeddings) return { processed: rows.length, embedded: 0 }
+
+  let embedded = 0
+  for (let i = 0; i < inputs.length; i++) {
+    const { error } = await sb
+      .from('loro_source_events')
+      .update({
+        embedding: JSON.stringify(embeddings[i]),
+        embedding_model: MODEL,
+        embedding_input: inputs[i].text,
+      })
+      .eq('id', inputs[i].id)
+    if (!error) embedded++
+  }
+
+  return { processed: rows.length, embedded }
+}
+
+async function embedLanes(sb: ReturnType<typeof getSupabase>) {
+  // Lane definitions are embedded once so anything else can be classified by
+  // similarity against them.
+  const { data: rows } = await sb
+    .from('loro_content_lanes')
+    .select('id, label, description')
+    .is('embedding', null)
+
+  if (!rows?.length) return { processed: 0, embedded: 0 }
+
+  const texts = rows.map(r => `LANE: ${r.label}\nDEFINITION: ${r.description}`)
+  const embeddings = await embedBatch(texts)
+  if (!embeddings) return { processed: rows.length, embedded: 0 }
+
+  let embedded = 0
+  for (let i = 0; i < rows.length; i++) {
+    const { error } = await sb
+      .from('loro_content_lanes')
+      .update({ embedding: JSON.stringify(embeddings[i]), embedding_model: MODEL })
+      .eq('id', rows[i].id)
+    if (!error) embedded++
+  }
+
+  return { processed: rows.length, embedded }
+}
+
 export async function GET(req: NextRequest) {
   const auth = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -154,6 +224,12 @@ export async function GET(req: NextRequest) {
     }
     if (!table || table === 'candidates') {
       results.story_candidates = await embedCandidates(sb)
+    }
+    if (!table || table === 'lanes') {
+      results.content_lanes = await embedLanes(sb)
+    }
+    if (!table || table === 'events') {
+      results.source_events = await embedSourceEvents(sb)
     }
 
     // Summary stats
