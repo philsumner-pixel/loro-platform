@@ -1,4 +1,5 @@
 import TickerStrip from '@/components/TickerStrip'
+import LaneNav from '@/components/LaneNav'
 import Masthead from '@/components/Masthead'
 import HeroSection from '@/components/HeroSection'
 import DataStrip from '@/components/DataStrip'
@@ -16,18 +17,7 @@ export default function HomePage() {
       <TickerStrip />
       <Masthead />
 
-      {/* Sub navigation */}
-      <nav className="loro-subnav">
-        <div className="loro-subnav-inner">
-          <a href="#" className="loro-active">All</a>
-          <a href="#" style={{letterSpacing:'0.01em'}}>Payments</a>
-          <a href="#" style={{letterSpacing:'0.01em'}}>FX & Treasury</a>
-          <a href="#" style={{letterSpacing:'0.01em'}}>Banking</a>
-          <a href="#" style={{letterSpacing:'0.01em'}}>Regulation</a>
-          <a href="#" style={{letterSpacing:'0.01em'}}>Ownership Intel</a>
-          <a href="/intelligence" style={{marginLeft:'auto',color:'var(--ink4)',letterSpacing:'0.01em'}}>Intelligence sources →</a>
-        </div>
-      </nav>
+      <LaneNav />
 
       <HeroSection />
       <DataStrip />
