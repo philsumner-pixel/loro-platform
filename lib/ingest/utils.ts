@@ -96,6 +96,7 @@ export interface NewsCoverageInput {
   published_at: string
   entities_mentioned?: string[]
   categories_detected?: string[]
+  keyword_relevant?: boolean
 }
 
 export async function writeNewsCoverage(item: NewsCoverageInput): Promise<boolean> {
@@ -116,6 +117,7 @@ export async function writeNewsCoverage(item: NewsCoverageInput): Promise<boolea
     published_at: item.published_at,
     entities_mentioned: item.entities_mentioned ?? [],
     categories_detected: item.categories_detected ?? [],
+    keyword_relevant: item.keyword_relevant ?? null,
     processed: false,
   })
 

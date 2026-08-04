@@ -67,11 +67,15 @@ export async function GET(req: Request) {
         for (const item of items) {
           if (!item.link || !item.title) continue
 
-          // Only ingest payments-relevant content
+          // UN-GATED: ingest everything the feed carries and record whether it
+          // matched the old payments keyword list, rather than dropping it at
+          // collection. Relevance is now decided downstream on the embedded
+          // corpus, where it can be judged semantically instead of by keyword.
           const text = `${item.title} ${item.description}`
-          if (!isRelevant(text)) continue
+          const keywordRelevant = isRelevant(text)
 
           const written = await writeNewsCoverage({
+            keyword_relevant: keywordRelevant,
             publication: pub.slug,
             headline: item.title,
             summary: item.description.replace(/<[^>]+>/g, '').slice(0, 500),
