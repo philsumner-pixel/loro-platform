@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { splitForAd } from '@/lib/article-body'
+import { buildArticleSchema } from '@/lib/article-schema'
 import TickerStrip from '@/components/TickerStrip'
 import Masthead from '@/components/Masthead'
 import ArticleAd from '@/components/ArticleAd'
@@ -70,26 +71,7 @@ export default async function ArticlePage({ params }: PageProps) {
   // they illustrate. See lib/article-body.ts.
   const { beforeAd, afterAd } = splitForAd(article.body_html)
 
-  const articleSchema = {
-    '@context': 'https://schema.org',
-    '@type': article.schema_type ?? 'NewsArticle',
-    headline: article.headline,
-    description: article.standfirst ?? article.seo_description,
-    datePublished: article.published_at,
-    dateModified: article.updated_at,
-    author: { '@type': 'Person', name: article.author },
-    publisher: {
-      '@type': 'Organization',
-      name: 'Loro',
-      url: process.env.NEXT_PUBLIC_SITE_URL ?? 'https://loro-platform.vercel.app',
-    },
-    articleSection: article.category,
-    isAccessibleForFree: !article.subscriber_only,
-    mainEntityOfPage: {
-      '@type': 'WebPage',
-      '@id': `${process.env.NEXT_PUBLIC_SITE_URL ?? 'https://loro-platform.vercel.app'}/news/${article.slug}`,
-    },
-  }
+  const articleSchema = buildArticleSchema(article)
 
   return (
     <>

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { citationsFromEvidence } from '@/lib/source-citations'
 
 function getSupabase() {
   return createClient(
@@ -34,6 +35,9 @@ export async function POST(req: NextRequest) {
     lead_image_alt = null,
     lead_image_caption = null,
     lead_image_credit = null,
+    seo_title = null,
+    seo_description = null,
+    seo_keywords = null,
   } = body
 
   if (!headline || !body_html) {
@@ -50,6 +54,27 @@ export async function POST(req: NextRequest) {
     .eq('slug', slug)
 
   if ((count ?? 0) > 0) slug = `${slug}-${Date.now()}`
+
+  // Derive machine-readable provenance from the originating candidate: the
+  // primary filings this story came from, with resolvable URLs. Emitted as
+  // schema.org citation / isBasedOn — the citability claim made verifiable.
+  let sourceCitations: ReturnType<typeof citationsFromEvidence> = []
+  let entitySlugs: string[] = []
+  if (candidate_id) {
+    const { data: cand } = await sb
+      .from('loro_story_candidates')
+      .select('evidence_packet, entity_id')
+      .eq('id', candidate_id)
+      .single()
+    if (cand?.evidence_packet) {
+      sourceCitations = citationsFromEvidence(cand.evidence_packet)
+    }
+    if (cand?.entity_id) {
+      const { data: ent } = await sb
+        .from('loro_entities').select('name').eq('id', cand.entity_id).single()
+      if (ent?.name) entitySlugs = [ent.name]
+    }
+  }
 
   // Write to loro_articles
   const { data: article, error } = await sb
@@ -69,8 +94,11 @@ export async function POST(req: NextRequest) {
       subscriber_only,
       candidate_id: candidate_id ?? null,
       published_at: new Date().toISOString(),
-      seo_title: headline,
-      seo_description: standfirst ?? headline,
+      seo_title: seo_title ?? headline,
+      seo_description: seo_description ?? standfirst ?? headline,
+      seo_keywords,
+      source_citations: sourceCitations,
+      entity_slugs: entitySlugs,
     })
     .select()
     .single()
