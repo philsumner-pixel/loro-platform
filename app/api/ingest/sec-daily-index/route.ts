@@ -110,45 +110,6 @@ function parseFormIdx(text: string): Filing[] {
   return out
 }
 
-/** Discover/attach the entity. Entities accumulate from the stream. */
-async function resolveEntity(
-  sb: ReturnType<typeof getSupabase>,
-  company: string,
-  cik: string,
-  cache: Map<string, string>
-): Promise<string | null> {
-  const padded = cik.padStart(10, '0')
-  if (cache.has(padded)) return cache.get(padded)!
-
-  const { data: existing } = await sb
-    .from('loro_entities')
-    .select('id')
-    .eq('sec_cik', padded)
-    .maybeSingle()
-
-  if (existing?.id) {
-    cache.set(padded, existing.id)
-    return existing.id
-  }
-
-  // New entity discovered in the wild — create it.
-  const { data: created, error } = await sb
-    .from('loro_entities')
-    .insert({
-      name: company,
-      entity_type: 'company',
-      jurisdiction: 'US',
-      sec_cik: padded,
-      notes: 'Auto-discovered from SEC daily index',
-    })
-    .select('id')
-    .single()
-
-  if (error || !created) return null
-  cache.set(padded, created.id)
-  return created.id
-}
-
 export async function GET(req: Request) {
   const auth = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
@@ -193,50 +154,85 @@ export async function GET(req: Request) {
     const interesting = filings.filter(f => FORMS_OF_INTEREST.has(f.form))
     kept = interesting.length
 
-    // Cap per run so we stay inside maxDuration; dedupe makes repeats cheap.
-    const batch = interesting.slice(0, 400)
-    const cache = new Map<string, string>()
+    // Batched, not row-by-row: the first version did a SELECT + possible
+    // INSERT per filing and timed out after ~145 entities with 0 events
+    // written. Everything below is set-based.
+    const batch = interesting.slice(0, 120)
 
-    // Which accessions do we already have?
-    const accessions = batch.map(f => f.accession)
+    // 1. Which accessions do we already have?
     const { data: seen } = await sb
       .from('loro_source_events')
       .select('source_metadata')
       .eq('source', 'sec_daily_index')
-      .in('source_metadata->>accession', accessions.slice(0, 200))
+      .gte('event_date', usedDate)
 
     const seenSet = new Set(
-      (seen ?? []).map(r => (r.source_metadata as { accession?: string })?.accession).filter(Boolean)
+      (seen ?? [])
+        .map(r => (r.source_metadata as { accession?: string })?.accession)
+        .filter(Boolean) as string[]
+    )
+    const todo = batch.filter(f => !seenSet.has(f.accession))
+    dupes = batch.length - todo.length
+    if (!todo.length) {
+      await completeRun(runId, { found, new: 0, duplicate: dupes }, errors)
+      return NextResponse.json({ ok: true, index_date: usedDate, filings_in_index: found, forms_of_interest: kept, inserted: 0, duplicates: dupes, new_entities_discovered: 0 })
+    }
+
+    // 2. Resolve entities in bulk.
+    const ciks = [...new Set(todo.map(f => f.cik.padStart(10, '0')))]
+    const { data: known } = await sb
+      .from('loro_entities')
+      .select('id, sec_cik')
+      .in('sec_cik', ciks)
+
+    const cikToId = new Map<string, string>(
+      (known ?? []).map(e => [e.sec_cik as string, e.id as string])
     )
 
-    for (const f of batch) {
-      if (seenSet.has(f.accession)) { dupes++; continue }
+    const missing = todo.filter(f => !cikToId.has(f.cik.padStart(10, '0')))
+    const uniqueMissing = new Map<string, string>()
+    for (const f of missing) uniqueMissing.set(f.cik.padStart(10, '0'), f.company)
 
-      const before = cache.size
-      const entityId = await resolveEntity(sb, f.company, f.cik, cache)
-      if (cache.size > before) newEntities++
-
-      const { error } = await sb.from('loro_source_events').insert({
-        source: 'sec_daily_index',
-        event_type: `sec_${f.form.toLowerCase().replace(/[^a-z0-9]/g, '_')}`,
-        entity_id: entityId,
-        event_date: f.dateFiled,
-        url: `https://www.sec.gov/Archives/${f.fileName}`,
-        raw_content: {
-          title: `${f.company} filed ${f.form}`,
-          description: `SEC form ${f.form} filed by ${f.company} (CIK ${f.cik}) on ${f.dateFiled}.`,
-          form: f.form,
-          company: f.company,
-          cik: f.cik,
-        },
-        source_metadata: { accession: f.accession, index_date: usedDate, form: f.form },
-        processed: false,
-      })
-
-      if (error) {
-        if (!errors.length) errors.push(`insert: ${error.message}`)
-      } else inserted++
+    if (uniqueMissing.size) {
+      const { data: created, error: entErr } = await sb
+        .from('loro_entities')
+        .insert([...uniqueMissing.entries()].map(([cik, name]) => ({
+          name,
+          entity_type: 'company',
+          jurisdiction: 'US',
+          sec_cik: cik,
+          notes: 'Auto-discovered from SEC daily index',
+        })))
+        .select('id, sec_cik')
+      if (entErr) errors.push(`entities: ${entErr.message}`)
+      for (const e of created ?? []) cikToId.set(e.sec_cik as string, e.id as string)
+      newEntities = created?.length ?? 0
     }
+
+    // 3. Insert events in one go.
+    const rows = todo.map(f => ({
+      source: 'sec_daily_index',
+      event_type: `sec_${f.form.toLowerCase().replace(/[^a-z0-9]+/g, '_').slice(0, 40)}`,
+      entity_id: cikToId.get(f.cik.padStart(10, '0')) ?? null,
+      event_date: f.dateFiled,
+      url: `https://www.sec.gov/Archives/${f.fileName}`,
+      raw_content: {
+        title: `${f.company} filed ${f.form}`,
+        description: `SEC form ${f.form} filed by ${f.company} (CIK ${f.cik}) on ${f.dateFiled}.`,
+        form: f.form,
+        company: f.company,
+        cik: f.cik,
+      },
+      source_metadata: { accession: f.accession, index_date: usedDate, form: f.form },
+      processed: false,
+    }))
+
+    const { data: ins, error: insErr } = await sb
+      .from('loro_source_events')
+      .insert(rows)
+      .select('id')
+    if (insErr) errors.push(`events: ${insErr.message}`)
+    inserted = ins?.length ?? 0
 
     await completeRun(runId, { found, new: inserted, duplicate: dupes }, errors)
 
