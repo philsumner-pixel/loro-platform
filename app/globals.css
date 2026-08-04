@@ -1227,3 +1227,17 @@ input { font-family: inherit; }
   background: none; border: none; color: #A33A3A; font-size: 12px;
   text-decoration: underline; cursor: pointer;
 }
+
+/* Captioned images — editor and published article */
+.loro-rt-content figure.loro-figure,
+.loro-art-body figure.loro-figure { margin: 24px 0; }
+.loro-rt-content figure.loro-figure img,
+.loro-art-body figure.loro-figure img {
+  max-width: 100%; height: auto; display: block; border: 1px solid var(--border);
+}
+.loro-rt-content figure.loro-figure figcaption,
+.loro-art-body figure.loro-figure figcaption {
+  font-size: 12.5px; color: var(--ink4); line-height: 1.5;
+  padding-top: 8px; border-top: 1px solid var(--border); margin-top: 8px;
+}
+.loro-art-body img { max-width: 100%; height: auto; display: block; margin: 20px 0; }

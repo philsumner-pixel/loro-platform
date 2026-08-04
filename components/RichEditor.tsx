@@ -3,7 +3,7 @@
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import Image from '@tiptap/extension-image'
+import CaptionedImage from './CaptionedImage'
 import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Rich-text body editor for the newsroom draft.
@@ -29,7 +29,16 @@ function Toolbar({ editor, onError }: { editor: Editor; onError: (m: string | nu
     setBusy(true); onError(null)
     try {
       const url = await uploadImage(file)
-      editor.chain().focus().setImage({ src: url, alt: file.name }).run()
+      const alt = window.prompt(
+        'Alt text — describe the image for screen readers and search engines:',
+        ''
+      )
+      const caption = window.prompt('Caption (optional) — shown beneath the image:', '')
+      editor.chain().focus().setImage({
+        src: url,
+        alt: alt?.trim() || file.name,
+        ...(caption?.trim() ? { caption: caption.trim() } : {}),
+      }).run()
     } catch (e) {
       onError(e instanceof Error ? e.message : 'Image upload failed')
     } finally {
@@ -71,6 +80,24 @@ function Toolbar({ editor, onError }: { editor: Editor; onError: (m: string | nu
         onClick={setLink} title="Add link">Link</button>
       <button type="button" className="loro-rt-btn" onClick={pickImage} disabled={busy}
         title="Insert image (or drag one in)">{busy ? 'Uploading…' : 'Image'}</button>
+      {editor.isActive('image') && (
+        <>
+          <button type="button" className="loro-rt-btn" title="Edit caption"
+            onClick={() => {
+              const current = (editor.getAttributes('image').caption as string) ?? ''
+              const next = window.prompt('Caption — shown beneath the image:', current)
+              if (next === null) return
+              editor.chain().focus().updateAttributes('image', { caption: next.trim() || null }).run()
+            }}>Caption</button>
+          <button type="button" className="loro-rt-btn" title="Edit alt text (accessibility)"
+            onClick={() => {
+              const current = (editor.getAttributes('image').alt as string) ?? ''
+              const next = window.prompt('Alt text — describe the image for screen readers:', current)
+              if (next === null) return
+              editor.chain().focus().updateAttributes('image', { alt: next.trim() || null }).run()
+            }}>Alt</button>
+        </>
+      )}
       <input ref={fileInput} type="file" accept="image/*" style={{ display: 'none' }}
         onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
       <span className="loro-rt-sep" />
@@ -100,7 +127,7 @@ export default function RichEditor({
         heading: { levels: [2, 3] },
       }),
       Link.configure({ openOnClick: false, autolink: true }),
-      Image.configure({ inline: false, allowBase64: false }),
+      CaptionedImage.configure({ inline: false, allowBase64: false }),
     ],
     content: value || '<p></p>',
     // Must be false in the Next App Router: the default (true) renders the
@@ -121,7 +148,8 @@ export default function RichEditor({
         uploadImage(image)
           .then(url => {
             const { schema } = view.state
-            const node = schema.nodes.image?.create({ src: url, alt: image.name })
+            const alt = window.prompt('Alt text — describe the image:', '') ?? ''
+            const node = schema.nodes.image?.create({ src: url, alt: alt.trim() || image.name })
             if (!node) return
             const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
             view.dispatch(view.state.tr.insert(pos ?? view.state.selection.from, node))
@@ -137,7 +165,8 @@ export default function RichEditor({
         uploadImage(image)
           .then(url => {
             const { schema } = view.state
-            const node = schema.nodes.image?.create({ src: url, alt: image.name })
+            const alt = window.prompt('Alt text — describe the image:', '') ?? ''
+            const node = schema.nodes.image?.create({ src: url, alt: alt.trim() || image.name })
             if (node) view.dispatch(view.state.tr.replaceSelectionWith(node))
           })
           .catch(e => setUploadError(e instanceof Error ? e.message : 'Image upload failed'))
