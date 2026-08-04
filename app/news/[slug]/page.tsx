@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { splitForAd } from '@/lib/article-body'
-import { buildArticleSchema } from '@/lib/article-schema'
+import { buildArticleSchema, buildFaqSchema } from '@/lib/article-schema'
 import TickerStrip from '@/components/TickerStrip'
 import Masthead from '@/components/Masthead'
 import ArticleAd from '@/components/ArticleAd'
@@ -72,6 +72,8 @@ export default async function ArticlePage({ params }: PageProps) {
   const { beforeAd, afterAd } = splitForAd(article.body_html)
 
   const articleSchema = buildArticleSchema(article)
+  const faqSchema = buildFaqSchema(article.faq)
+  const keyFacts = (article.key_facts ?? []) as Array<{ label: string; value: string; source_url?: string }>
 
   return (
     <>
@@ -79,6 +81,12 @@ export default async function ArticlePage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }}
       />
+      {faqSchema && (
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }}
+        />
+      )}
       <TickerStrip />
       <Masthead />
 
@@ -145,6 +153,30 @@ export default async function ArticlePage({ params }: PageProps) {
                   </figcaption>
                 )}
               </figure>
+            )}
+
+            {/* Answer block — visible (so it's crawlable and genuinely useful)
+                and mirrored into schema.org so engines can lift it. */}
+            {(article.answer_summary || keyFacts.length > 0) && (
+              <section className="loro-answer-block" aria-label="Key facts">
+                {article.answer_summary && (
+                  <p className="loro-answer-summary">{article.answer_summary}</p>
+                )}
+                {keyFacts.length > 0 && (
+                  <dl className="loro-key-facts">
+                    {keyFacts.map((f, i) => (
+                      <div key={i}>
+                        <dt>{f.label}</dt>
+                        <dd>
+                          {f.source_url
+                            ? <a href={f.source_url} rel="nofollow noopener" target="_blank">{f.value}</a>
+                            : f.value}
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                )}
+              </section>
             )}
 
             {/* Article body — ad slot chosen block-aware */}

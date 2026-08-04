@@ -33,6 +33,9 @@ export interface ArticleForSchema {
   lead_image_caption?: string | null
   source_citations?: SourceCitation[] | null
   entity_slugs?: string[] | null
+  answer_summary?: string | null
+  key_facts?: Array<{ label: string; value: string; source_url?: string }> | null
+  faq?: Array<{ question: string; answer: string }> | null
 }
 
 const LANE_NAME: Record<string, string> = {
@@ -42,6 +45,23 @@ const LANE_NAME: Record<string, string> = {
   'policy-politics': 'Policy & Politics',
   'energy-sustainability': 'Energy & Sustainability',
   'technology-infrastructure': 'Technology & Infrastructure',
+}
+
+/** FAQPage schema, emitted alongside the article when questions are set. */
+export function buildFaqSchema(
+  faq: Array<{ question: string; answer: string }> | null | undefined
+): Record<string, unknown> | null {
+  const items = (faq ?? []).filter(f => f.question && f.answer)
+  if (!items.length) return null
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map(f => ({
+      '@type': 'Question',
+      name: f.question,
+      acceptedAnswer: { '@type': 'Answer', text: f.answer },
+    })),
+  }
 }
 
 export function buildArticleSchema(a: ArticleForSchema): Record<string, unknown> {
@@ -106,6 +126,22 @@ export function buildArticleSchema(a: ArticleForSchema): Record<string, unknown>
     }))
     schema.citation = refs
     schema.isBasedOn = refs.map(r => r.url)
+  }
+
+  // The direct answer, marked up so an engine can lift it as THE answer.
+  if (a.answer_summary) {
+    schema.abstract = a.answer_summary
+    schema.backstory = undefined
+  }
+
+  // Discrete checkable facts as structured properties.
+  if (a.key_facts?.length) {
+    schema.additionalProperty = a.key_facts.map(f => ({
+      '@type': 'PropertyValue',
+      name: f.label,
+      value: f.value,
+      ...(f.source_url ? { url: f.source_url } : {}),
+    }))
   }
 
   // Strip undefined so the emitted JSON stays clean.

@@ -7,6 +7,7 @@ import dynamic from 'next/dynamic'
 import LeadImageField from '@/components/LeadImageField'
 import PanelErrorBoundary from '@/components/PanelErrorBoundary'
 import SeoPanel from '@/components/SeoPanel'
+import AnswerBlockPanel from '@/components/AnswerBlockPanel'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -69,6 +70,10 @@ interface DraftState {
   seoTitle: string
   seoDescription: string
   seoKeywords: string
+  answerSummary: string
+  keyFacts: Array<{ label: string; value: string; source_url?: string }>
+  faq: Array<{ question: string; answer: string }>
+  suggesting?: boolean
 }
 
 interface SignalDigest {
@@ -758,8 +763,44 @@ export default function NewsroomPage() {
       seoTitle: '',
       seoDescription: '',
       seoKeywords: '',
+      answerSummary: '',
+      keyFacts: [],
+      faq: [],
     })
     setPublishedUrl(null)
+  }
+
+  // Generate suggestions for SEO + the answer block. Everything returned is a
+  // suggestion: it populates the fields and the journalist edits or discards.
+  async function suggestMetadata() {
+    if (!draft) return
+    setDraft(d => d ? { ...d, suggesting: true } : null)
+    try {
+      const res = await fetch('/api/newsroom/suggest-metadata', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          headline: draft.headline,
+          standfirst: draft.standfirst,
+          body_html: draft.body,
+        }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      setDraft(d => d ? {
+        ...d,
+        suggesting: false,
+        seoTitle: d.seoTitle || data.seo_title || '',
+        seoDescription: d.seoDescription || data.seo_description || '',
+        seoKeywords: d.seoKeywords || (data.seo_keywords ?? []).join(', '),
+        answerSummary: d.answerSummary || data.answer_summary || '',
+        keyFacts: d.keyFacts.length ? d.keyFacts : (data.key_facts ?? []),
+        faq: d.faq.length ? d.faq : (data.faq ?? []),
+      } : null)
+    } catch (e) {
+      setDraft(d => d ? { ...d, suggesting: false } : null)
+      alert(e instanceof Error ? e.message : 'Suggestion failed')
+    }
   }
 
   async function publishDraft() {
@@ -782,6 +823,9 @@ export default function NewsroomPage() {
           seo_keywords: draft.seoKeywords.trim()
             ? draft.seoKeywords.split(',').map(k => k.trim()).filter(Boolean)
             : null,
+          answer_summary: draft.answerSummary.trim() || null,
+          key_facts: draft.keyFacts.filter(f => f.label && f.value),
+          faq: draft.faq.filter(f => f.question && f.answer),
           category: draft.category, publication_tier: 'section',
         }),
       })
@@ -917,6 +961,19 @@ export default function NewsroomPage() {
                   placeholder="Write the story — the AI brief is a 75% first draft, not the finished piece."
                 />
               </div>
+              <div style={{display:'flex',justifyContent:'flex-end',marginBottom:8}}>
+                <button className="loro-nr-btn primary" disabled={draft.suggesting}
+                  onClick={suggestMetadata}
+                  title="Generate search metadata and the answer block from this draft">
+                  {draft.suggesting ? 'Generating…' : '✦ Suggest metadata'}
+                </button>
+              </div>
+              <AnswerBlockPanel
+                answerSummary={draft.answerSummary}
+                keyFacts={draft.keyFacts}
+                faq={draft.faq}
+                onChange={patch => setDraft(d => d ? { ...d, ...patch } : null)}
+              />
               <SeoPanel
                 headline={draft.headline}
                 standfirst={draft.standfirst}

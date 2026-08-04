@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
     seo_title = null,
     seo_description = null,
     seo_keywords = null,
+    answer_summary = null,
+    key_facts = [],
+    faq = [],
   } = body
 
   if (!headline || !body_html) {
@@ -98,6 +101,9 @@ export async function POST(req: NextRequest) {
       seo_description: seo_description ?? standfirst ?? headline,
       seo_keywords,
       source_citations: sourceCitations,
+      answer_summary,
+      key_facts,
+      faq,
       entity_slugs: entitySlugs,
     })
     .select()
