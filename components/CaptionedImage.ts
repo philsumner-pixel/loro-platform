@@ -33,8 +33,13 @@ export const CaptionedImage = Image.extend({
     ]
   },
 
-  renderHTML({ HTMLAttributes }) {
-    const { caption, ...imgAttrs } = HTMLAttributes as Record<string, unknown> & { caption?: string }
+  renderHTML({ node, HTMLAttributes }) {
+    // Read the caption off node.attrs, NOT HTMLAttributes: the attribute's own
+    // renderHTML returns {} (it is not a valid <img> attribute), so it never
+    // reaches HTMLAttributes and every image would render caption-less.
+    const caption = node.attrs.caption as string | null
+    const { caption: _drop, ...imgAttrs } = HTMLAttributes as Record<string, unknown>
+    void _drop
 
     if (!caption) {
       return ['img', imgAttrs]

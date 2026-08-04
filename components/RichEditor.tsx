@@ -14,9 +14,16 @@ async function uploadImage(file: File): Promise<string> {
   const body = new FormData()
   body.append('file', file)
   const res = await fetch('/api/newsroom/upload-image', { method: 'POST', body })
-  const data = await res.json()
-  if (!res.ok || data.error) throw new Error(data.error ?? 'Upload failed')
-  return data.url as string
+  let data: { url?: string; error?: string }
+  try {
+    data = await res.json()
+  } catch {
+    throw new Error(`Upload failed (HTTP ${res.status}) — no response body`)
+  }
+  if (!res.ok || data.error || !data.url) {
+    throw new Error(data.error ?? `Upload failed (HTTP ${res.status})`)
+  }
+  return data.url
 }
 
 function Toolbar({ editor, onError }: { editor: Editor; onError: (m: string | null) => void }) {
