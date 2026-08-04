@@ -3,13 +3,40 @@
 import { useEditor, EditorContent, Editor } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Link from '@tiptap/extension-link'
-import { useCallback, useEffect } from 'react'
+import Image from '@tiptap/extension-image'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 // Rich-text body editor for the newsroom draft.
 // Replaces the raw HTML textarea — journalists edit formatted prose, we still
 // store HTML so /news/[slug] renders unchanged.
 
-function Toolbar({ editor }: { editor: Editor }) {
+async function uploadImage(file: File): Promise<string> {
+  const body = new FormData()
+  body.append('file', file)
+  const res = await fetch('/api/newsroom/upload-image', { method: 'POST', body })
+  const data = await res.json()
+  if (!res.ok || data.error) throw new Error(data.error ?? 'Upload failed')
+  return data.url as string
+}
+
+function Toolbar({ editor, onError }: { editor: Editor; onError: (m: string | null) => void }) {
+  const fileInput = useRef<HTMLInputElement>(null)
+  const [busy, setBusy] = useState(false)
+
+  const pickImage = () => fileInput.current?.click()
+
+  const handleFile = useCallback(async (file: File) => {
+    setBusy(true); onError(null)
+    try {
+      const url = await uploadImage(file)
+      editor.chain().focus().setImage({ src: url, alt: file.name }).run()
+    } catch (e) {
+      onError(e instanceof Error ? e.message : 'Image upload failed')
+    } finally {
+      setBusy(false)
+    }
+  }, [editor, onError])
+
   const setLink = useCallback(() => {
     const previous = editor.getAttributes('link').href as string | undefined
     const url = window.prompt('Link URL', previous ?? 'https://')
@@ -42,6 +69,11 @@ function Toolbar({ editor }: { editor: Editor }) {
       <span className="loro-rt-sep" />
       <button type="button" className={btn(editor.isActive('link'))}
         onClick={setLink} title="Add link">Link</button>
+      <button type="button" className="loro-rt-btn" onClick={pickImage} disabled={busy}
+        title="Insert image (or drag one in)">{busy ? 'Uploading…' : 'Image'}</button>
+      <input ref={fileInput} type="file" accept="image/*" style={{ display: 'none' }}
+        onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = '' }} />
+      <span className="loro-rt-sep" />
       <button type="button" className="loro-rt-btn"
         onClick={() => editor.chain().focus().unsetAllMarks().clearNodes().run()} title="Clear formatting">Clear</button>
       <span className="loro-rt-count">
@@ -60,12 +92,15 @@ export default function RichEditor({
   onChange: (html: string) => void
   placeholder?: string
 }) {
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         heading: { levels: [2, 3] },
       }),
       Link.configure({ openOnClick: false, autolink: true }),
+      Image.configure({ inline: false, allowBase64: false }),
     ],
     content: value || '<p></p>',
     // Must be false in the Next App Router: the default (true) renders the
@@ -76,6 +111,37 @@ export default function RichEditor({
       attributes: {
         class: 'loro-rt-content',
         'data-placeholder': placeholder ?? 'Write the story…',
+      },
+      // Drag an image in, or paste one from the clipboard.
+      handleDrop(view, event) {
+        const files = Array.from(event.dataTransfer?.files ?? [])
+        const image = files.find(f => f.type.startsWith('image/'))
+        if (!image) return false
+        event.preventDefault()
+        uploadImage(image)
+          .then(url => {
+            const { schema } = view.state
+            const node = schema.nodes.image?.create({ src: url, alt: image.name })
+            if (!node) return
+            const pos = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos
+            view.dispatch(view.state.tr.insert(pos ?? view.state.selection.from, node))
+          })
+          .catch(e => setUploadError(e instanceof Error ? e.message : 'Image upload failed'))
+        return true
+      },
+      handlePaste(view, event) {
+        const files = Array.from(event.clipboardData?.files ?? [])
+        const image = files.find(f => f.type.startsWith('image/'))
+        if (!image) return false
+        event.preventDefault()
+        uploadImage(image)
+          .then(url => {
+            const { schema } = view.state
+            const node = schema.nodes.image?.create({ src: url, alt: image.name })
+            if (node) view.dispatch(view.state.tr.replaceSelectionWith(node))
+          })
+          .catch(e => setUploadError(e instanceof Error ? e.message : 'Image upload failed'))
+        return true
       },
     },
     onUpdate: ({ editor }) => onChange(editor.getHTML()),
@@ -96,7 +162,13 @@ export default function RichEditor({
 
   return (
     <div className="loro-rt">
-      <Toolbar editor={editor} />
+      <Toolbar editor={editor} onError={setUploadError} />
+      {uploadError && (
+        <div className="loro-rt-error">
+          {uploadError}
+          <button type="button" onClick={() => setUploadError(null)}>Dismiss</button>
+        </div>
+      )}
       <EditorContent editor={editor} />
     </div>
   )
