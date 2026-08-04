@@ -5,6 +5,7 @@ import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
 import { LORO_VOICES } from '@/lib/loro-video'
 import dynamic from 'next/dynamic'
 import LeadImageField from '@/components/LeadImageField'
+import PanelErrorBoundary from '@/components/PanelErrorBoundary'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -862,6 +863,7 @@ export default function NewsroomPage() {
       <div className="loro-nr-body">
         {/* Draft editor */}
         {draft && (
+          <PanelErrorBoundary label="Draft editor">
           <div style={{background:'var(--paper)',border:'1px solid var(--border)',borderLeft:'3px solid var(--blue)',padding:'28px 32px',marginBottom:24}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
               <div className="loro-nr-detail-section-title" style={{margin:0}}>Draft editor</div>
@@ -912,6 +914,7 @@ export default function NewsroomPage() {
               </div>
             </div>
           </div>
+          </PanelErrorBoundary>
         )}
 
         {publishedUrl && (

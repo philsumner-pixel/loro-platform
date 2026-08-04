@@ -15,12 +15,12 @@ interface Patch {
 }
 
 export default function LeadImageField({
-  url, alt, caption, credit, onChange,
+  url = null, alt = '', caption = '', credit = '', onChange,
 }: {
-  url: string | null
-  alt: string
-  caption: string
-  credit: string
+  url?: string | null
+  alt?: string
+  caption?: string
+  credit?: string
   onChange: (patch: Patch) => void
 }) {
   const fileInput = useRef<HTMLInputElement>(null)
@@ -97,7 +97,7 @@ export default function LeadImageField({
         {input(caption, 'Caption (optional)', 'leadImageCaption')}
         {input(credit, 'Credit (optional)', 'leadImageCredit', 'e.g. Reuters, or the photographer')}
       </div>
-      {!alt.trim() && (
+      {!(alt ?? '').trim() && (
         <div className="loro-lead-warn">
           No alt text — add a description so the image is accessible and readable by search engines.
         </div>
