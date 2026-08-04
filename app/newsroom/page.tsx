@@ -56,6 +56,7 @@ interface Candidate {
 interface DraftState {
   candidateId: string; headline: string
   standfirst: string; body: string; category: string
+  author: string
 }
 
 interface SignalDigest {
@@ -721,6 +722,7 @@ export default function NewsroomPage() {
       standfirst: aiStandfirst || c.standfirst || '',
       body: bodyHtml,
       category: c.category,
+      author: c.assigned_to || 'Loro Staff Writers',
     })
     setPublishedUrl(null)
   }
@@ -735,6 +737,7 @@ export default function NewsroomPage() {
         body: JSON.stringify({
           candidate_id: draft.candidateId, headline: draft.headline,
           standfirst: draft.standfirst, body_html: draft.body,
+          author: draft.author,
           category: draft.category, publication_tier: 'section',
         }),
       })
@@ -843,6 +846,13 @@ export default function NewsroomPage() {
                 <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Standfirst</label>
                 <textarea value={draft.standfirst} onChange={e => setDraft(d=>d?{...d,standfirst:e.target.value}:null)} rows={2}
                   style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:14,color:'var(--ink3)',background:'var(--paper)',outline:'none',resize:'vertical'}}/>
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Byline</label>
+                <input value={draft.author} onChange={e => setDraft(d => d ? { ...d, author: e.target.value } : null)}
+                  placeholder="Loro Staff Writers"
+                  style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:14,color:'var(--ink)',background:'var(--paper)',outline:'none'}}/>
+                <div style={{fontSize:11,color:'var(--ink5)',marginTop:5}}>Appears as the article author. Leave as Loro Staff Writers if unattributed.</div>
               </div>
               <div>
                 <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Body</label>

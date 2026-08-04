@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     standfirst,
     body_html,
     category,
-    author = 'Chris Cannon',
+    author = 'Loro Staff Writers',
     publication_tier = 'section',
     subscriber_only = false,
   } = body
