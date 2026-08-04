@@ -92,7 +92,8 @@ function parseFormIdx(text: string): Filing[] {
     const company = parts.slice(1, parts.length - 3).join(' ')
 
     // Validate rather than trust position — skips headers and stray lines.
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFiled)) continue
+    // NB: the real file uses YYYYMMDD (no dashes), not ISO.
+    if (!/^\d{8}$/.test(dateFiled)) continue
     if (!/^\d{1,10}$/.test(cik)) continue
     if (!fileName.includes('edgar/data/')) continue
     if (!form || !company) continue
@@ -101,7 +102,7 @@ function parseFormIdx(text: string): Filing[] {
       form,
       company,
       cik: cik.replace(/^0+/, ''),
-      dateFiled,
+      dateFiled: `${dateFiled.slice(0, 4)}-${dateFiled.slice(4, 6)}-${dateFiled.slice(6, 8)}`,
       fileName,
       accession: fileName.split('/').pop()?.replace('.txt', '') ?? fileName,
     })
