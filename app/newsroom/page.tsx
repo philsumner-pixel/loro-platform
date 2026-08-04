@@ -8,6 +8,7 @@ import LeadImageField from '@/components/LeadImageField'
 import PanelErrorBoundary from '@/components/PanelErrorBoundary'
 import SeoPanel from '@/components/SeoPanel'
 import AnswerBlockPanel from '@/components/AnswerBlockPanel'
+import AiVisibilityPanel from '@/components/AiVisibilityPanel'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -121,6 +122,7 @@ const TABS = [
   { key: 'discarded,expired', label: 'Archive', statuses: ['discarded','expired'] },
   { key: 'signal_digest',   label: 'Signal Digest', statuses: [] },
   { key: 'video',           label: 'Video', statuses: [] },
+  { key: 'ai_visibility',   label: 'AI Visibility', statuses: [] },
 ]
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -1001,7 +1003,7 @@ export default function NewsroomPage() {
           </div>
         )}
 
-        {!loading && activeTab.key !== 'signal_digest' && activeTab.key !== 'video' && (
+        {!loading && activeTab.key !== 'signal_digest' && activeTab.key !== 'video' && activeTab.key !== 'ai_visibility' && (
           <div className="loro-lane-bar">
             <span className="loro-lane-label">Lane</span>
             <button className={`loro-lane-pill${laneFilter === null ? ' active' : ''}`}
@@ -1079,6 +1081,8 @@ export default function NewsroomPage() {
         )}
 
         {/* Signal Digest tab */}
+        {activeTab.key === 'ai_visibility' && <AiVisibilityPanel />}
+
         {activeTab.key === 'signal_digest' && (
           <div>
             <div style={{marginBottom:20,padding:'14px 20px',background:'var(--paper2)',border:'1px solid var(--border)',borderLeft:'3px solid var(--blue)'}}>

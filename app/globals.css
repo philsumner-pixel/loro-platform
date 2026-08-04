@@ -1342,3 +1342,51 @@ input { font-family: inherit; }
 .loro-fact-row input { padding: 7px 10px; border: 1px solid var(--border); font-size: 12.5px; font-family: 'Inter',sans-serif; outline: none; }
 .loro-faq-row { display: grid; gap: 6px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .loro-faq-row input, .loro-faq-row textarea { padding: 7px 10px; border: 1px solid var(--border); font-size: 12.5px; font-family: 'Inter',sans-serif; outline: none; resize: vertical; }
+
+/* ── AI visibility dashboard ────────────────────────────────────────── */
+.loro-aiv { padding: 4px 0 40px; }
+.loro-aiv-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 20px; }
+.loro-aiv-head h2 { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); }
+.loro-aiv-head p { font-size: 13px; color: var(--ink4); line-height: 1.6; max-width: 560px; margin-top: 6px; }
+.loro-aiv-range { display: flex; gap: 4px; flex-shrink: 0; }
+.loro-aiv-range button { font-size: 12px; padding: 6px 12px; border: 1px solid var(--border); background: var(--paper); color: var(--ink3); cursor: pointer; }
+.loro-aiv-range button.active { background: var(--blue, #1A3A6B); border-color: var(--blue, #1A3A6B); color: #FFF; }
+
+.loro-aiv-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); margin-bottom: 18px; }
+.loro-aiv-stats .stat { background: #FFF; padding: 16px 18px; }
+.loro-aiv-stats .stat.warn { background: #FDF6E3; }
+.loro-aiv-stats .n { font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; color: var(--ink); line-height: 1; }
+.loro-aiv-stats .k { font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink4); margin-top: 8px; font-weight: 600; }
+.loro-aiv-stats .h { font-size: 11px; color: var(--ink5); margin-top: 5px; line-height: 1.45; }
+
+.loro-aiv-diagnosis { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; margin-bottom: 28px; }
+.loro-aiv-diagnosis .dx { border: 1px solid var(--border); padding: 14px 16px; background: #FFF; }
+.loro-aiv-diagnosis .lbl { font-size: 9.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 8px; }
+.loro-aiv-diagnosis .lbl.access { background: #FDF2F2; color: #A33A3A; }
+.loro-aiv-diagnosis .lbl.content { background: #FDF6E3; color: #8A6A1F; }
+.loro-aiv-diagnosis .lbl.win { background: #F0FAF0; color: #2D7A2D; }
+.loro-aiv-diagnosis .v { display: block; font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; margin: 10px 0 6px; }
+.loro-aiv-diagnosis .d { font-size: 11.5px; color: var(--ink4); line-height: 1.5; }
+
+.loro-aiv section { margin-bottom: 30px; }
+.loro-aiv h3 { font-size: 14px; font-weight: 600; color: var(--ink); margin-bottom: 4px; }
+.loro-aiv .sub { font-size: 12px; color: var(--ink4); line-height: 1.55; margin-bottom: 12px; max-width: 620px; }
+
+.loro-aiv-sov .row { display: grid; grid-template-columns: minmax(150px,22%) 1fr 46px auto; gap: 10px; align-items: center; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.loro-aiv-sov .row.us { background: #F0FAF0; font-weight: 600; }
+.loro-aiv-sov .dom { color: var(--ink2); overflow: hidden; text-overflow: ellipsis; }
+.loro-aiv-sov .bar { background: var(--paper2); height: 8px; display: block; }
+.loro-aiv-sov .bar span { display: block; height: 100%; background: var(--blue, #1A3A6B); }
+.loro-aiv-sov .row.us .bar span { background: #2D7A2D; }
+.loro-aiv-sov .pct { text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; }
+.loro-aiv-sov .cnt { font-size: 11px; color: var(--ink5); white-space: nowrap; }
+
+.loro-aiv-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.loro-aiv-table th { text-align: left; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink5); font-weight: 600; padding: 8px 10px; border-bottom: 1px solid var(--border); background: var(--paper2); }
+.loro-aiv-table td { padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--ink3); }
+.loro-aiv-table td.hl { color: var(--ink); max-width: 340px; }
+.loro-aiv-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.loro-aiv-list { list-style: none; }
+.loro-aiv-list li { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
+.loro-aiv-list a { color: var(--ink); }
+.loro-aiv-list span { color: var(--ink5); white-space: nowrap; }

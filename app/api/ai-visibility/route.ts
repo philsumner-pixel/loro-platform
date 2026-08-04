@@ -38,7 +38,21 @@ export async function GET(req: Request) {
     if (h.ts > b.last) b.last = h.ts
   }
 
-  const { data: coverage } = await sb.rpc('loro_crawl_coverage', { days })
+  const [
+    { data: coverage },
+    { data: crawlSeries },
+    { data: citeSeries },
+    { data: sov },
+    { data: lanes },
+    { data: articlePerf },
+  ] = await Promise.all([
+    sb.rpc('loro_crawl_coverage', { days }),
+    sb.rpc('loro_crawl_timeseries', { days }),
+    sb.rpc('loro_citation_timeseries', { days: Math.max(days, 90) }),
+    sb.rpc('loro_share_of_voice', { days, top_n: 20 }),
+    sb.rpc('loro_lane_performance', { days }),
+    sb.rpc('loro_article_performance', { days: Math.max(days, 90) }),
+  ])
 
   interface CoverageRow {
     article_slug: string; headline: string; published_at: string
@@ -73,6 +87,11 @@ export async function GET(req: Request) {
     never_crawled: uncrawled.slice(0, 25).map(c => ({
       slug: c.article_slug, headline: c.headline, published_at: c.published_at,
     })),
+    crawl_timeseries: crawlSeries ?? [],
+    citation_timeseries: citeSeries ?? [],
+    share_of_voice: sov ?? [],
+    lane_performance: lanes ?? [],
+    article_performance: articlePerf ?? [],
     coverage: crawled.slice(0, 50).map(c => ({
       slug: c.article_slug,
       headline: c.headline,
