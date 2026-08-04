@@ -164,7 +164,7 @@ export async function GET(req: Request) {
     // Try today, then walk back — today's index may not be published yet.
     let filings: Filing[] = []
     let usedDate = ''
-    const attempts: Array<{ url: string; status: number | string; lines?: number; parsed?: number }> = []
+    const attempts: Array<{ url: string; status: number | string; lines?: number; parsed?: number; sample?: string[] }> = []
 
     for (const date of candidateDates(6)) {
       const url = indexUrl(date)
@@ -176,7 +176,7 @@ export async function GET(req: Request) {
         if (!res.ok) { attempts.push({ url, status: res.status }); continue }
         const text = await res.text()
         const parsed = parseFormIdx(text)
-        attempts.push({ url, status: res.status, lines: text.split('\n').length, parsed: parsed.length })
+        attempts.push({ url, status: res.status, lines: text.split('\n').length, parsed: parsed.length, sample: text.split(/\r?\n/).slice(0, 12).map(l => l.slice(0, 120)) })
         if (parsed.length) { filings = parsed; usedDate = date; break }
       } catch (e) {
         attempts.push({ url, status: e instanceof Error ? e.message.slice(0, 60) : 'fetch failed' })
