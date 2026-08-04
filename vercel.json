@@ -33,6 +33,10 @@
       "schedule": "0 */2 * * *"
     },
     {
+      "path": "/api/patterns/detect-corpus",
+      "schedule": "5 */2 * * *"
+    },
+    {
       "path": "/api/patterns/novelty",
       "schedule": "30 */2 * * *"
     },
