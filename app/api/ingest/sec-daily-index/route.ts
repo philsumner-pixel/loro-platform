@@ -70,27 +70,40 @@ interface Filing {
   accession: string
 }
 
-/** The .idx is fixed-width-ish, pipe-free, with a dashed header separator. */
+/**
+ * Parse form.idx. Fixed-width, space-padded. Rather than relying on header
+ * detection or column offsets (both of which vary), split on runs of 2+ spaces
+ * and anchor from the END of the line: filename, date and CIK are the last
+ * three fields, so a company name containing double spaces can't shift them.
+ */
 function parseFormIdx(text: string): Filing[] {
-  const lines = text.split('\n')
-  const start = lines.findIndex(l => /^-{5,}/.test(l))
-  if (start === -1) return []
-
   const out: Filing[] = []
-  for (const line of lines.slice(start + 1)) {
-    if (!line.trim()) continue
-    // Columns: Form Type | Company Name | CIK | Date Filed | File Name
-    const m = line.match(/^(.{1,12}?)\s{2,}(.+?)\s{2,}(\d{1,10})\s+(\d{4}-\d{2}-\d{2})\s+(\S+)\s*$/)
-    if (!m) continue
-    const [, form, company, cik, dateFiled, fileName] = m
-    const accession = fileName.split('/').pop()?.replace('.txt', '') ?? fileName
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim()
+    if (!line || /^-{5,}/.test(line)) continue
+
+    const parts = line.split(/\s{2,}/).map(p => p.trim()).filter(Boolean)
+    if (parts.length < 5) continue
+
+    const fileName = parts[parts.length - 1]
+    const dateFiled = parts[parts.length - 2]
+    const cik = parts[parts.length - 3]
+    const form = parts[0]
+    const company = parts.slice(1, parts.length - 3).join(' ')
+
+    // Validate rather than trust position — skips headers and stray lines.
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateFiled)) continue
+    if (!/^\d{1,10}$/.test(cik)) continue
+    if (!fileName.includes('edgar/data/')) continue
+    if (!form || !company) continue
+
     out.push({
-      form: form.trim(),
-      company: company.trim(),
+      form,
+      company,
       cik: cik.replace(/^0+/, ''),
       dateFiled,
       fileName,
-      accession,
+      accession: fileName.split('/').pop()?.replace('.txt', '') ?? fileName,
     })
   }
   return out
