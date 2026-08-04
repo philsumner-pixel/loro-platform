@@ -6,6 +6,7 @@ import { LORO_VOICES } from '@/lib/loro-video'
 import dynamic from 'next/dynamic'
 import LeadImageField from '@/components/LeadImageField'
 import PanelErrorBoundary from '@/components/PanelErrorBoundary'
+import SeoPanel from '@/components/SeoPanel'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -65,6 +66,9 @@ interface DraftState {
   leadImageAlt: string
   leadImageCaption: string
   leadImageCredit: string
+  seoTitle: string
+  seoDescription: string
+  seoKeywords: string
 }
 
 interface SignalDigest {
@@ -751,6 +755,9 @@ export default function NewsroomPage() {
       leadImageAlt: '',
       leadImageCaption: '',
       leadImageCredit: '',
+      seoTitle: '',
+      seoDescription: '',
+      seoKeywords: '',
     })
     setPublishedUrl(null)
   }
@@ -770,6 +777,11 @@ export default function NewsroomPage() {
           lead_image_alt: draft.leadImageAlt || null,
           lead_image_caption: draft.leadImageCaption || null,
           lead_image_credit: draft.leadImageCredit || null,
+          seo_title: draft.seoTitle.trim() || null,
+          seo_description: draft.seoDescription.trim() || null,
+          seo_keywords: draft.seoKeywords.trim()
+            ? draft.seoKeywords.split(',').map(k => k.trim()).filter(Boolean)
+            : null,
           category: draft.category, publication_tier: 'section',
         }),
       })
@@ -905,6 +917,14 @@ export default function NewsroomPage() {
                   placeholder="Write the story — the AI brief is a 75% first draft, not the finished piece."
                 />
               </div>
+              <SeoPanel
+                headline={draft.headline}
+                standfirst={draft.standfirst}
+                seoTitle={draft.seoTitle}
+                seoDescription={draft.seoDescription}
+                seoKeywords={draft.seoKeywords}
+                onChange={patch => setDraft(d => d ? { ...d, ...patch } : null)}
+              />
               <div style={{display:'flex',gap:10,alignItems:'center'}}>
                 <button className="loro-nr-btn success" style={{padding:'10px 28px',fontSize:13}}
                   disabled={publishing||!draft.headline||!draft.body} onClick={publishDraft}>
