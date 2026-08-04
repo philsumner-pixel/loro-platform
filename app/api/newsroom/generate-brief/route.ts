@@ -176,7 +176,7 @@ Write only the structured brief above. No preamble. Do not editorialize beyond w
         // not_found_error. Overridable via env so a future retirement can be
         // fixed without a redeploy.
         model: process.env.ANTHROPIC_BRIEF_MODEL || 'claude-sonnet-5',
-        max_tokens: 1000,
+        max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }],
       }),
       signal: AbortSignal.timeout(40000),

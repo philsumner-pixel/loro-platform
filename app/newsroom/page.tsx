@@ -3,7 +3,11 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
 import { LORO_VOICES } from '@/lib/loro-video'
-import RichEditor from '@/components/RichEditor'
+import dynamic from 'next/dynamic'
+const RichEditor = dynamic(() => import('@/components/RichEditor'), {
+  ssr: false,
+  loading: () => <div className="loro-rt-loading">Loading editor…</div>,
+})
 
 interface EvidencePacket {
   timeline?: Array<{ date: string; event: string }>
@@ -687,10 +691,35 @@ export default function NewsroomPage() {
   }
 
   function openDraft(c: Candidate) {
+    // The brief comes back as a labelled block (HEADLINE: / STANDFIRST: /
+    // BODY:). Split it into the right fields rather than dumping the whole
+    // thing, labels and all, into the body.
+    const brief = c.ai_brief ?? ''
+    const grab = (label: string, next: string[]) => {
+      const re = new RegExp(
+        `${label}\\s*:?\\s*([\\s\\S]*?)(?=\\n\\s*(?:${next.join('|')})\\s*:|$)`, 'i')
+      return brief.match(re)?.[1]?.trim() ?? ''
+    }
+
+    const aiHeadline = grab('HEADLINE', ['STANDFIRST', 'BODY', 'REPORTER NOTE'])
+    const aiStandfirst = grab('STANDFIRST', ['BODY', 'REPORTER NOTE'])
+    const aiBody = grab('BODY', ['REPORTER NOTE'])
+
+    const toHtml = (text: string) =>
+      text.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+        .map(p => `<p>${p.replace(/\n/g, ' ')}</p>`).join('\n')
+
+    const bodyHtml = aiBody
+      ? toHtml(aiBody)
+      : brief
+        ? toHtml(brief)
+        : `<p>${c.standfirst ?? ''}</p>\n<p>[Write your article here]</p>`
+
     setDraft({
-      candidateId: c.id, headline: c.headline,
-      standfirst: c.standfirst ?? '',
-      body: c.ai_brief ? `<p>${c.ai_brief}</p>` : `<p>${c.standfirst ?? ''}</p>\n<p>[Write your article here]</p>`,
+      candidateId: c.id,
+      headline: aiHeadline || c.headline,
+      standfirst: aiStandfirst || c.standfirst || '',
+      body: bodyHtml,
       category: c.category,
     })
     setPublishedUrl(null)

@@ -68,6 +68,10 @@ export default function RichEditor({
       Link.configure({ openOnClick: false, autolink: true }),
     ],
     content: value || '<p></p>',
+    // Must be false in the Next App Router: the default (true) renders the
+    // editor during SSR, causing a hydration crash that took the whole draft
+    // panel down (the "Open draft editor" button appeared to do nothing).
+    immediatelyRender: false,
     editorProps: {
       attributes: {
         class: 'loro-rt-content',
