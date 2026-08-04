@@ -47,6 +47,10 @@
     {
       "path": "/api/score/calculate",
       "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/ai-visibility/probe",
+      "schedule": "0 7 * * *"
     }
   ]
 }
