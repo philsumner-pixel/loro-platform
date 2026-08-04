@@ -151,20 +151,28 @@ export async function GET(req: Request) {
     // Try today, then walk back — today's index may not be published yet.
     let filings: Filing[] = []
     let usedDate = ''
-    for (const date of candidateDates(4)) {
-      const res = await fetch(indexUrl(date), {
-        headers: { 'User-Agent': UA },
-        signal: AbortSignal.timeout(20000),
-      })
-      if (!res.ok) continue
-      const text = await res.text()
-      const parsed = parseFormIdx(text)
-      if (parsed.length) { filings = parsed; usedDate = date; break }
+    const attempts: Array<{ url: string; status: number | string; lines?: number; parsed?: number }> = []
+
+    for (const date of candidateDates(6)) {
+      const url = indexUrl(date)
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': UA, Accept: 'text/plain,*/*' },
+          signal: AbortSignal.timeout(20000),
+        })
+        if (!res.ok) { attempts.push({ url, status: res.status }); continue }
+        const text = await res.text()
+        const parsed = parseFormIdx(text)
+        attempts.push({ url, status: res.status, lines: text.split('\n').length, parsed: parsed.length })
+        if (parsed.length) { filings = parsed; usedDate = date; break }
+      } catch (e) {
+        attempts.push({ url, status: e instanceof Error ? e.message.slice(0, 60) : 'fetch failed' })
+      }
     }
 
     if (!filings.length) {
       await completeRun(runId, { found: 0, new: 0, duplicate: 0 }, ['no index available'])
-      return NextResponse.json({ ok: false, reason: 'No daily index available yet' })
+      return NextResponse.json({ ok: false, reason: 'No daily index available yet', attempts })
     }
 
     found = filings.length
