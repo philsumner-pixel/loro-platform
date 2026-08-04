@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
+import { splitForAd } from '@/lib/article-body'
 import TickerStrip from '@/components/TickerStrip'
 import Masthead from '@/components/Masthead'
 import ArticleAd from '@/components/ArticleAd'
@@ -28,9 +29,22 @@ async function getArticle(slug: string) {
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const article = await getArticle(params.slug)
   if (!article) return { title: 'Not found' }
+  const image = article.lead_image_url ?? undefined
   return {
     title: article.seo_title ?? article.headline,
     description: article.seo_description ?? article.standfirst,
+    openGraph: {
+      title: article.seo_title ?? article.headline,
+      description: article.seo_description ?? article.standfirst ?? undefined,
+      type: 'article',
+      images: image ? [{ url: image }] : undefined,
+    },
+    twitter: {
+      card: image ? 'summary_large_image' : 'summary',
+      title: article.seo_title ?? article.headline,
+      description: article.seo_description ?? article.standfirst ?? undefined,
+      images: image ? [image] : undefined,
+    },
   }
 }
 
@@ -51,14 +65,10 @@ export default async function ArticlePage({ params }: PageProps) {
 
   const mins = readingTime(article.body_html)
 
-  // Split body_html at the first </p> to inject the inRead ad after paragraph 1
-  const firstClose = article.body_html.indexOf('</p>')
-  const beforeAd = firstClose > -1
-    ? article.body_html.slice(0, firstClose + 4)
-    : ''
-  const afterAd = firstClose > -1
-    ? article.body_html.slice(firstClose + 4)
-    : article.body_html
+  // Block-aware ad slot. String-slicing at the first '</p>' broke pull quotes
+  // (splitting inside the blockquote) and separated images from the paragraph
+  // they illustrate. See lib/article-body.ts.
+  const { beforeAd, afterAd } = splitForAd(article.body_html)
 
   const articleSchema = {
     '@context': 'https://schema.org',
@@ -135,7 +145,27 @@ export default async function ArticlePage({ params }: PageProps) {
               </div>
             </header>
 
-            {/* Article body — ad injected after paragraph 1 */}
+            {/* Lead image — structured, outside body_html, so it can never
+                collide with the in-article ad slot. */}
+            {article.lead_image_url && (
+              <figure className="loro-art-lead">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={article.lead_image_url}
+                  alt={article.lead_image_alt ?? article.headline}
+                />
+                {(article.lead_image_caption || article.lead_image_credit) && (
+                  <figcaption>
+                    {article.lead_image_caption}
+                    {article.lead_image_credit && (
+                      <span className="credit">{article.lead_image_credit}</span>
+                    )}
+                  </figcaption>
+                )}
+              </figure>
+            )}
+
+            {/* Article body — ad slot chosen block-aware */}
             <div className="loro-art-body">
               {beforeAd && (
                 <div dangerouslySetInnerHTML={{ __html: beforeAd }} />

@@ -30,6 +30,10 @@ export async function POST(req: NextRequest) {
     author = 'Loro Staff Writers',
     publication_tier = 'section',
     subscriber_only = false,
+    lead_image_url = null,
+    lead_image_alt = null,
+    lead_image_caption = null,
+    lead_image_credit = null,
   } = body
 
   if (!headline || !body_html) {
@@ -57,6 +61,10 @@ export async function POST(req: NextRequest) {
       body_html,
       category: category ?? 'Payments',
       author,
+      lead_image_url,
+      lead_image_alt,
+      lead_image_caption,
+      lead_image_credit,
       publication_tier,
       subscriber_only,
       candidate_id: candidate_id ?? null,

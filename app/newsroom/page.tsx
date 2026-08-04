@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react'
 import type { LoroVideo, LoroVideoScript } from '@/lib/loro-video'
 import { LORO_VOICES } from '@/lib/loro-video'
 import dynamic from 'next/dynamic'
+import LeadImageField from '@/components/LeadImageField'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -59,6 +60,10 @@ interface DraftState {
   candidateId: string; headline: string
   standfirst: string; body: string; category: string
   author: string
+  leadImageUrl: string | null
+  leadImageAlt: string
+  leadImageCaption: string
+  leadImageCredit: string
 }
 
 interface SignalDigest {
@@ -741,6 +746,10 @@ export default function NewsroomPage() {
       body: bodyHtml,
       category: c.category,
       author: c.assigned_to || 'Loro Staff Writers',
+      leadImageUrl: null,
+      leadImageAlt: '',
+      leadImageCaption: '',
+      leadImageCredit: '',
     })
     setPublishedUrl(null)
   }
@@ -756,6 +765,10 @@ export default function NewsroomPage() {
           candidate_id: draft.candidateId, headline: draft.headline,
           standfirst: draft.standfirst, body_html: draft.body,
           author: draft.author,
+          lead_image_url: draft.leadImageUrl,
+          lead_image_alt: draft.leadImageAlt || null,
+          lead_image_caption: draft.leadImageCaption || null,
+          lead_image_credit: draft.leadImageCredit || null,
           category: draft.category, publication_tier: 'section',
         }),
       })
@@ -871,6 +884,16 @@ export default function NewsroomPage() {
                   placeholder="Loro Staff Writers"
                   style={{width:'100%',padding:'10px 14px',border:'1px solid var(--border)',fontFamily:"'Inter',sans-serif",fontSize:14,color:'var(--ink)',background:'var(--paper)',outline:'none'}}/>
                 <div style={{fontSize:11,color:'var(--ink5)',marginTop:5}}>Appears as the article author. Leave as Loro Staff Writers if unattributed.</div>
+              </div>
+              <div>
+                <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Lead image</label>
+                <LeadImageField
+                  url={draft.leadImageUrl}
+                  alt={draft.leadImageAlt}
+                  caption={draft.leadImageCaption}
+                  credit={draft.leadImageCredit}
+                  onChange={patch => setDraft(d => d ? { ...d, ...patch } : null)}
+                />
               </div>
               <div>
                 <label style={{fontSize:10,fontWeight:500,letterSpacing:'0.1em',textTransform:'uppercase',color:'var(--ink5)',display:'block',marginBottom:6}}>Body</label>
