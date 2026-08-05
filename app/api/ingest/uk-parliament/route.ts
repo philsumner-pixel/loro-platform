@@ -33,7 +33,7 @@ function getSupabase() {
 async function getJson(url: string): Promise<unknown> {
   const res = await fetch(url, {
     headers: { 'User-Agent': UA, Accept: 'application/json' },
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(28000),
   })
   if (!res.ok) throw new Error(`${res.status} ${url}`)
   return res.json()
@@ -80,7 +80,9 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const INTERESTS = 'https://interests-api.parliament.uk/api/v1/Interests?Take=40&OrderBy=DateCreated%20desc'
+  // OrderBy on this endpoint is slow enough to time out; take a smaller
+  // page unsorted and dedupe on interest id instead.
+  const INTERESTS = 'https://interests-api.parliament.uk/api/v1/Interests?Take=20'
   const DIVISIONS = 'https://commonsvotes-api.parliament.uk/data/divisions.json/search?queryParameters.take=25'
 
   if (probe) {
