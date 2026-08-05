@@ -172,7 +172,16 @@ export async function GET(req: Request) {
       return NextResponse.json({ ok: false, reason: 'No export endpoint responded — run ?probe=1' })
     }
 
-    const records = parseCsv(csv)
+    const allRecords = parseCsv(csv)
+
+    // The API's from= filter does not appear to apply — a six-month request
+    // returned 93,277 rows, i.e. the full register. Filter in code instead.
+    const cutoff = new Date(Date.now() - months * 31 * 86400_000)
+      .toISOString().slice(0, 10)
+    const records = allRecords.filter(r => {
+      const d = toIso(pick(r, 'AcceptedDate', 'Accepted date', 'ReceivedDate'))
+      return d ? d >= cutoff : false
+    })
     found = records.length
 
     const rows = records.map(r => {
@@ -186,9 +195,17 @@ export async function GET(req: Request) {
       const ecRef = pick(r, 'ECRef', 'EC reference', 'Ref')
       const numericValue = Number(value.replace(/[£,]/g, '')) || null
 
+      // Composite key: ECRef when present, otherwise donor+donee+date+value.
+      // Without this, every record lacking an ECRef shared one fallback URL
+      // and collided on dedupe.
+      const dedupeKey = ecRef
+        ? `ec:${ecRef}`
+        : `ec:${donor}|${donee}|${accepted}|${value}`.replace(/\s+/g, ' ').slice(0, 300)
+
       return {
         source: 'electoral_commission',
         event_type: 'political_donation',
+        external_id: dedupeKey,
         event_date: toIso(accepted) ?? new Date().toISOString().slice(0, 10),
         url: ecRef
           ? `${BASE}/Search/Donations?ecRef=${encodeURIComponent(ecRef)}`
@@ -223,16 +240,20 @@ export async function GET(req: Request) {
     }).filter(r => r.raw_content.donor || r.raw_content.donee)
 
     if (rows.length) {
-      const refs = rows.map(r => r.url)
       const { data: seen } = await sb
         .from('loro_source_events')
-        .select('url')
+        .select('external_id')
         .eq('source', 'electoral_commission')
-        .in('url', refs.slice(0, 400))
 
-      const seenSet = new Set((seen ?? []).map(s => s.url as string))
-      const fresh = rows.filter(r => !seenSet.has(r.url)).slice(0, 300)
-      dupes = rows.length - fresh.length
+      const seenSet = new Set(
+        (seen ?? []).map(s => s.external_id as string).filter(Boolean)
+      )
+      const allFresh = rows.filter(r => !seenSet.has(r.external_id as string))
+      dupes = rows.length - allFresh.length
+      // Cap per run for the function time limit; the monthly job works
+      // through any remainder on the next pass rather than re-reading the
+      // same first N.
+      const fresh = allFresh.slice(0, 500)
 
       if (fresh.length) {
         const { data: ins, error } = await sb
@@ -245,7 +266,9 @@ export async function GET(req: Request) {
     await completeRun(runId, { found, new: inserted, duplicate: dupes }, errors)
     return NextResponse.json({
       ok: true, endpoint: usedUrl, parsed: found,
-      inserted, duplicates: dupes, errors: errors.slice(0, 3),
+      inserted, duplicates: dupes,
+      in_window: found, remaining: Math.max(0, found - dupes - inserted),
+      errors: errors.slice(0, 3),
     })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'unknown'

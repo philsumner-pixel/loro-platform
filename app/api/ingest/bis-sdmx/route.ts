@@ -72,6 +72,34 @@ function extractDataPoints(
 }
 
 export async function GET(req: NextRequest) {
+  // Probe mode: BIS returned 404 and ECB 406, so try several URL and header
+  // forms and report which actually respond, rather than guessing again.
+  {
+    const _u = new URL(req.url)
+    if (_u.searchParams.get('probe') === '1') {
+      const tries: Array<{ url: string; accept: string }> = [
+        { url: `${ECB_BASE}/data/EXR/D.GBP.EUR.SP00.A?lastNObservations=1&format=csvdata`, accept: 'text/csv' },
+        { url: `${ECB_BASE}/data/EXR/D.GBP.EUR.SP00.A?lastNObservations=1&format=jsondata`, accept: 'application/json' },
+        { url: `${ECB_BASE}/data/EXR/D.GBP.EUR.SP00.A?lastNObservations=1`, accept: 'application/vnd.sdmx.data+json;version=1.0.0-wd' },
+        { url: 'https://stats.bis.org/api/v2/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB?lastNObservations=1&format=csv', accept: 'text/csv' },
+      ]
+      const out: Array<Record<string, unknown>> = []
+      for (const t of tries) {
+        try {
+          const r = await fetch(t.url, {
+            headers: { Accept: t.accept, 'User-Agent': 'Loro Intelligence (contact: hello@loro.media)' },
+            signal: AbortSignal.timeout(15000),
+          })
+          const body = await r.text()
+          out.push({ url: t.url, accept: t.accept, status: r.status, length: body.length, head: body.slice(0, 200) })
+        } catch (e) {
+          out.push({ url: t.url, accept: t.accept, error: e instanceof Error ? e.message.slice(0, 70) : 'failed' })
+        }
+      }
+      return NextResponse.json({ probe: true, tries: out })
+    }
+  }
+
   const auth = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
   if (cronSecret && auth !== `Bearer ${cronSecret}`) {
