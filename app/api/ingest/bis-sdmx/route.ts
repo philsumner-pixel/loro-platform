@@ -21,10 +21,10 @@ const ECB_BASE  = 'https://data-api.ecb.europa.eu/service'
 const SDMX_ACCEPT = 'application/vnd.sdmx.data+json;version=1.0.0-wd'
 
 // Generic SDMX fetch with correct headers
-async function fetchSdmx(url: string): Promise<Record<string, unknown> | null> {
+async function fetchSdmx(url: string, accept: string = SDMX_ACCEPT): Promise<Record<string, unknown> | null> {
   const res = await fetch(url, {
     headers: {
-      'Accept': SDMX_ACCEPT,
+      'Accept': accept,
       'User-Agent': 'Loro-Intelligence/1.0 (payments intelligence; contact: hello@loro.io)',
     },
     signal: AbortSignal.timeout(20000),
@@ -125,7 +125,9 @@ export async function GET(req: NextRequest) {
     // Narrow EERs for GBP, EUR, USD, JPY — key payments corridor benchmark
     {
       name: 'BIS EER monthly (GBP/EUR/USD)',
-      url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01`,
+      url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01&format=csv`,
+      // BIS v2 rejects the SDMX JSON Accept on this dataflow; CSV works.
+      accept: 'text/csv',
       eventType: 'fx_rate_update',
       valueLabel: 'BIS narrow EER',
     },
@@ -153,7 +155,7 @@ export async function GET(req: NextRequest) {
 
   for (const query of queries) {
     try {
-      const data = await fetchSdmx(query.url)
+      const data = await fetchSdmx(query.url, (query as { accept?: string }).accept)
       if (!data) { errors.push(`${query.name}: no data`); continue }
 
       const points = extractDataPoints(data, [])
