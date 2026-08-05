@@ -10,11 +10,15 @@ export const runtime = 'nodejs'
 export const maxDuration = 55
 
 // SDMX REST API base URLs
-const BIS_BASE  = 'https://stats.bis.org/api/v1'
+// BIS moved to v2 with a different path shape; v1 returns 404. Probed:
+// /api/v2/data/dataflow/BIS/<flow>/1.0/<key> returns 200.
+const BIS_BASE  = 'https://stats.bis.org/api/v2'
 const ECB_BASE  = 'https://data-api.ecb.europa.eu/service'
 
 // Accept header for SDMX JSON — this is what was causing the 406
-const SDMX_ACCEPT = 'application/vnd.sdmx.data+json;version=1.0.0'
+// The '-wd' suffix is required — without it ECB returns 406. Confirmed by
+// probing: version=1.0.0 fails, version=1.0.0-wd returns 200.
+const SDMX_ACCEPT = 'application/vnd.sdmx.data+json;version=1.0.0-wd'
 
 // Generic SDMX fetch with correct headers
 async function fetchSdmx(url: string): Promise<Record<string, unknown> | null> {
@@ -121,7 +125,7 @@ export async function GET(req: NextRequest) {
     // Narrow EERs for GBP, EUR, USD, JPY — key payments corridor benchmark
     {
       name: 'BIS EER monthly (GBP/EUR/USD)',
-      url: `${BIS_BASE}/data/WS_EER_M/M.N.B.GB+US+JP+FR+DE+AU?startPeriod=2026-01&endPeriod=${PERIOD_START_M}`,
+      url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01&format=csv`,
       eventType: 'fx_rate_update',
       valueLabel: 'BIS narrow EER',
     },
