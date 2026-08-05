@@ -122,28 +122,70 @@ export async function GET(req: Request) {
 
       for (const wrapped of items) {
         const it = unwrap(wrapped)
-        const member = it.member && typeof it.member === 'object'
-          ? (it.member as Record<string, unknown>)
-          : {}
-        const memberName =
-          str(member, 'nameDisplayAs', 'nameFullTitle', 'name') ??
-          str(it, 'memberName') ?? 'Unknown member'
-        const summary = str(it, 'summary', 'description', 'interestSummary') ?? ''
         const id = str(it, 'id', 'interestId')
         if (!id) continue
+
+        const member = (it.member && typeof it.member === 'object'
+          ? it.member : {}) as Record<string, unknown>
+        const category = (it.category && typeof it.category === 'object'
+          ? it.category : {}) as Record<string, unknown>
+
+        // The fields array carries the structured detail — donor name, value,
+        // and crucially DonorCompanyIdentifier, which is a Companies House
+        // registration number. That is the join key from a declared donation
+        // to the company's filings, and on to voting behaviour.
+        const fields: Record<string, string> = {}
+        if (Array.isArray(it.fields)) {
+          for (const f of it.fields as Array<Record<string, unknown>>) {
+            const name = typeof f?.name === 'string' ? f.name : null
+            const value = f?.value
+            if (name && value != null && value !== '') fields[name] = String(value)
+          }
+        }
+
+        const memberName = str(member, 'nameDisplayAs', 'nameListAs') ?? 'Unknown member'
+        const party = str(member, 'party')
+        const constituency = str(member, 'memberFrom')
+        const categoryName = str(category, 'name') ?? 'Registered interest'
+        const donor = fields.DonorCompanyName || fields.DonorName || null
+        const value = fields.Value ? `£${Number(fields.Value).toLocaleString('en-GB')}` : null
+
+        const title = donor && value
+          ? `${memberName} (${party ?? 'unknown party'}) registered ${value} from ${donor}`
+          : `${memberName}: ${categoryName}`
 
         rows.push({
           source: 'uk_parliament_interests',
           event_type: 'registered_interest',
-          event_date: (str(it, 'registrationDate', 'dateCreated', 'createdWhen') ?? new Date().toISOString()).slice(0, 10),
+          event_date: (str(it, 'registrationDate', 'publishedDate') ?? new Date().toISOString()).slice(0, 10),
           url: `https://interests-api.parliament.uk/api/v1/Interests/${id}`,
           raw_content: {
-            title: `${memberName}: registered financial interest`,
-            description: summary.slice(0, 2000),
+            title,
+            description: [
+              str(it, 'summary'),
+              categoryName,
+              party && constituency ? `${party}, ${constituency}` : null,
+              fields.DonorStatus ? `Donor status: ${fields.DonorStatus}` : null,
+              fields.ReceivedDate ? `Received ${fields.ReceivedDate}` : null,
+            ].filter(Boolean).join('. '),
             member: memberName,
-            category: str(it, 'categoryName') ?? null,
+            party,
+            constituency,
+            category: categoryName,
+            donor,
+            value_gbp: fields.Value ? Number(fields.Value) : null,
+            donor_company_number: fields.DonorCompanyIdentifier ?? null,
           },
-          source_metadata: { interest_id: id, member_id: str(member, 'id') },
+          source_metadata: {
+            interest_id: id,
+            member_id: str(member, 'id'),
+            category_id: str(category, 'id'),
+            // Join key to Companies House — the donation -> company -> filings
+            // -> votes circuit.
+            donor_company_number: fields.DonorCompanyIdentifier ?? null,
+            donor_status: fields.DonorStatus ?? null,
+            value_gbp: fields.Value ? Number(fields.Value) : null,
+          },
           processed: false,
         })
       }

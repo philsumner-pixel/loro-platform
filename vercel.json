@@ -51,6 +51,10 @@
     {
       "path": "/api/ai-visibility/probe",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/ingest/uk-parliament",
+      "schedule": "40 */3 * * *"
     }
   ]
 }
