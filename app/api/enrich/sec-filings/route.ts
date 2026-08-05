@@ -75,6 +75,45 @@ function extractItems(text: string): string[] {
   return [...items].sort()
 }
 
+/**
+ * Turn a full-submission .txt URL into the primary document URL using EDGAR's
+ * filing index JSON. Falls back to the original if the index can't be read.
+ *   .../edgar/data/<cik>/<accession-with-dashes>.txt
+ *   -> .../edgar/data/<cik>/<accession-no-dashes>/<primaryDocument>
+ */
+async function resolvePrimaryDocument(txtUrl: string): Promise<string> {
+  const m = txtUrl.match(/\/edgar\/data\/(\d+)\/([\d-]+)\.txt$/)
+  if (!m) return txtUrl
+  const [, cik, accession] = m
+  const bare = accession.replace(/-/g, '')
+  const indexUrl = `https://www.sec.gov/Archives/edgar/data/${cik}/${bare}/index.json`
+
+  try {
+    const res = await fetch(indexUrl, {
+      headers: { 'User-Agent': UA, Accept: 'application/json' },
+      signal: AbortSignal.timeout(12000),
+    })
+    if (!res.ok) return txtUrl
+    const json = await res.json() as {
+      directory?: { item?: Array<{ name?: string; size?: string }> }
+    }
+    const items = json.directory?.item ?? []
+
+    // Prefer a modestly sized .htm that isn't an exhibit or XBRL artefact.
+    const candidate = items
+      .filter(i => i.name && /\.html?$/i.test(i.name))
+      .filter(i => !/^(ex|R\d|Financial_Report)/i.test(i.name!))
+      .filter(i => Number(i.size ?? 0) > 0 && Number(i.size ?? 0) < 2_000_000)
+      .sort((a, b) => Number(b.size ?? 0) - Number(a.size ?? 0))[0]
+
+    return candidate?.name
+      ? `https://www.sec.gov/Archives/edgar/data/${cik}/${bare}/${candidate.name}`
+      : txtUrl
+  } catch {
+    return txtUrl
+  }
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const auth = req.headers.get('authorization')
@@ -119,22 +158,20 @@ export async function GET(req: Request) {
       .in('event_type', PRIORITY)
       .limit(limit)
 
-    let batch = priority ?? []
-    if (batch.length < limit) {
-      const { data: rest } = await sb
-        .from('loro_source_events')
-        .select('id, url, event_type, raw_content')
-        .eq('source', 'sec_daily_index')
-        .is('content_enriched_at', null)
-        .not('event_type', 'in', `(${PRIORITY.join(',')})`)
-        .limit(limit - batch.length)
-      batch = [...batch, ...(rest ?? [])]
-    }
+    // Deliberately NO fallback to 10-K/10-Q. Those full submissions run to
+    // 5MB across 60+ documents and are almost entirely boilerplate and XBRL —
+    // fetching them costs a lot and yields nothing a story could use.
+    const batch = priority ?? []
 
     for (const ev of batch) {
       attempted++
       try {
-        const res = await fetch(ev.url as string, {
+        // The stored URL is the full submission (.txt) — for a large filer that
+        // is megabytes of concatenated documents and XBRL. Resolve the PRIMARY
+        // document from the filing index instead: for an 8-K that is a small,
+        // readable HTML file containing the actual disclosure.
+        const target = await resolvePrimaryDocument(ev.url as string)
+        const res = await fetch(target, {
           headers: { 'User-Agent': UA, Accept: 'text/html,text/plain,*/*' },
           signal: AbortSignal.timeout(15000),
         })
