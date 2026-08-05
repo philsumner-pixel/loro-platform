@@ -125,8 +125,14 @@ export async function GET(req: NextRequest) {
     // Narrow EERs for GBP, EUR, USD, JPY — key payments corridor benchmark
     {
       name: 'BIS EER monthly (GBP/EUR/USD)',
+      // PARKED. BIS v2 serves this dataflow as CSV only (it 406s on the SDMX
+      // JSON Accept), but the parser below expects the SDMX JSON shape. The
+      // fetch now succeeds — the remaining work is a CSV branch that maps
+      // FREQ,EER_TYPE,...,TIME_PERIOD,OBS_VALUE into the same observation
+      // shape. Disabled rather than left erroring so source health stays
+      // meaningful. ECB covers Money & Markets in the meantime.
+      enabled: false,
       url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01&format=csv`,
-      // BIS v2 rejects the SDMX JSON Accept on this dataflow; CSV works.
       accept: 'text/csv',
       eventType: 'fx_rate_update',
       valueLabel: 'BIS narrow EER',
@@ -154,6 +160,7 @@ export async function GET(req: NextRequest) {
   ]
 
   for (const query of queries) {
+    if ((query as { enabled?: boolean }).enabled === false) continue
     try {
       const data = await fetchSdmx(query.url, (query as { accept?: string }).accept)
       if (!data) { errors.push(`${query.name}: no data`); continue }
