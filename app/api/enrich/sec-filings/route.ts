@@ -83,6 +83,26 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  // Diagnostic: fetch one document and report sizes at each stage, so a
+  // silent 'too_short' can be traced instead of guessed at.
+  const debugUrl = url.searchParams.get('debug')
+  if (debugUrl) {
+    const res = await fetch(debugUrl, {
+      headers: { 'User-Agent': UA, Accept: 'text/html,text/plain,*/*' },
+      signal: AbortSignal.timeout(20000),
+    })
+    const raw = await res.text()
+    const stripped = extractText(raw)
+    return NextResponse.json({
+      status: res.status,
+      content_type: res.headers.get('content-type'),
+      raw_length: raw.length,
+      raw_head: raw.slice(0, 400),
+      extracted_length: stripped.length,
+      extracted_head: stripped.slice(0, 400),
+    })
+  }
+
   const limit = Math.min(Number(url.searchParams.get('limit') ?? 12), 25)
   const runId = await startRun('content_enrichment')
   const sb = getSupabase()
