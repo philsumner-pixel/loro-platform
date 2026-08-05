@@ -51,6 +51,10 @@
     {
       "path": "/api/sources/health",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/enrich/sec-filings",
+      "schedule": "*/20 * * * *"
     }
   ]
 }
