@@ -125,7 +125,7 @@ export async function GET(req: NextRequest) {
     // Narrow EERs for GBP, EUR, USD, JPY — key payments corridor benchmark
     {
       name: 'BIS EER monthly (GBP/EUR/USD)',
-      url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01&format=csv`,
+      url: `${BIS_BASE}/data/dataflow/BIS/WS_EER/1.0/M.N.B.GB+US+JP+FR+DE?startPeriod=2026-01`,
       eventType: 'fx_rate_update',
       valueLabel: 'BIS narrow EER',
     },
@@ -137,14 +137,18 @@ export async function GET(req: NextRequest) {
       eventType: 'fx_rate_update',
       valueLabel: 'ECB FX reference',
     },
-    // ── ECB SEPA instant credit transfer statistics ───────────────────
-    // Volume and value of SEPA instant payments — payments market intelligence
+    // ── ECB euro reference rates (USD) ────────────────────────────────
     {
-      name: 'ECB SEPA payment statistics',
-      url: `${ECB_BASE}/data/PSS/A.4F0.N.I4.NT0.EUR.R.Z..2C.A?startPeriod=2024&endPeriod=2025`,
-      eventType: 'payment_volume_update',
-      valueLabel: 'ECB SEPA instant payments',
+      name: 'ECB reference rate EUR/USD',
+      url: `${ECB_BASE}/data/EXR/D.USD.EUR.SP00.A?lastNObservations=30`,
+      eventType: 'fx_rate_update',
+      valueLabel: 'ECB EUR/USD reference rate',
     },
+    // NOTE: the ECB PSS payment-statistics series key
+    // A.4F0.N.I4.NT0.EUR.R.Z..2C.A returns HTTP 400 — the key is malformed or
+    // the series has been restructured. Removed rather than left failing;
+    // needs re-deriving from the ECB PSS dataflow definition before it goes
+    // back in.
   ]
 
   for (const query of queries) {
