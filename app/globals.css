@@ -1390,3 +1390,34 @@ input { font-family: inherit; }
 .loro-aiv-list li { display: flex; justify-content: space-between; gap: 14px; padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 12.5px; }
 .loro-aiv-list a { color: var(--ink); }
 .loro-aiv-list span { color: var(--ink5); white-space: nowrap; }
+
+/* ── Public sources diagnostic page ─────────────────────────────────── */
+.loro-sources { max-width: 900px; margin: 0 auto; padding: 40px 24px 60px; }
+.loro-sources-head { padding-bottom: 22px; border-bottom: 2px solid var(--ink); }
+.loro-sources-head h1 { font-family: 'Playfair Display', serif; font-size: clamp(30px,5vw,44px); font-weight: 700; line-height: 1.08; }
+.loro-sources-head p { font-size: 15px; color: var(--ink3); line-height: 1.75; margin-top: 12px; max-width: 660px; }
+
+.loro-sources-stats { display: grid; grid-template-columns: repeat(auto-fit,minmax(140px,1fr)); gap: 1px; background: var(--border); border: 1px solid var(--border); border-top: none; margin-bottom: 28px; }
+.loro-sources-stats > div { background: #FFF; padding: 16px 18px; }
+.loro-sources-stats .n { display: block; font-family: 'Playfair Display', serif; font-size: 26px; font-weight: 600; line-height: 1; }
+.loro-sources-stats .k { display: block; font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink4); margin-top: 8px; font-weight: 600; }
+
+.loro-sources-list { display: grid; gap: 12px; }
+.loro-source { border: 1px solid var(--border); background: #FFF; padding: 20px 22px; }
+.loro-source-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; }
+.loro-source h2 { font-family: 'Playfair Display', serif; font-size: 19px; font-weight: 600; line-height: 1.25; }
+.loro-source-pub { font-size: 11.5px; color: var(--ink5); margin-top: 5px; letter-spacing: 0.02em; }
+.loro-source-status { flex-shrink: 0; font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 4px 10px; white-space: nowrap; }
+.loro-source-status.ok   { background: #F0FAF0; color: #2D7A2D; border: 1px solid #C8E6C8; }
+.loro-source-status.warn { background: #FDF6E3; color: #8A6A1F; border: 1px solid #EBD9A8; }
+.loro-source-status.bad  { background: #FDF2F2; color: #A33A3A; border: 1px solid #F5C6C6; }
+.loro-source-status.idle { background: var(--paper2); color: var(--ink4); border: 1px solid var(--border); }
+.loro-source-desc { font-size: 13.5px; color: var(--ink3); line-height: 1.6; margin-top: 12px; max-width: 660px; }
+.loro-source-metrics { display: grid; grid-template-columns: repeat(auto-fit,minmax(120px,1fr)); gap: 12px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--border); }
+.loro-source-metrics dt { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink5); font-weight: 600; }
+.loro-source-metrics dd { margin: 4px 0 0; font-size: 14px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.loro-source-link { display: inline-block; margin-top: 14px; font-size: 12.5px; color: var(--blue-mid, #2C5AA0); }
+.loro-sources-note { margin-top: 34px; padding: 20px 22px; background: var(--paper2); border-left: 3px solid var(--ink); }
+.loro-sources-note h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.loro-sources-note p { font-size: 13.5px; color: var(--ink3); line-height: 1.7; }
+.loro-sources-empty { padding: 40px 0; color: var(--ink4); }

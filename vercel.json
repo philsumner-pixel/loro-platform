@@ -55,6 +55,10 @@
     {
       "path": "/api/ingest/uk-parliament",
       "schedule": "40 */3 * * *"
+    },
+    {
+      "path": "/api/sources/health",
+      "schedule": "0 9 * * *"
     }
   ]
 }
