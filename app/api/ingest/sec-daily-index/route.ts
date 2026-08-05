@@ -157,7 +157,24 @@ export async function GET(req: Request) {
     // Batched, not row-by-row: the first version did a SELECT + possible
     // INSERT per filing and timed out after ~145 entities with 0 events
     // written. Everything below is set-based.
-    const batch = interesting.slice(0, 120)
+    // Order by STORY VALUE before capping, not by index order. The daily index
+    // is alphabetical by form type, so slicing the first 120 took only 10-K and
+    // 10-Q and never reached a single 8-K, SC 13D or Form 4 — the corpus filled
+    // with quarterly boilerplate and skipped everything that carries signal.
+    const FORM_PRIORITY: Record<string, number> = {
+      '8-K': 1,
+      'SC 13D': 2, 'SC 13D/A': 2, '13D': 2,
+      'SC 13G': 3, 'SC 13G/A': 3, '13G': 3,
+      '4': 4,
+      '25': 5, '25-NSE': 5,
+      'NT 10-K': 6, 'NT 10-Q': 6,
+      'DEF 14A': 7,
+      'S-1': 8, 'S-1/A': 8, '424B4': 8,
+      '10-Q': 20, '10-K': 20,
+    }
+    const batch = [...interesting]
+      .sort((a, b) => (FORM_PRIORITY[a.form] ?? 15) - (FORM_PRIORITY[b.form] ?? 15))
+      .slice(0, 120)
 
     // 1. Which accessions do we already have?
     const { data: seen } = await sb
