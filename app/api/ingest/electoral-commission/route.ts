@@ -249,40 +249,19 @@ export async function GET(req: Request) {
     }).filter(r => r.raw_content.donor || r.raw_content.donee)
 
     if (rows.length) {
-      const { data: seen } = await sb
-        .from('loro_source_events')
-        .select('external_id')
-        .eq('source', 'electoral_commission')
+      // No app-side seen-check: PostgREST caps reads at 1000 rows, so once the
+      // corpus passed that the check began wrongly classifying everything as
+      // already-held. The database now enforces uniqueness on
+      // (source, external_id), so upsert handles it correctly at any scale.
+      const byKey = new Map<string, typeof rows[number]>()
+      for (const r of rows) {
+        const k = r.external_id as string
+        if (k && !byKey.has(k)) byKey.set(k, r)
+      }
+      const unique = [...byKey.values()]
+      dupes = rows.length - unique.length
 
-      const seenSet = new Set(
-        (seen ?? []).map(s => s.external_id as string).filter(Boolean)
-      )
-      const allFresh = rows.filter(r => !seenSet.has(r.external_id as string))
-      dupes = rows.length - allFresh.length
-      // Cap per run for the function time limit; the monthly job works
-      // through any remainder on the next pass rather than re-reading the
-      // same first N.
-      const fresh = allFresh.slice(0, 500)
-
-      if (fresh.length) {
-        // The unique index on (source, external_id) is PARTIAL, so ON CONFLICT
-        // can't target it. The collisions were anyway WITHIN the batch — the
-        // CSV contains rows that produce identical composite keys — so dedupe
-        // in memory first. Then write in chunks, because a plain bulk insert
-        // fails the entire batch on one collision and a single duplicate was
-        // discarding 1,000 otherwise-good records.
-        // Dedupe within the batch (the CSV contains rows producing identical
-        // composite keys), then upsert. The unique index on
-        // (source, external_id) is no longer partial, so ON CONFLICT can
-        // target it — one collision no longer discards the whole batch, and
-        // re-running is idempotent.
-        const byKey = new Map<string, typeof fresh[number]>()
-        for (const r of fresh) {
-          const k = r.external_id as string
-          if (k && !byKey.has(k)) byKey.set(k, r)
-        }
-        const unique = [...byKey.values()]
-
+      {
         for (let i = 0; i < unique.length; i += 200) {
           const chunk = unique.slice(i, i + 200)
           const { data: ins, error } = await sb
@@ -302,7 +281,9 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true, endpoint: usedUrl, parsed: found,
       inserted, duplicates: dupes,
-      in_window: found, remaining: Math.max(0, found - dupes - inserted),
+      in_window: found,
+      duplicate_keys_in_csv: dupes,
+      already_held: Math.max(0, found - dupes - inserted),
       errors: errors.slice(0, 3),
     })
   } catch (err) {
