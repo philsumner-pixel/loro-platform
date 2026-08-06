@@ -16,7 +16,11 @@ export const runtime = 'nodejs'
 export const maxDuration = 60
 
 const MODEL = 'text-embedding-3-small'
-const BATCH_SIZE = 50  // conservative — each input can be long
+// The embedding API takes up to 2048 inputs per request and these are short
+// records, so 50 was needlessly conservative: with 2,300+ events queued it
+// would have taken four days to catch up and never kept pace with ingest.
+// Overridable per call for backfills.
+const BATCH_SIZE = 200
 
 function getSupabase() {
   return createClient(
@@ -48,14 +52,14 @@ async function embedBatch(texts: string[]): Promise<number[][] | null> {
   return data.data.map((d: { embedding: number[] }) => d.embedding)
 }
 
-async function embedNewsCoverage(sb: ReturnType<typeof getSupabase>) {
+async function embedNewsCoverage(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
   // Fetch unembedded news coverage with structured input text
   const { data: rows } = await sb
     .from('loro_news_coverage')
     .select('id')
     .is('embedding', null)
     .not('headline', 'is', null)
-    .limit(BATCH_SIZE)
+    .limit(batchSize)
 
   if (!rows?.length) return { processed: 0, embedded: 0 }
 
@@ -92,13 +96,13 @@ async function embedNewsCoverage(sb: ReturnType<typeof getSupabase>) {
   return { processed: rows.length, embedded }
 }
 
-async function embedCandidates(sb: ReturnType<typeof getSupabase>) {
+async function embedCandidates(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
   const { data: rows } = await sb
     .from('loro_story_candidates')
     .select('id')
     .is('embedding', null)
     .neq('status', 'discarded')
-    .limit(BATCH_SIZE)
+    .limit(batchSize)
 
   if (!rows?.length) return { processed: 0, embedded: 0 }
 
@@ -133,7 +137,7 @@ async function embedCandidates(sb: ReturnType<typeof getSupabase>) {
 }
 
 
-async function embedSourceEvents(sb: ReturnType<typeof getSupabase>) {
+async function embedSourceEvents(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
   // The single corpus. Every raw source event gets embedded so pattern
   // detection and lane classification work across ALL inbound material,
   // not just the records the rule-based detector already promoted.
@@ -141,7 +145,7 @@ async function embedSourceEvents(sb: ReturnType<typeof getSupabase>) {
     .from('loro_source_events')
     .select('id')
     .is('embedding', null)
-    .limit(BATCH_SIZE)
+    .limit(batchSize)
 
   if (!rows?.length) return { processed: 0, embedded: 0 }
 
@@ -174,7 +178,7 @@ async function embedSourceEvents(sb: ReturnType<typeof getSupabase>) {
   return { processed: rows.length, embedded }
 }
 
-async function embedLanes(sb: ReturnType<typeof getSupabase>) {
+async function embedLanes(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
   // Lane definitions are embedded once so anything else can be classified by
   // similarity against them.
   const { data: rows } = await sb
@@ -215,21 +219,23 @@ export async function GET(req: NextRequest) {
   }
 
   const table = req.nextUrl.searchParams.get('table')
+  const batchSize = Math.min(
+    Number(req.nextUrl.searchParams.get('batch') ?? BATCH_SIZE), 500)
   const sb = getSupabase()
   const results: Record<string, unknown> = {}
 
   try {
     if (!table || table === 'news') {
-      results.news_coverage = await embedNewsCoverage(sb)
+      results.news_coverage = await embedNewsCoverage(sb, batchSize)
     }
     if (!table || table === 'candidates') {
-      results.story_candidates = await embedCandidates(sb)
+      results.story_candidates = await embedCandidates(sb, batchSize)
     }
     if (!table || table === 'lanes') {
-      results.content_lanes = await embedLanes(sb)
+      results.content_lanes = await embedLanes(sb, batchSize)
     }
     if (!table || table === 'events') {
-      results.source_events = await embedSourceEvents(sb)
+      results.source_events = await embedSourceEvents(sb, batchSize)
     }
 
     // Summary stats
