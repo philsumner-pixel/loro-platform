@@ -67,6 +67,10 @@
     {
       "path": "/api/ingest/carbon-intensity",
       "schedule": "15 7 * * *"
+    },
+    {
+      "path": "/api/patterns/detect-influence",
+      "schedule": "25 8 * * *"
     }
   ]
 }
