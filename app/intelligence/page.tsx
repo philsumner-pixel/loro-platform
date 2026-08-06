@@ -95,124 +95,102 @@ interface Source {
   editorial_value: 'critical' | 'high' | 'medium'
 }
 
-const SOURCES: Source[] = [
-  // ── Live sources ────────────────────────────────────────────────────
-  {
-    id: 'fca_pdmr', name: 'FCA / RNS — PDMR Notifications', jurisdiction: 'GB',
-    type: 'Ownership Intelligence', status: 'live', frequency: 'Every 15 minutes',
-    dataKey: 'fca_pdmr', editorial_value: 'critical',
-    description: 'UK MAR Article 19 PDMR and director shareholding notifications filed via Primary Information Providers (RNS, EQS). Parsed to extract person, role, transaction type, shares, price. The primary source for UK ownership intelligence exclusives.',
-    url: 'https://www.investegate.co.uk/category/directors-dealings',
-  },
-  {
-    id: 'sec_form4', name: 'SEC EDGAR — Form 4 Insider Trades', jurisdiction: 'US',
-    type: 'Ownership Intelligence', status: 'live', frequency: 'Every 30 minutes',
-    dataKey: 'sec_form4', editorial_value: 'critical',
-    description: 'US SEC mandatory insider trade disclosures for 10 core payments companies including PayPal, Visa, Mastercard, Block, Adyen. Cross-referenced with PDMR data for cross-Atlantic ownership intelligence signals.',
-    url: 'https://www.sec.gov/cgi-bin/browse-edgar',
-  },
-  {
-    id: 'sec_8k', name: 'SEC EDGAR — Form 8-K Material Events', jurisdiction: 'US',
-    type: 'Corporate Intelligence', status: 'live', frequency: 'Every 30 minutes',
-    dataKey: 'sec_8k', editorial_value: 'high',
-    description: 'Material event disclosures from US-listed payments companies. Item 1.01 (material agreements), 5.02 (director changes), 8.01 (other events). Combined with Form 4 data to detect pre-announcement patterns.',
-    url: 'https://efts.sec.gov/LATEST/search-index',
-  },
-  {
-    id: 'companies_house', name: 'Companies House — UK Filing Registry', jurisdiction: 'GB',
-    type: 'Corporate Intelligence', status: 'live', frequency: 'Every hour',
-    dataKey: 'companies_house', editorial_value: 'high',
-    description: 'Director appointments (AP01), terminations (TM01), share allotments (SH01), PSC changes (PSC04/RP01) and registered office changes for 20 UK payment institutions and fintechs. High-signal filings flagged for pattern detection.',
-    url: 'https://developer.company-information.service.gov.uk',
-  },
-  {
-    id: 'rss_monitoring', name: 'RSS News Monitoring', jurisdiction: 'INTL',
-    type: 'News Intelligence', status: 'live', frequency: 'Every 15 minutes',
-    dataKey: 'rss_monitoring', editorial_value: 'high',
-    description: 'Live monitoring of 10 payments and fintech publications including Finextra, Reuters Technology, TechCrunch Fintech, PYMNTS, Sifted, AltFi, The Paypers, CityAM. Feeds the three-layer novelty checking engine.',
-    url: 'https://www.finextra.com/rss',
-  },
-  {
-    id: 'bis_statistics', name: 'BIS / ECB — Market Data', jurisdiction: 'INTL',
-    type: 'Market Intelligence', status: 'live', frequency: 'Daily at 06:00 UTC',
-    dataKey: 'bis_statistics', editorial_value: 'medium',
-    description: 'Bank for International Settlements effective exchange rates (SDMX REST API) and ECB SEPA payment statistics and FX reference rates. Provides market data baseline for FX corridor and payment volume anomaly detection.',
-    url: 'https://stats.bis.org',
-  },
+// Sources are read from loro_source_registry rather than hardcoded here.
+// The previous hardcoded list went stale within days — it still advertised
+// sec_form4, sec_8k and bis_statistics as live after they were retired or
+// paused, and knew nothing about the eight sources connected since. Anything
+// connected now appears here automatically.
+async function getRegistrySources(): Promise<Source[]> {
+  try {
+    const sb = getSupabase()
+    const { data } = await sb.rpc('loro_source_health')
 
-  // ── Building ────────────────────────────────────────────────────────
-  {
-    id: 'companies_house_stream', name: 'Companies House — Streaming API', jurisdiction: 'GB',
-    type: 'Corporate Intelligence', status: 'building', frequency: 'Real-time push',
-    editorial_value: 'critical',
-    description: 'Upgrade from hourly polling to the Companies House streaming API. Events arrive within 3 minutes of filing rather than up to 60 minutes. Critical for time-sensitive pre-announcement pattern detection.',
-  },
-  {
-    id: 'reddit_sentiment', name: 'Reddit Sentiment — Payments Subreddits', jurisdiction: 'INTL',
-    type: 'Sentiment Intelligence', status: 'building', frequency: 'Every 4 hours',
-    editorial_value: 'high',
-    description: 'Sentiment tracking across r/fintech, r/banking, r/UKPersonalFinance and r/personalfinance for payments companies in the watchlist. Claude Haiku classifies posts and comments. Feeds the Loro Payment Intelligence Score.',
-  },
-  {
-    id: 'hn_sentiment', name: 'Hacker News — Developer Sentiment', jurisdiction: 'INTL',
-    type: 'Sentiment Intelligence', status: 'building', frequency: 'Every 4 hours',
-    editorial_value: 'medium',
-    description: 'Developer and technical community sentiment on payments infrastructure via Algolia HN search API. Developer adoption signal for payments APIs (Stripe, Adyen, GoCardless) ahead of mainstream coverage.',
-  },
+    interface H {
+      slug: string; label: string; publisher: string | null
+      lane_slug: string | null; jurisdiction: string | null
+      source_url: string | null; licence: string | null; description: string | null
+      status: string; events_total: number
+    }
 
-  // ── Roadmap ─────────────────────────────────────────────────────────
-  {
-    id: 'amf_france', name: 'AMF France — Insider Declarations', jurisdiction: 'FR',
-    type: 'Ownership Intelligence', status: 'roadmap', frequency: 'Daily',
-    editorial_value: 'high',
-    description: 'Autorité des marchés financiers mandatory insider trading declarations. Completes EU ownership intelligence for French payments entities including Worldline, Ingenico and BNP payments subsidiaries.',
-  },
-  {
-    id: 'bafin', name: 'BaFin — German Regulatory Filings', jurisdiction: 'DE',
-    type: 'Regulatory Intelligence', status: 'roadmap', frequency: 'Daily',
-    editorial_value: 'high',
-    description: 'Bundesanstalt für Finanzdienstleistungsaufsicht market surveillance data. Combined with FCA and AMF data enables three-jurisdiction EU ownership intelligence — the cross-jurisdictional pattern that scores maximum anomaly.',
-  },
-  {
-    id: 'afm', name: 'AFM Netherlands — PDMR Register', jurisdiction: 'NL',
-    type: 'Ownership Intelligence', status: 'roadmap', frequency: 'Daily',
-    editorial_value: 'medium',
-    description: 'Autoriteit Financiële Markten PDMR transaction register. Relevant for Dutch-registered payment institutions (Adyen NV, Mollie, Buckaroo) and EU cross-jurisdictional pattern detection.',
-  },
-  {
-    id: 'fca_register', name: 'FCA Financial Services Register', jurisdiction: 'GB',
-    type: 'Regulatory Intelligence', status: 'roadmap', frequency: 'Daily',
-    editorial_value: 'medium',
-    description: 'FCA authorisation register for payment institutions and e-money institutions. Tracks licence grants, variations and withdrawals. When combined with CH director data, identifies licence-linked ownership changes.',
-  },
-  {
-    id: 'trustpilot', name: 'Trustpilot — Consumer Sentiment', jurisdiction: 'INTL',
-    type: 'Sentiment Intelligence', status: 'roadmap', frequency: 'Daily',
-    editorial_value: 'medium',
-    description: 'Consumer review sentiment for retail payment products — digital banks, payment apps, money transfer services. Anomaly detection on review volume and rating velocity ahead of news coverage.',
-  },
-  {
-    id: 'loro_score', name: 'Loro Payment Intelligence Score', jurisdiction: 'INTL',
-    type: 'Proprietary Data Product', status: 'roadmap', frequency: 'Daily composite',
-    editorial_value: 'critical',
-    description: 'Composite 0–100 score per tracked entity combining regulatory signal intensity, news momentum, social sentiment, ownership intelligence and market data. Proprietary to Loro. The core data product: free tier shows score; paid tier shows full breakdown, historical trend and alerts on score movements >10 points.',
-  },
-]
+    return ((data ?? []) as H[]).map(h => ({
+      id: h.slug,
+      name: h.label,
+      jurisdiction: h.jurisdiction ?? 'INTL',
+      type: LANE_TYPE[h.lane_slug ?? ''] ?? 'Intelligence',
+      // Registry health maps onto the page's own vocabulary: anything actively
+      // collecting reads as live; paused sources are shown honestly rather
+      // than hidden, because a retired source is part of the story.
+      status: h.status === 'paused' ? 'building'
+            : h.status === 'never run' ? 'building'
+            : 'live',
+      frequency: h.status === 'paused' ? 'Paused' : undefined,
+      dataKey: h.slug,
+      editorial_value: h.events_total > 500 ? 'critical'
+                     : h.events_total > 50 ? 'high' : 'medium',
+      description: [
+        h.description,
+        h.publisher ? `Published by ${h.publisher}.` : null,
+        h.licence ? `Licence: ${h.licence}.` : null,
+      ].filter(Boolean).join(' '),
+      url: h.source_url ?? undefined,
+    }))
+  } catch {
+    return []
+  }
+}
 
 const JURISDICTION_LABELS: Record<string, string> = {
-  GB: 'United Kingdom', US: 'United States', FR: 'France',
-  DE: 'Germany', NL: 'Netherlands', EU: 'European Union', INTL: 'International',
+  GB: 'United Kingdom', UK: 'United Kingdom', US: 'United States',
+  EU: 'European Union', INTL: 'International',
 }
+
+const LANE_TYPE: Record<string, string> = {
+  'ownership-control': 'Ownership Intelligence',
+  'regulation-enforcement': 'Regulatory Intelligence',
+  'money-markets': 'Market Intelligence',
+  'policy-politics': 'Political Intelligence',
+  'energy-sustainability': 'Energy Intelligence',
+  'technology-infrastructure': 'Technology Intelligence',
+}
+
+// Still-to-connect sources, kept as a deliberate roadmap. These are named
+// targets rather than aspirations — each has a known, free, structured feed.
+const ROADMAP: Source[] = [
+  { id: 'land_registry', name: 'HM Land Registry — Overseas Ownership', jurisdiction: 'GB',
+    type: 'Ownership Intelligence', status: 'roadmap', frequency: 'Monthly',
+    editorial_value: 'high',
+    description: 'Overseas companies owning UK property. Joins to the donor and contractor company numbers Loro already holds.' },
+  { id: 'charity_commission', name: 'Charity Commission — Trustees', jurisdiction: 'GB',
+    type: 'Ownership Intelligence', status: 'roadmap', frequency: 'Weekly',
+    editorial_value: 'medium',
+    description: 'Charity trustees and linked charities, cross-referenceable with Companies House officers to surface trustee/director crossover.' },
+  { id: 'insolvency', name: 'Insolvency Register', jurisdiction: 'GB',
+    type: 'Regulatory Intelligence', status: 'roadmap', frequency: 'Daily',
+    editorial_value: 'high',
+    description: 'Company insolvencies and director disqualifications, joining on company number to the existing entity graph.' },
+  { id: 'hansard', name: 'Hansard — Parliamentary Debates', jurisdiction: 'GB',
+    type: 'Political Intelligence', status: 'roadmap', frequency: 'Daily',
+    editorial_value: 'high',
+    description: 'Full debate transcripts, letting declared interests and donations be checked against what a member actually said.' },
+  { id: 'lobbying', name: 'Register of Consultant Lobbyists', jurisdiction: 'GB',
+    type: 'Political Intelligence', status: 'roadmap', frequency: 'Monthly',
+    editorial_value: 'medium',
+    description: 'Declared lobbying activity, completing the influence picture alongside donations and interests.' },
+  { id: 'icij', name: 'ICIJ Offshore Leaks', jurisdiction: 'INTL',
+    type: 'Ownership Intelligence', status: 'roadmap', frequency: 'On publication',
+    editorial_value: 'medium',
+    description: 'Panama, Pandora and FinCEN datasets for offshore structures behind UK and US entities.' },
+]
 
 const STATUS_LABEL: Record<string, string> = {
   live: 'Live', building: 'Building', roadmap: 'Roadmap',
 }
 
 export default async function IntelligencePage() {
-  const data = await getSourceData()
-  const liveSources = SOURCES.filter(s => s.status === 'live')
-  const buildingSources = SOURCES.filter(s => s.status === 'building')
-  const roadmapSources = SOURCES.filter(s => s.status === 'roadmap')
+  const [data, registrySources] = await Promise.all([getSourceData(), getRegistrySources()])
+  const liveSources = registrySources.filter(s => s.status === 'live')
+  const buildingSources = registrySources.filter(s => s.status === 'building')
+  const roadmapSources = ROADMAP
 
   return (
     <>
