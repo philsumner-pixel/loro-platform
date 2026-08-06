@@ -155,20 +155,20 @@ async function embedSourceEvents(sb: ReturnType<typeof getSupabase>, batchSize: 
   const embeddings = await embedBatch(inputs.map(i => i.input))
   if (!embeddings) return { processed: inputs.length, embedded: 0 }
 
-  let embedded = 0
-  for (let i = 0; i < inputs.length; i++) {
-    const { error: upErr } = await sb
-      .from('loro_source_events')
-      .update({
-        embedding: JSON.stringify(embeddings[i]),
-        embedding_model: MODEL,
-        embedding_input: inputs[i].input,
-      })
-      .eq('id', inputs[i].id)
-    if (!upErr) embedded++
-  }
+  // Write back in ONE statement. Reading set-based fixed half the problem;
+  // one UPDATE per row on the way back was the other half.
+  const payload = inputs.map((inp, i) => ({
+    id: inp.id,
+    embedding: JSON.stringify(embeddings[i]),
+    input: inp.input,
+  }))
 
-  return { processed: inputs.length, embedded }
+  const { data: applied, error: applyErr } = await sb.rpc('loro_apply_event_embeddings', {
+    payload, model: MODEL,
+  })
+  if (applyErr) return { processed: inputs.length, embedded: 0, error: applyErr.message }
+
+  return { processed: inputs.length, embedded: Number(applied ?? 0) }
 }
 
 async function embedLanes(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
