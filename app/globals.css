@@ -704,7 +704,15 @@ input { font-family: inherit; }
 
 /* ── Article page ────────────────────────────────────────── */
 .loro-article-zone { padding: 48px 0 80px; }
-.loro-article-content { max-width: 720px; margin: 0 auto; }
+/* Target measure is 65-68 characters — the middle of the 60-70 range where the
+   eye reliably finds the next line; past ~75 it starts losing its place.
+   700px at the 19px body size lands there. (Deliberately NOT `ch` units: ch is
+   measured against the ELEMENT's font-size, and this container inherits the
+   16px base, so 66ch here would compute to ~590px and make the column
+   narrower rather than wider.)
+   The old 720px at 17px was ~85 characters — too wide, and small type in a
+   wide column is what made the page read as thin and sparse. */
+.loro-article-content { max-width: 680px; margin: 0 auto; }
 
 /* Article header */
 .loro-art-header { padding: 40px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
@@ -715,7 +723,7 @@ input { font-family: inherit; }
 .loro-art-cat-sep { font-size: 10px; color: var(--ink5); }
 .loro-art-headline { font-family: 'Playfair Display', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); margin-bottom: 18px; }
 .loro-art-headline em { font-style: italic; color: var(--blue); }
-.loro-art-standfirst { font-size: 18px; color: var(--ink3); line-height: 1.7; margin-bottom: 24px; font-weight: 400; max-width: 640px; }
+.loro-art-standfirst { font-size: 20px; color: var(--ink3); line-height: 1.6; margin-bottom: 24px; font-weight: 400; max-width: 60ch; }
 .loro-art-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .loro-art-author { font-size: 13px; font-weight: 500; color: var(--ink); }
 .loro-art-sep { color: var(--border); }
@@ -724,8 +732,10 @@ input { font-family: inherit; }
 .loro-art-sub { font-size: 10px; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 10px; border: 1px solid var(--border); border-radius: 20px; color: var(--ink4); }
 
 /* Article body */
-.loro-art-body { font-size: 17px; line-height: 1.875; color: var(--ink2); }
-.loro-art-body p { margin-bottom: 26px; }
+/* 19px is the readable size for this measure — 17px in a 720px column left the
+   text looking thin. 1.875 was also airy for the size; 1.7 sits better. */
+.loro-art-body { font-size: 19px; line-height: 1.7; color: var(--ink2); }
+.loro-art-body p { margin-bottom: 24px; }
 .loro-art-body p:last-child { margin-bottom: 0; }
 .loro-art-body strong { font-weight: 500; color: var(--ink); }
 
@@ -1444,3 +1454,22 @@ input { font-family: inherit; }
 /* Article cards are now real links */
 .loro-art-link { display: block; text-decoration: none; color: inherit; }
 .loro-art-link:hover .loro-art-title { color: var(--blue-mid, #2C5AA0); }
+
+
+/* Article typography — mobile.
+   Below 640px the measure is the viewport, so the constraint is comfort rather
+   than line length: slightly smaller type and tighter leading than desktop. */
+@media (max-width: 640px) {
+  .loro-article-zone { padding: 28px 0 56px; }
+  .loro-article-content,
+  .loro-art-header { max-width: 100%; }
+  .loro-art-body { font-size: 17px; line-height: 1.6; }
+  .loro-art-body p { margin-bottom: 20px; }
+  .loro-art-standfirst { font-size: 17px; line-height: 1.55; max-width: 100%; }
+  .loro-art-headline { line-height: 1.15; }
+}
+
+/* Between mobile and desktop, ease the body size rather than jumping. */
+@media (min-width: 641px) and (max-width: 900px) {
+  .loro-art-body { font-size: 18px; line-height: 1.65; }
+}
