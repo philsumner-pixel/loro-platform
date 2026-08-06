@@ -1473,3 +1473,5 @@ input { font-family: inherit; }
 @media (min-width: 641px) and (max-width: 900px) {
   .loro-art-body { font-size: 19px; line-height: 1.65; }
 }
+
+.loro-ticker-src { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.45; margin-left: 4px; }

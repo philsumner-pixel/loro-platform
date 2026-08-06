@@ -2,83 +2,58 @@
 
 import { useState, useEffect } from 'react'
 
-interface Pair {
+// Rate strip, served from Loro's own ECB ingest.
+//
+// This previously called api.frankfurter.app directly from the browser and was
+// failing, so every page carried "Rate data unavailable" at the very top. Now
+// it reads /api/ticker, which is backed by the ECB Data Portal ingest — one
+// fewer third-party dependency on the most visible element of the site, and
+// numbers we can actually attribute.
+//
+// If the fetch fails the strip renders NOTHING rather than an error message:
+// an empty bar is unremarkable, a permanent error notice is not.
+
+interface Item {
   label: string
-  rate: number
-  prev: number
-}
-
-function getPrevDate(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().split('T')[0]
-}
-
-function fmt(r: number): string {
-  if (r >= 1000) return r.toFixed(1)
-  if (r >= 100) return r.toFixed(2)
-  if (r >= 10) return r.toFixed(3)
-  return r.toFixed(4)
+  value: string
+  unit: string
+  change: number
+  direction: 'up' | 'down' | 'flat'
+  period: string | null
 }
 
 export default function TickerStrip() {
-  const [pairs, setPairs] = useState<Pair[]>([])
-  const [loading, setLoading] = useState(true)
+  const [items, setItems] = useState<Item[]>([])
 
   useEffect(() => {
-    async function load() {
-      try {
-        const prevDate = getPrevDate()
-        const [todayRes, prevRes] = await Promise.all([
-          fetch('https://api.frankfurter.app/latest?from=GBP&to=EUR,USD,JPY,AUD,INR'),
-          fetch(
-            `https://api.frankfurter.app/${prevDate}?from=GBP&to=EUR,USD,JPY,AUD,INR`
-          ),
-        ])
-        const today = await todayRes.json()
-        const prev = await prevRes.json()
-
-        const result: Pair[] = Object.entries(
-          today.rates as Record<string, number>
-        ).map(([to, rate]) => ({
-          label: `GBP/${to}`,
-          rate,
-          prev: (prev.rates as Record<string, number>)[to] ?? rate,
-        }))
-
-        setPairs(result)
-      } catch {
-        // fail silently — ticker is non-critical
-      } finally {
-        setLoading(false)
-      }
-    }
-    load()
+    let cancelled = false
+    fetch('/api/ticker')
+      .then(r => r.json())
+      .then(d => { if (!cancelled && Array.isArray(d.items)) setItems(d.items) })
+      .catch(() => { /* strip is non-critical — stay silent */ })
+    return () => { cancelled = true }
   }, [])
+
+  // Render nothing until there is something worth showing.
+  if (!items.length) return <div className="loro-ticker" aria-hidden="true" />
 
   return (
     <div className="loro-ticker">
       <div className="loro-ticker-inner">
-        {loading && (
-          <span className="loro-ticker-loading">Loading rates…</span>
-        )}
-        {!loading && pairs.length === 0 && (
-          <span className="loro-ticker-loading">Rate data unavailable</span>
-        )}
-        {pairs.map(({ label, rate, prev }) => {
-          const pct = ((rate - prev) / prev) * 100
-          const up = pct >= 0
-          return (
-            <span key={label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span className="loro-ticker-pair">{label}</span>
-              <span>{fmt(rate)}</span>
-              <span className={up ? 'loro-ticker-up' : 'loro-ticker-dn'}>
-                {up ? '↑' : '↓'}{Math.abs(pct).toFixed(2)}%
+        {items.map(it => (
+          <span key={it.label} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span className="loro-ticker-pair">{it.label}</span>
+            <span>{it.value}{it.unit}</span>
+            {it.direction !== 'flat' && (
+              <span className={it.direction === 'up' ? 'loro-ticker-up' : 'loro-ticker-dn'}>
+                {it.direction === 'up' ? '↑' : '↓'}
+                {Math.abs(it.change)}
               </span>
-              <span className="loro-ticker-div">│</span>
-            </span>
-          )
-        })}
+            )}
+            <span className="loro-ticker-div">│</span>
+          </span>
+        ))}
+        <span className="loro-ticker-src">ECB</span>
       </div>
     </div>
   )
