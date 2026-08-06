@@ -63,7 +63,27 @@ function extractText(raw: string): string {
   // Collapse whitespace and the long rules EDGAR loves.
   text = text.replace(/[_=–—-]{4,}/g, ' ').replace(/\s+/g, ' ').trim()
 
-  return text
+  // Every 8-K opens with several hundred characters of identical cover-page
+  // boilerplate (SEC address, Exchange Act citation, checkbox paragraphs,
+  // registrant address block). Left in, it dominates similarity and every
+  // filing looks alike. Skip to the first Item heading, which is where the
+  // actual disclosure begins.
+  const firstItem = text.search(/Item\s+\d\.\d{2}/i)
+  if (firstItem > 0) {
+    text = text.slice(firstItem)
+  } else {
+    // No Item heading (Form 4, SC 13D etc) — drop the known cover-page
+    // preamble if present.
+    text = text.replace(
+      /^.*?(?:Securities Exchange Act of 1934|CURRENT REPORT|SECURITIES AND EXCHANGE COMMISSION)\s*/i,
+      ''
+    )
+  }
+
+  // Trailing signature blocks add nothing and repeat across filings.
+  text = text.replace(/\s+Pursuant to the requirements of the Securities Exchange Act[\s\S]*$/i, '')
+
+  return text.trim()
 }
 
 /** 8-K item codes carry the meaning — surface them explicitly. */
