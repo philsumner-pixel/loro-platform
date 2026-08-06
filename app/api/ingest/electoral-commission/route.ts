@@ -154,7 +154,8 @@ export async function GET(req: Request) {
   const runId = await startRun('electoral_commission')
   const sb = getSupabase()
   const errors: string[] = []
-  let found = 0, inserted = 0, dupes = 0, pending = 0
+  let found = 0
+  let inserted = 0, dupes = 0, pending = 0
 
   try {
     let csv = ''
@@ -264,16 +265,29 @@ export async function GET(req: Request) {
       const fresh = allFresh.slice(0, 500)
 
       if (fresh.length) {
-        // Upsert, not insert: there is a unique index on (source, external_id)
-        // and a plain insert fails the ENTIRE batch on a single collision —
-        // one duplicate was discarding 1,000 good rows. Ignoring duplicates
-        // also makes re-running the endpoint safely idempotent.
-        const { data: ins, error } = await sb
-          .from('loro_source_events')
-          .upsert(fresh, { onConflict: 'source,external_id', ignoreDuplicates: true })
-          .select('id')
-        if (error) errors.push(`upsert: ${error.message}`)
-        inserted = ins?.length ?? 0
+        // The unique index on (source, external_id) is PARTIAL, so ON CONFLICT
+        // can't target it. The collisions were anyway WITHIN the batch — the
+        // CSV contains rows that produce identical composite keys — so dedupe
+        // in memory first. Then write in chunks, because a plain bulk insert
+        // fails the entire batch on one collision and a single duplicate was
+        // discarding 1,000 otherwise-good records.
+        const byKey = new Map<string, typeof fresh[number]>()
+        for (const r of fresh) {
+          const k = r.external_id as string
+          if (k && !byKey.has(k)) byKey.set(k, r)
+        }
+        const unique = [...byKey.values()]
+
+        for (let i = 0; i < unique.length; i += 100) {
+          const chunk = unique.slice(i, i + 100)
+          const { data: ins, error } = await sb
+            .from('loro_source_events').insert(chunk).select('id')
+          if (error) {
+            if (errors.length < 3) errors.push(`chunk ${i}: ${error.message.slice(0, 90)}`)
+            continue
+          }
+          inserted += ins?.length ?? 0
+        }
       }
     }
 
