@@ -83,6 +83,10 @@
     {
       "path": "/api/ingest/uk-procurement",
       "schedule": "35 */6 * * *"
+    },
+    {
+      "path": "/api/ingest/uk-sanctions",
+      "schedule": "55 7 * * *"
     }
   ]
 }
