@@ -75,6 +75,7 @@ interface DraftState {
   keyFacts: Array<{ label: string; value: string; source_url?: string }>
   faq: Array<{ question: string; answer: string }>
   suggesting?: boolean
+  generating?: boolean
 }
 
 interface SignalDigest {
@@ -420,7 +421,10 @@ function DetailPanel({ c, onVoteAngle, onUpdateStatus, onOpenDraft, onBriefGener
       <div className="loro-nr-detail-actions" style={{marginTop:20}}>
         {c.status === 'new' && (
           <>
-            <button className="loro-nr-btn primary" disabled={updating===c.id} onClick={() => onUpdateStatus(c.id,'shortlisted')}>Shortlist →</button>
+            <button className="loro-nr-btn primary" disabled={updating===c.id} onClick={() => onUpdateStatus(c.id,'shortlisted')}>Shortlist</button>
+          <button className="loro-nr-btn success" disabled={updating===c.id}
+            onClick={() => { onUpdateStatus(c.id,'in_draft'); onOpenDraft(c) }}
+            title="Shortlist and start drafting in one step">Write this →</button>
             <button className="loro-nr-btn danger" disabled={updating===c.id} onClick={() => onUpdateStatus(c.id,'discarded',{discard_reason:'Not relevant'})}>Discard</button>
           </>
         )}
@@ -726,11 +730,9 @@ export default function NewsroomPage() {
     } finally { setUpdating(null) }
   }
 
-  function openDraft(c: Candidate) {
-    // The brief comes back as a labelled block (HEADLINE: / STANDFIRST: /
-    // BODY:). Split it into the right fields rather than dumping the whole
-    // thing, labels and all, into the body.
-    const brief = c.ai_brief ?? ''
+  // The brief comes back as a labelled block (HEADLINE: / STANDFIRST: / BODY:).
+  // Shared by openDraft and in-editor generation so both parse identically.
+  function parseBrief(brief: string, fallback: { headline: string; standfirst: string }) {
     const grab = (label: string, next: string[]) => {
       const re = new RegExp(
         `${label}\\s*:?\\s*([\\s\\S]*?)(?=\\n\\s*(?:${next.join('|')})\\s*:|$)`, 'i')
@@ -749,13 +751,25 @@ export default function NewsroomPage() {
       ? toHtml(aiBody)
       : brief
         ? toHtml(brief)
-        : `<p>${c.standfirst ?? ''}</p>\n<p>[Write your article here]</p>`
+        : `<p>${fallback.standfirst}</p>\n<p>[Write your article here]</p>`
+
+    return {
+      headline: aiHeadline || fallback.headline,
+      standfirst: aiStandfirst || fallback.standfirst,
+      body: bodyHtml,
+    }
+  }
+
+  function openDraft(c: Candidate) {
+    const parsed = parseBrief(c.ai_brief ?? '', {
+      headline: c.headline, standfirst: c.standfirst ?? '',
+    })
 
     setDraft({
       candidateId: c.id,
-      headline: aiHeadline || c.headline,
-      standfirst: aiStandfirst || c.standfirst || '',
-      body: bodyHtml,
+      headline: parsed.headline,
+      standfirst: parsed.standfirst,
+      body: parsed.body,
       category: c.category,
       author: c.assigned_to || 'Loro Staff Writers',
       leadImageUrl: null,
@@ -802,6 +816,39 @@ export default function NewsroomPage() {
     } catch (e) {
       setDraft(d => d ? { ...d, suggesting: false } : null)
       alert(e instanceof Error ? e.message : 'Suggestion failed')
+    }
+  }
+
+  // Generate the first draft from the signal evidence WITHOUT leaving the
+  // editor. Previously this lived in the detail panel and had to be run before
+  // opening the draft — if you skipped it the editor opened empty, which is
+  // what made the flow feel disjointed.
+  async function generateInDraft() {
+    if (!draft) return
+    setDraft(d => d ? { ...d, generating: true } : null)
+    try {
+      const res = await fetch('/api/newsroom/generate-brief', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ candidate_id: draft.candidateId }),
+      })
+      const data = await res.json()
+      if (data.error) throw new Error(data.error)
+      if (!data.brief) throw new Error('No brief returned — try again')
+
+      const parsed = parseBrief(data.brief, {
+        headline: draft.headline, standfirst: draft.standfirst,
+      })
+      setDraft(d => d ? {
+        ...d,
+        generating: false,
+        headline: parsed.headline,
+        standfirst: parsed.standfirst,
+        body: parsed.body,
+      } : null)
+    } catch (e) {
+      setDraft(d => d ? { ...d, generating: false } : null)
+      alert(e instanceof Error ? e.message : 'Generation failed')
     }
   }
 
@@ -925,7 +972,14 @@ export default function NewsroomPage() {
           <div style={{background:'var(--paper)',border:'1px solid var(--border)',borderLeft:'3px solid var(--blue)',padding:'28px 32px',marginBottom:24}}>
             <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:20}}>
               <div className="loro-nr-detail-section-title" style={{margin:0}}>Draft editor</div>
-              <button className="loro-nr-btn" onClick={() => setDraft(null)}>Discard draft</button>
+              <div style={{display:'flex',gap:8}}>
+                <button className="loro-nr-btn primary" disabled={draft.generating}
+                  onClick={generateInDraft}
+                  title="Write a first draft from the signal evidence">
+                  {draft.generating ? 'Generating…' : '✦ Generate from evidence'}
+                </button>
+                <button className="loro-nr-btn" onClick={() => setDraft(null)}>Discard draft</button>
+              </div>
             </div>
             <div style={{display:'flex',flexDirection:'column',gap:12}}>
               <div>
