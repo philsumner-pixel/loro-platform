@@ -173,14 +173,14 @@
   let SRC=[
     {slug:"companies_house",label:"Companies House",pub:"Companies House",lane:"own",cad:1,evwk:5,jur:"UK",lic:"Open Government Licence",desc:"UK company filings: incorporations, officer changes, confirmation statements, charges."},
     {slug:"fca_pdmr",label:"FCA PDMR",pub:"Financial Conduct Authority",lane:"own",cad:0.25,evwk:3,jur:"UK",lic:"Open Government Licence",desc:"Persons discharging managerial responsibility — dealings notified under UK MAR."},
-    {slug:"sec_edgar",label:"SEC EDGAR",pub:"U.S. Securities & Exchange Commission",lane:"own",cad:1,evwk:100,jur:"US",lic:"Public domain",desc:"Every filing published to EDGAR each business day; entities discovered from the stream, not watchlisted."},
-    {slug:"mp_interests",label:"Members' Interests",pub:"UK Parliament",lane:"pol",cad:3,evwk:10,jur:"UK",lic:"Open Parliament Licence",desc:"Declared financial interests of MPs — donations, gifts, employment, shareholdings — with donor company numbers where given."},
-    {slug:"commons_divisions",label:"Commons Divisions",pub:"UK Parliament",lane:"pol",cad:3,evwk:5,jur:"UK",lic:"Open Parliament Licence",desc:"House of Commons voting records, including aye/no counts per division."},
+    {slug:"sec_daily_index",label:"SEC EDGAR",pub:"U.S. Securities & Exchange Commission",lane:"own",cad:1,evwk:100,jur:"US",lic:"Public domain",desc:"Every filing published to EDGAR each business day; entities discovered from the stream, not watchlisted."},
+    {slug:"uk_parliament_interests",label:"Members' Interests",pub:"UK Parliament",lane:"pol",cad:3,evwk:10,jur:"UK",lic:"Open Parliament Licence",desc:"Declared financial interests of MPs — donations, gifts, employment, shareholdings — with donor company numbers where given."},
+    {slug:"uk_parliament_divisions",label:"Commons Divisions",pub:"UK Parliament",lane:"pol",cad:3,evwk:5,jur:"UK",lic:"Open Parliament Licence",desc:"House of Commons voting records, including aye/no counts per division."},
     {slug:"electoral_commission",label:"Electoral Commission",pub:"The Electoral Commission",lane:"pol",cad:720,evwk:0,jur:"UK",lic:"Open Government Licence",desc:"Donations and loans to parties, MPs and regulated donees — including the donor's Companies House number where the donor is a company."},
-    {slug:"ecb_rates",label:"ECB Rates",pub:"European Central Bank",lane:"mny",cad:24,evwk:0,jur:"Global",lic:"ECB terms — free reuse w/ attribution",desc:"Daily euro FX reference rates and related market statistics via the ECB SDMX API."},
+    {slug:"ecb_data",label:"ECB Rates",pub:"European Central Bank",lane:"mny",cad:24,evwk:0,jur:"Global",lic:"ECB terms — free reuse w/ attribution",desc:"Daily euro FX reference rates and related market statistics via the ECB SDMX API."},
     {slug:"grid_carbon",label:"Grid Carbon",pub:"National Grid ESO",lane:"enr",cad:24,evwk:7,jur:"UK",lic:"Open Government Licence",desc:"Half-hourly GB grid carbon intensity and generation mix, summarised daily and flagged at notable extremes."},
     {slug:"cisa_kev",label:"CISA KEV",pub:"US Cybersecurity & Infrastructure Security Agency",lane:"tec",cad:6,evwk:3,jur:"US",lic:"Public domain",desc:"Vulnerabilities confirmed as actively exploited in the wild — affected vendor and product named, ransomware use flagged."},
-    {slug:"news_coverage",label:"News Coverage",pub:"Various publishers",lane:"nws",cad:0.25,evwk:100,jur:"Global",lic:"Fair dealing — headlines & links",desc:"Continuous monitoring of published coverage, used to judge whether a story is already reported."},
+    {slug:"rss_monitoring",label:"News Coverage",pub:"Various publishers",lane:"nws",cad:0.25,evwk:100,jur:"Global",lic:"Fair dealing — headlines & links",desc:"Continuous monitoring of published coverage, used to judge whether a story is already reported."},
   ];
   let SMAP={};
   function indexSources(){
@@ -251,10 +251,15 @@
   let focusSrc=null, focusLane=null, hoverNode=null, hoverCore=false;
   let mIdx=0,mClock=0;
   const M_IN=0.7,M_HOLD=3.2,M_OUT=0.7,M_GAP=1.2,M_T=M_IN+M_HOLD+M_OUT+M_GAP;
+  // Only matches whose sources are ALL present. A slug missing from the live
+  // registry (a source renamed, retired, or not yet connected) previously left
+  // undefined entries that threw inside the render loop and blanked the canvas.
+  function resolvable(m){return m.slugs.every(sl=>SMAP[sl]);}
   function activeMatches(){
-    if(focusSrc) return MATCH.filter(m=>m.slugs.includes(focusSrc.slug));
-    if(focusLane) return MATCH.filter(m=>m.slugs.some(sl=>SMAP[sl].lane===focusLane));
-    return MATCH;
+    const ok=MATCH.filter(resolvable);
+    if(focusSrc) return ok.filter(m=>m.slugs.includes(focusSrc.slug));
+    if(focusLane) return ok.filter(m=>m.slugs.some(sl=>SMAP[sl]&&SMAP[sl].lane===focusLane));
+    return ok;
   }
   function srcEmph(s){
     if(focusSrc) return s===focusSrc?1:0.12;
@@ -395,7 +400,7 @@
     // ---- match chords + node highlights ----
     const involved=new Set();
     if(cur&&mAlpha>0.01){cur.slugs.forEach(sl=>involved.add(sl));
-      const nodes=cur.slugs.map(sl=>SMAP[sl]);
+      const nodes=cur.slugs.map(sl=>SMAP[sl]).filter(Boolean);
       ctx.globalCompositeOperation="lighter";
       for(let i=0;i<nodes.length;i++)for(let j=i+1;j<nodes.length;j++){
         const A=nodes[i],B=nodes[j],mid={x:(A.x+B.x)/2*0.35+cx*0.65,y:(A.y+B.y)/2*0.35+cy*0.65};
@@ -410,7 +415,7 @@
     } else mcard.style.opacity="0";
 
     // static chords for reduced-motion (all joins, faint)
-    if(!ANIMATE){ctx.globalCompositeOperation="lighter";MATCH.forEach(m=>{const ns=m.slugs.map(sl=>SMAP[sl]);
+    if(!ANIMATE){ctx.globalCompositeOperation="lighter";MATCH.filter(resolvable).forEach(m=>{const ns=m.slugs.map(sl=>SMAP[sl]).filter(Boolean);
       for(let i=0;i<ns.length;i++)for(let j=i+1;j<ns.length;j++){const A=ns[i],B=ns[j],mid={x:(A.x+B.x)/2*0.35+cx*0.65,y:(A.y+B.y)/2*0.35+cy*0.65};
         ctx.strokeStyle=rgba("#bcd8ff",0.10);ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(A.x,A.y);ctx.quadraticCurveTo(mid.x,mid.y,B.x,B.y);ctx.stroke();}});
       ctx.globalCompositeOperation="source-over";}
