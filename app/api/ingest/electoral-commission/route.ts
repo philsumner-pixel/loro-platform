@@ -271,6 +271,11 @@ export async function GET(req: Request) {
         // in memory first. Then write in chunks, because a plain bulk insert
         // fails the entire batch on one collision and a single duplicate was
         // discarding 1,000 otherwise-good records.
+        // Dedupe within the batch (the CSV contains rows producing identical
+        // composite keys), then upsert. The unique index on
+        // (source, external_id) is no longer partial, so ON CONFLICT can
+        // target it — one collision no longer discards the whole batch, and
+        // re-running is idempotent.
         const byKey = new Map<string, typeof fresh[number]>()
         for (const r of fresh) {
           const k = r.external_id as string
@@ -278,10 +283,12 @@ export async function GET(req: Request) {
         }
         const unique = [...byKey.values()]
 
-        for (let i = 0; i < unique.length; i += 100) {
-          const chunk = unique.slice(i, i + 100)
+        for (let i = 0; i < unique.length; i += 200) {
+          const chunk = unique.slice(i, i + 200)
           const { data: ins, error } = await sb
-            .from('loro_source_events').insert(chunk).select('id')
+            .from('loro_source_events')
+            .upsert(chunk, { onConflict: 'source,external_id', ignoreDuplicates: true })
+            .select('id')
           if (error) {
             if (errors.length < 3) errors.push(`chunk ${i}: ${error.message.slice(0, 90)}`)
             continue
