@@ -31,6 +31,10 @@ function getSupabase() {
   )
 }
 
+// Captured during discovery so a failure reports what WAS on the page rather
+// than just saying nothing matched.
+let lastDiscovery: Record<string, unknown> = {}
+
 /** Find the CSV (preferred) or XML asset link on the publication page. */
 async function discoverAssetUrl(): Promise<{ url: string; format: string } | null> {
   const res = await fetch(LANDING, {
@@ -40,12 +44,20 @@ async function discoverAssetUrl(): Promise<{ url: string; format: string } | nul
   if (!res.ok) throw new Error(`landing page ${res.status}`)
   const html = await res.text()
 
-  const links = [...html.matchAll(/https:\/\/assets\.publishing\.service\.gov\.uk\/[^"'\s]+/gi)]
+  // Widened: GOV.UK has served attachments from more than one host over time,
+  // so match any absolute link with a data extension rather than assuming
+  // assets.publishing.service.gov.uk.
+  const links = [...html.matchAll(/https?:\/\/[^"'\s<>]+\.(?:csv|xml|ods|odt)(?:\?[^"'\s<>]*)?/gi)]
     .map(m => m[0].replace(/&amp;/g, '&'))
 
-  const csv = links.find(l => /\.csv$/i.test(l))
+  lastDiscovery = {
+    total_links_seen: (html.match(/https?:\/\//g) ?? []).length,
+    data_links: [...new Set(links)].slice(0, 12),
+  }
+
+  const csv = links.find(l => /\.csv(\?|$)/i.test(l))
   if (csv) return { url: csv, format: 'csv' }
-  const xml = links.find(l => /\.xml$/i.test(l))
+  const xml = links.find(l => /\.xml(\?|$)/i.test(l))
   if (xml) return { url: xml, format: 'xml' }
   return null
 }
@@ -108,7 +120,13 @@ export async function GET(req: Request) {
 
   try {
     const asset = await discoverAssetUrl()
-    if (!asset) throw new Error('no CSV or XML asset link found on the landing page')
+    if (!asset) {
+      return NextResponse.json({
+        ok: false,
+        reason: 'No CSV or XML asset link found on the landing page',
+        discovery: lastDiscovery,
+      })
+    }
 
     const res = await fetch(asset.url, {
       headers: { 'User-Agent': UA, Accept: 'text/csv,application/xml,*/*' },
