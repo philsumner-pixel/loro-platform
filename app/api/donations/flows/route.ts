@@ -19,9 +19,10 @@ export async function GET(req: Request) {
       process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     )
 
-    const [flowsRes, totalsRes] = await Promise.all([
+    const [flowsRes, totalsRes, threeRes] = await Promise.all([
       sb.rpc('loro_donation_flows', { months, min_flow: minFlow }),
       sb.rpc('loro_donation_totals', { months }),
+      sb.rpc('loro_donation_flows_3', { months, min_flow: minFlow }),
     ])
 
     interface Flow { donor_type: string; recipient: string; total_gbp: string; donations: number; avg_gbp: string }
@@ -41,9 +42,24 @@ export async function GET(req: Request) {
     const recipients = totals.filter(t => t.kind === 'recipient')
       .map(t => ({ name: t.name, value: Number(t.total_gbp), count: Number(t.donations) }))
 
+    interface Flow3 {
+      donor_type: string; recipient_type: string; recipient: string
+      total_gbp: string; donations: number; avg_gbp: string
+    }
+    // donor type -> recipient type -> named recipient, for the three-layer view
+    const paths = ((threeRes.data ?? []) as Flow3[]).map(f => ({
+      donor: f.donor_type,
+      type: f.recipient_type,
+      to: f.recipient,
+      value: Number(f.total_gbp),
+      count: Number(f.donations),
+      avg: Number(f.avg_gbp),
+    }))
+
     return NextResponse.json({
       months,
       flows,
+      paths,
       donors,
       recipients,
       total_gbp: donors.reduce((a, d) => a + d.value, 0),
