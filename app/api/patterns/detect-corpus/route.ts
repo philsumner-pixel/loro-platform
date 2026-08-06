@@ -41,17 +41,41 @@ interface RareRow {
   entity_names: string[]
 }
 
-/** Don't recreate a candidate while an open one exists for the same headline. */
+/**
+ * Don't recreate a candidate while an open one exists for the same SUBJECT.
+ * Matching on headline alone let two detectors describing the same phenomenon
+ * in different words both create candidates — "Certara: 3 regulatory events in
+ * 72 hours" and "Certara: filing activity 6x above its own baseline" are the
+ * same story. When a subject is already open, the new signal is recorded on
+ * the existing candidate instead.
+ */
 async function alreadyOpen(
   sb: ReturnType<typeof getSupabase>,
-  headline: string
+  headline: string,
+  subjectKey?: string | null,
+  signal?: string
 ): Promise<boolean> {
-  const { count } = await sb
+  const key = (subjectKey ?? headline.split(':')[0])
+    .toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  const { data: existing } = await sb
     .from('loro_story_candidates')
-    .select('id', { count: 'exact', head: true })
-    .eq('headline', headline)
+    .select('id, merged_signals')
+    .eq('subject_key', key)
     .in('status', ['new', 'shortlisted', 'in_draft'])
-  return (count ?? 0) > 0
+    .limit(1)
+
+  if (existing?.length) {
+    // Record the additional signal on the candidate already in the queue, so
+    // the journalist sees that several detectors agree rather than seeing the
+    // same subject twice.
+    const merged = (existing[0].merged_signals ?? []) as unknown[]
+    await sb.from('loro_story_candidates')
+      .update({ merged_signals: [...merged, { headline, signal: signal ?? null }] })
+      .eq('id', existing[0].id)
+    return true
+  }
+  return false
 }
 
 export async function GET(req: Request) {
@@ -77,10 +101,11 @@ export async function GET(req: Request) {
       considered++
       if (b.burst_ratio < 3) continue
       const headline = `${b.entity_name}: filing activity ${b.burst_ratio}x above its own baseline`
-      if (await alreadyOpen(sb, headline)) continue
+      if (await alreadyOpen(sb, headline, b.entity_name, 'entity_burst')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: b.entity_name.toLowerCase().replace(/[^a-z0-9]/g, ''),
         standfirst: `${b.entity_name} has produced ${b.recent_events} filings in the last 7 days against an expected ${b.baseline_rate}. Sources: ${b.sources.join(', ')}.`,
         category: 'Ownership Intel',
         lane_slug: 'ownership-control',
@@ -110,10 +135,11 @@ export async function GET(req: Request) {
     for (const c of ((cross ?? []) as CrossRow[]).slice(0, 10)) {
       considered++
       const headline = `${c.entity_name}: activity across ${c.source_count} registers within 14 days`
-      if (await alreadyOpen(sb, headline)) continue
+      if (await alreadyOpen(sb, headline, c.entity_name, 'cross_source')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: c.entity_name.toLowerCase().replace(/[^a-z0-9]/g, ''),
         standfirst: `${c.entity_name} appears in ${c.sources.join(', ')} between ${c.first_seen} and ${c.last_seen} — ${c.event_count} events. Corroboration across separate registers is a stronger signal than any single filing.`,
         category: 'Regulation',
         lane_slug: 'regulation-enforcement',

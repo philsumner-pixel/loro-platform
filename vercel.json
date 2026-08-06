@@ -21,10 +21,6 @@
       "schedule": "0 */4 * * *"
     },
     {
-      "path": "/api/patterns/detect",
-      "schedule": "0 */2 * * *"
-    },
-    {
       "path": "/api/patterns/detect-corpus",
       "schedule": "5 */2 * * *"
     },

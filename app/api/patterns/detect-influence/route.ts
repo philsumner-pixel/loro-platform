@@ -43,15 +43,35 @@ interface CrossRow {
 
 const gbp = (n: number) => `£${Number(n).toLocaleString('en-GB')}`
 
+/**
+ * Dedupe on SUBJECT, not headline. A donor can trigger several signals —
+ * multi_recipient AND cross_register — which produced two candidates for the
+ * same company. The extra signal is now recorded on the existing candidate.
+ */
 async function alreadyOpen(
-  sb: ReturnType<typeof getSupabase>, headline: string
+  sb: ReturnType<typeof getSupabase>,
+  headline: string,
+  subjectKey?: string | null,
+  signal?: string
 ): Promise<boolean> {
-  const { count } = await sb
+  const key = (subjectKey ?? headline.split(':')[0])
+    .toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  const { data: existing } = await sb
     .from('loro_story_candidates')
-    .select('id', { count: 'exact', head: true })
-    .eq('headline', headline)
+    .select('id, merged_signals')
+    .eq('subject_key', key)
     .in('status', ['new', 'shortlisted', 'in_draft'])
-  return (count ?? 0) > 0
+    .limit(1)
+
+  if (existing?.length) {
+    const merged = (existing[0].merged_signals ?? []) as unknown[]
+    await sb.from('loro_story_candidates')
+      .update({ merged_signals: [...merged, { headline, signal: signal ?? null }] })
+      .eq('id', existing[0].id)
+    return true
+  }
+  return false
 }
 
 export async function GET(req: Request) {
@@ -81,10 +101,11 @@ export async function GET(req: Request) {
 
       const name = (d.donor_names ?? [])[0] ?? `Company ${d.company_number}`
       const headline = `${name} has donated to ${recipients.length} different recipients`
-      if (await alreadyOpen(sb, headline)) continue
+      if (await alreadyOpen(sb, headline, d.company_number, 'multi_recipient_donor')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: d.company_number.toLowerCase().replace(/[^a-z0-9]/g, ''),
         standfirst:
           `Electoral Commission records show ${name} (company number ${d.company_number}) ` +
           `made ${d.donation_count} donations totalling ${gbp(d.total_gbp)} between ` +
@@ -129,10 +150,11 @@ export async function GET(req: Request) {
       const members = (c.parl_members ?? []).filter(Boolean)
       const parties = (c.ec_recipients ?? []).filter(Boolean)
       const headline = `${name} appears in both the donations register and MPs' declared interests`
-      if (await alreadyOpen(sb, headline)) continue
+      if (await alreadyOpen(sb, headline, c.company_number, 'cross_register_donor')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: c.company_number.toLowerCase().replace(/[^a-z0-9]/g, ''),
         standfirst:
           `${name} (company number ${c.company_number}) appears in both public registers: ` +
           `the Electoral Commission records ${c.ec_count} donation(s) totalling ${gbp(c.ec_total)} ` +
@@ -174,10 +196,11 @@ export async function GET(req: Request) {
 
       const name = (d.donor_names ?? [])[0] ?? `Company ${d.company_number}`
       const headline = `${name}: ${d.donation_count} separate donations to ${recipients[0]}`
-      if (await alreadyOpen(sb, headline)) continue
+      if (await alreadyOpen(sb, headline, d.company_number, 'concentrated_donor')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: d.company_number.toLowerCase().replace(/[^a-z0-9]/g, ''),
         standfirst:
           `${name} (company number ${d.company_number}) made ${d.donation_count} separate ` +
           `donations totalling ${gbp(d.total_gbp)} to ${recipients[0]} between ${d.first_seen} ` +
