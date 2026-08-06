@@ -40,19 +40,54 @@ export async function GET(req: Request) {
   }
 
   const sb = getSupabase()
+
+  // Heartbeat first: this is the dead-man's switch. If this job stops running,
+  // the absence of a recent beat is what raises the alarm — nothing else
+  // watches the watcher.
+  if (!dryRun) {
+    await sb.from('loro_heartbeats').upsert(
+      { job: 'source_health', last_beat: new Date().toISOString(), expected_interval_mins: 1440 },
+      { onConflict: 'job' }
+    )
+  }
+
   const { data, error } = await sb.rpc('loro_source_health')
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
 
   const health = (data ?? []) as Health[]
+
+  // Source status alone would have missed every serious failure this week, so
+  // check the pipeline stages, volume trend and stale heartbeats too.
+  const [stagesRes, volumeRes, beatsRes] = await Promise.all([
+    sb.rpc('loro_pipeline_stages'),
+    sb.rpc('loro_source_volume_anomaly'),
+    sb.rpc('loro_stale_heartbeats'),
+  ])
+
+  interface Stage { stage: string; pending: number; status: string }
+  interface Volume { source: string; last_7d: number; weekly_avg: number; ratio: number; status: string }
+  interface Beat { job: string; minutes_late: number }
+
+  const stages = (stagesRes.data ?? []) as Stage[]
+  const volumes = (volumeRes.data ?? []) as Volume[]
+  const beats = (beatsRes.data ?? []) as Beat[]
+
+  const stalledStages = stages.filter(s => s.status === 'stalled' || s.status === 'behind')
+  const volumeDrops = volumes.filter(v => v.status === 'STOPPED' || v.status === 'sharp drop')
   const problems = health.filter(h => BAD.has(h.status))
   const quiet = health.filter(h => h.status === 'quiet')
   const healthy = health.filter(h => h.status === 'healthy')
 
   // Only alert when the set of problems has changed since the last check —
   // repeating the same message daily trains people to ignore it.
-  const fingerprint = problems.map(p => `${p.slug}:${p.status}`).sort().join('|')
+  const fingerprint = [
+    ...problems.map(p => `src:${p.slug}:${p.status}`),
+    ...stalledStages.map(s => `stage:${s.stage}:${s.status}`),
+    ...volumeDrops.map(v => `vol:${v.source}:${v.status}`),
+    ...beats.map(b => `beat:${b.job}`),
+  ].sort().join('|')
 
   const { data: last } = await sb
     .from('loro_health_checks')
@@ -72,7 +107,17 @@ export async function GET(req: Request) {
 
   let alerted = false
   const webhook = process.env.SLACK_WEBHOOK_URL
-  if (webhook && changed && problems.length && !dryRun) {
+  const anyProblem =
+    problems.length + stalledStages.length + volumeDrops.length + beats.length > 0
+
+  if (webhook && changed && anyProblem && !dryRun) {
+    const stageLines = stalledStages.map(s =>
+      `• *Pipeline: ${s.stage}* — ${s.status}, ${s.pending.toLocaleString()} pending`)
+    const volumeLines = volumeDrops.map(v =>
+      `• *${v.source}* — ${v.status}: ${v.last_7d} this week vs ${v.weekly_avg}/week average`)
+    const beatLines = beats.map(b =>
+      `• *Job not running: ${b.job}* — ${Math.round(b.minutes_late)} minutes overdue`)
+
     const lines = problems.map(p => {
       const detail = p.status === 'failing'
         ? `${p.failure_rate ?? '?'}% of ${p.runs_24h} attempts failed in 24h`
@@ -88,8 +133,11 @@ export async function GET(req: Request) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           text: [
-            `*Loro source health: ${problems.length} source${problems.length > 1 ? 's' : ''} need attention*`,
+            `*Loro pipeline health — ${problems.length + stalledStages.length + volumeDrops.length + beats.length} issue(s)*`,
+            ...beatLines,
             ...lines,
+            ...stageLines,
+            ...volumeLines,
             `\n${healthy.length} healthy · ${quiet.length} quiet`,
             'https://loro-platform.vercel.app/sources',
           ].join('\n'),
@@ -110,6 +158,10 @@ export async function GET(req: Request) {
       slug: p.slug, status: p.status,
       failure_rate: p.failure_rate, hours_since: p.hours_since,
     })),
+    pipeline_stages: stages,
+    stalled_stages: stalledStages,
+    volume_anomalies: volumeDrops,
+    stale_heartbeats: beats,
     state_changed: changed,
     alerted,
     slack_configured: Boolean(webhook),
