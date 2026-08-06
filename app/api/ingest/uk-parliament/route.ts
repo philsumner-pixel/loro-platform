@@ -82,7 +82,13 @@ export async function GET(req: Request) {
 
   // OrderBy on this endpoint is slow enough to time out; take a smaller
   // page unsorted and dedupe on interest id instead.
-  const INTERESTS = 'https://interests-api.parliament.uk/api/v1/Interests?Take=20'
+  // Paginate: a single page of 20 gave almost nothing to cross-check against
+  // the Electoral Commission's thousands of donation records. Skip is advanced
+  // per page; OrderBy is still avoided because it times out on this endpoint.
+  const INTEREST_PAGES = Number(url.searchParams.get('pages') ?? 6)
+  const interestUrls = Array.from({ length: INTEREST_PAGES }, (_, i) =>
+    `https://interests-api.parliament.uk/api/v1/Interests?Take=20&Skip=${i * 20}`)
+  const INTERESTS = interestUrls[0]
   const DIVISIONS = 'https://commonsvotes-api.parliament.uk/data/divisions.json/search?queryParameters.take=25'
 
   if (probe) {
@@ -116,8 +122,15 @@ export async function GET(req: Request) {
 
     // ── Register of Members' Financial Interests ──────────────────────
     try {
-      const raw = await getJson(INTERESTS)
-      const items = asArray(raw, ['items', 'value', 'results'])
+      const items: Array<Record<string, unknown>> = []
+      for (const u of interestUrls) {
+        try {
+          const raw = await getJson(u)
+          const page = asArray(raw, ['items', 'value', 'results'])
+          if (!page.length) break
+          items.push(...page)
+        } catch { break }
+      }
       found += items.length
 
       for (const wrapped of items) {
