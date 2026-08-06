@@ -141,44 +141,34 @@ async function embedCandidates(sb: ReturnType<typeof getSupabase>, batchSize: nu
 
 
 async function embedSourceEvents(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
-  // The single corpus. Every raw source event gets embedded so pattern
-  // detection and lane classification work across ALL inbound material,
-  // not just the records the rule-based detector already promoted.
-  const { data: rows } = await sb
-    .from('loro_source_events')
-    .select('id')
-    .is('embedding', null)
-    .limit(batchSize)
+  // The single corpus. Inputs are built SET-BASED in one call rather than one
+  // RPC per row — the per-row round trips were the throughput ceiling and the
+  // reason 400 timed out.
+  const { data: pending, error } = await sb.rpc('loro_pending_event_inputs', {
+    batch_size: batchSize,
+  })
+  if (error) return { processed: 0, embedded: 0, error: error.message }
 
-  if (!rows?.length) return { processed: 0, embedded: 0 }
+  const inputs = (pending ?? []) as Array<{ id: string; input: string }>
+  if (!inputs.length) return { processed: 0, embedded: 0 }
 
-  const inputs: Array<{ id: string; text: string }> = []
-  for (const row of rows) {
-    const { data: text } = await sb.rpc('build_source_event_embedding_input', {
-      event_id: row.id,
-    })
-    if (text) inputs.push({ id: row.id, text })
-  }
-
-  if (!inputs.length) return { processed: rows.length, embedded: 0 }
-
-  const embeddings = await embedBatch(inputs.map(i => i.text))
-  if (!embeddings) return { processed: rows.length, embedded: 0 }
+  const embeddings = await embedBatch(inputs.map(i => i.input))
+  if (!embeddings) return { processed: inputs.length, embedded: 0 }
 
   let embedded = 0
   for (let i = 0; i < inputs.length; i++) {
-    const { error } = await sb
+    const { error: upErr } = await sb
       .from('loro_source_events')
       .update({
         embedding: JSON.stringify(embeddings[i]),
         embedding_model: MODEL,
-        embedding_input: inputs[i].text,
+        embedding_input: inputs[i].input,
       })
       .eq('id', inputs[i].id)
-    if (!error) embedded++
+    if (!upErr) embedded++
   }
 
-  return { processed: rows.length, embedded }
+  return { processed: inputs.length, embedded }
 }
 
 async function embedLanes(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
