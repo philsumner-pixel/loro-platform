@@ -75,6 +75,10 @@
     {
       "path": "/api/enrich/donor-companies",
       "schedule": "45 */4 * * *"
+    },
+    {
+      "path": "/api/ingest/ecb-data",
+      "schedule": "5 8 * * *"
     }
   ]
 }
