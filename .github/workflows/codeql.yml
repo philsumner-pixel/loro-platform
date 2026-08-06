@@ -1,12 +1,24 @@
 name: CodeQL
 
+# CodeQL takes 10-20 minutes. Running it on every push to main meant 32 runs
+# in a single day of active development, each superseding and cancelling the
+# last — which generated a stream of "all jobs were cancelled" failure emails
+# that were noise, not findings.
+#
+# Now: pull requests (where a security finding can actually block a merge) and
+# a weekly full scan. Direct pushes to main are covered by the weekly run.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   schedule:
     - cron: '0 6 * * 1'   # weekly Monday 06:00 UTC
+  workflow_dispatch:      # manual run when wanted
+
+# If a newer commit arrives, cancel the older run deliberately rather than
+# letting runs queue and cancel each other unpredictably.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
