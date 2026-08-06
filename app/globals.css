@@ -712,7 +712,7 @@ input { font-family: inherit; }
    narrower rather than wider.)
    The old 720px at 17px was ~85 characters — too wide, and small type in a
    wide column is what made the page read as thin and sparse. */
-.loro-article-content { max-width: 680px; margin: 0 auto; }
+.loro-article-content { max-width: 780px; margin: 0 auto; }
 
 /* Article header */
 .loro-art-header { padding: 40px 0 36px; border-bottom: 1px solid var(--border); margin-bottom: 48px; }
@@ -723,7 +723,7 @@ input { font-family: inherit; }
 .loro-art-cat-sep { font-size: 10px; color: var(--ink5); }
 .loro-art-headline { font-family: 'Playfair Display', serif; font-size: clamp(28px, 4vw, 44px); font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; color: var(--ink); margin-bottom: 18px; }
 .loro-art-headline em { font-style: italic; color: var(--blue); }
-.loro-art-standfirst { font-size: 20px; color: var(--ink3); line-height: 1.6; margin-bottom: 24px; font-weight: 400; max-width: 60ch; }
+.loro-art-standfirst { font-size: 22px; color: var(--ink3); line-height: 1.55; margin-bottom: 24px; font-weight: 400; max-width: 100%; }
 .loro-art-meta { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .loro-art-author { font-size: 13px; font-weight: 500; color: var(--ink); }
 .loro-art-sep { color: var(--border); }
@@ -734,8 +734,8 @@ input { font-family: inherit; }
 /* Article body */
 /* 19px is the readable size for this measure — 17px in a 720px column left the
    text looking thin. 1.875 was also airy for the size; 1.7 sits better. */
-.loro-art-body { font-size: 19px; line-height: 1.7; color: var(--ink2); }
-.loro-art-body p { margin-bottom: 24px; }
+.loro-art-body { font-size: 21px; line-height: 1.65; color: var(--ink2); }
+.loro-art-body p { margin-bottom: 26px; }
 .loro-art-body p:last-child { margin-bottom: 0; }
 .loro-art-body strong { font-weight: 500; color: var(--ink); }
 
@@ -1471,5 +1471,5 @@ input { font-family: inherit; }
 
 /* Between mobile and desktop, ease the body size rather than jumping. */
 @media (min-width: 641px) and (max-width: 900px) {
-  .loro-art-body { font-size: 18px; line-height: 1.65; }
+  .loro-art-body { font-size: 19px; line-height: 1.65; }
 }
