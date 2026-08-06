@@ -39,6 +39,24 @@ const STATUS_COPY: Record<string, { label: string; tone: string; help: string }>
   paused:     { label: 'Paused',    tone: 'idle', help: 'Deliberately disabled' },
 }
 
+interface Stage {
+  stage: string; pending: number; done: number
+  pct_done: number | null; status: string
+}
+
+async function getStages(): Promise<Stage[]> {
+  try {
+    const sb = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    const { data } = await sb.rpc('loro_pipeline_stages')
+    return (data ?? []) as Stage[]
+  } catch {
+    return []
+  }
+}
+
 async function getHealth(): Promise<Health[]> {
   try {
     const sb = createClient(
@@ -60,7 +78,7 @@ function ago(hours: number | null): string {
 }
 
 export default async function SourcesPage() {
-  const health = await getHealth()
+  const [health, stages] = await Promise.all([getHealth(), getStages()])
   const live = health.filter(h => h.status === 'healthy').length
   const totalEvents = health.reduce((n, h) => n + Number(h.events_total || 0), 0)
   const week = health.reduce((n, h) => n + Number(h.events_7d || 0), 0)
@@ -88,6 +106,35 @@ export default async function SourcesPage() {
           <div><span className="n">{week.toLocaleString()}</span><span className="k">Records this week</span></div>
           <div><span className="n">{totalEvents.toLocaleString()}</span><span className="k">Records held</span></div>
         </div>
+
+        {stages.length > 0 && (
+          <section className="loro-pipeline">
+            <h2>Processing pipeline</h2>
+            <p>
+              Collecting a record is only the first step. Each stage below turns raw
+              filings into something the engine can reason over. We show the backlogs
+              because a stage falling behind is how a corpus quietly goes stale while
+              every source still reports as live.
+            </p>
+            <div className="loro-pipeline-grid">
+              {stages.map(st => (
+                <div key={st.stage} className={`loro-stage ${st.status}`}>
+                  <div className="loro-stage-top">
+                    <span className="name">{st.stage}</span>
+                    <span className={`badge ${st.status}`}>{st.status}</span>
+                  </div>
+                  <div className="loro-stage-bar">
+                    <span style={{ width: `${st.pct_done ?? 0}%` }} />
+                  </div>
+                  <div className="loro-stage-meta">
+                    {Number(st.done).toLocaleString()} processed
+                    {st.pending > 0 && ` · ${Number(st.pending).toLocaleString()} queued`}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {health.length === 0 ? (
           <p className="loro-sources-empty">Source status is temporarily unavailable.</p>

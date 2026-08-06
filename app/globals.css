@@ -1421,3 +1421,22 @@ input { font-family: inherit; }
 .loro-sources-note h3 { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .loro-sources-note p { font-size: 13.5px; color: var(--ink3); line-height: 1.7; }
 .loro-sources-empty { padding: 40px 0; color: var(--ink4); }
+
+/* Pipeline stages on /sources */
+.loro-pipeline { margin-bottom: 30px; }
+.loro-pipeline h2 { font-family: 'Playfair Display', serif; font-size: 20px; font-weight: 600; margin-bottom: 6px; }
+.loro-pipeline > p { font-size: 13.5px; color: var(--ink3); line-height: 1.65; margin-bottom: 16px; max-width: 660px; }
+.loro-pipeline-grid { display: grid; grid-template-columns: repeat(auto-fit,minmax(220px,1fr)); gap: 10px; }
+.loro-stage { border: 1px solid var(--border); background: #FFF; padding: 14px 16px; }
+.loro-stage.stalled { border-color: #F5C6C6; background: #FDF7F7; }
+.loro-stage.behind { border-color: #EBD9A8; background: #FDFBF3; }
+.loro-stage-top { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 10px; }
+.loro-stage-top .name { font-size: 13px; font-weight: 500; color: var(--ink); }
+.loro-stage .badge { font-size: 9px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 3px 7px; white-space: nowrap; }
+.loro-stage .badge.clear { background: #F0FAF0; color: #2D7A2D; }
+.loro-stage .badge.draining { background: var(--paper2); color: var(--ink4); }
+.loro-stage .badge.behind { background: #FDF6E3; color: #8A6A1F; }
+.loro-stage .badge.stalled { background: #FDF2F2; color: #A33A3A; }
+.loro-stage-bar { height: 6px; background: var(--paper2); border: 1px solid var(--border); }
+.loro-stage-bar span { display: block; height: 100%; background: var(--blue, #1A3A6B); }
+.loro-stage-meta { font-size: 11.5px; color: var(--ink5); margin-top: 8px; }
