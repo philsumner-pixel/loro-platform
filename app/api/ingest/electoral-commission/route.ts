@@ -26,6 +26,10 @@ export const maxDuration = 60
 const UA = 'Loro Intelligence (contact: hello@loro.media)'
 const BASE = 'https://search.electoralcommission.org.uk'
 
+// Rows written per run — keeps each invocation inside maxDuration. Re-running
+// continues from where it left off because dedupe is on a composite key.
+const PAGE_SIZE = 400
+
 function getSupabase() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -150,7 +154,7 @@ export async function GET(req: Request) {
   const runId = await startRun('electoral_commission')
   const sb = getSupabase()
   const errors: string[] = []
-  let found = 0, inserted = 0, dupes = 0
+  let found = 0, inserted = 0, dupes = 0, pending = 0
 
   try {
     let csv = ''
@@ -207,9 +211,13 @@ export async function GET(req: Request) {
         event_type: 'political_donation',
         external_id: dedupeKey,
         event_date: toIso(accepted) ?? new Date().toISOString().slice(0, 10),
+        // Composite key: many records have no ECRef, and a shared fallback URL
+        // made them all collide on dedupe.
         url: ecRef
           ? `${BASE}/Search/Donations?ecRef=${encodeURIComponent(ecRef)}`
-          : `${BASE}/Search/Donations`,
+          : `${BASE}/Search/Donations#${encodeURIComponent(
+              [donee, donor, accepted, value].filter(Boolean).join('|')
+            )}`,
         raw_content: {
           title: donor && donee
             ? `${donee} accepted ${value || 'a donation'} from ${donor}`
