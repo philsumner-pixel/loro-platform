@@ -85,7 +85,7 @@ export async function GET(req: Request) {
   // Paginate: a single page of 20 gave almost nothing to cross-check against
   // the Electoral Commission's thousands of donation records. Skip is advanced
   // per page; OrderBy is still avoided because it times out on this endpoint.
-  const INTEREST_PAGES = Number(url.searchParams.get('pages') ?? 6)
+  const INTEREST_PAGES = Number(url.searchParams.get('pages') ?? 4) // 10 pages exceeds the 60s function limit; the endpoint is slow
   const interestUrls = Array.from({ length: INTEREST_PAGES }, (_, i) =>
     `https://interests-api.parliament.uk/api/v1/Interests?Take=20&Skip=${i * 20}`)
   const INTERESTS = interestUrls[0]
