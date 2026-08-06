@@ -92,7 +92,11 @@ export async function GET(req: Request) {
 
     for (const d of todo) {
       attempted++
-      const num = d.company_number.toUpperCase()
+      // Companies House numbers are 8 characters, zero-padded. The registers
+      // often strip leading zeros (792807), which 404s against the API —
+      // it must be 00792807. Prefixed numbers (SC, NI, OC) are already 8.
+      const raw = d.company_number.toUpperCase().trim()
+      const num = /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw
       try {
         const profile = await ch(`/company/${num}`, apiKey) as {
           company_name?: string; company_status?: string; date_of_creation?: string
