@@ -196,6 +196,29 @@ export default async function IntelligencePage() {
     <>
       <Masthead />
 
+      {/* Signal Core — the live source map. Hero above, structured detail
+          below: the graph does the immediate comprehension, the text carries
+          the licence, cadence and provenance that make it credible — and stays
+          crawlable, which the canvas is not. */}
+      <section aria-label="Live source map">
+        <iframe
+          src="/signal-core.html"
+          title="Loro Signal Core — live map of connected primary sources"
+          loading="lazy"
+          style={{
+            display: 'block', width: '100%', height: 'min(78vh, 720px)',
+            border: 0, background: '#060910',
+          }}
+        />
+        <div className="loro-wrap" style={{ padding: '10px 0 0' }}>
+          <p style={{ fontSize: 12, color: 'var(--ink5)', lineHeight: 1.6, margin: 0 }}>
+            Live map of the registers currently feeding the engine, drawn from the same
+            source registry as the detail below. Connect a source and it appears here.
+            {' '}<a href="/signal-core.html" style={{ color: 'var(--blue-mid, #2C5AA0)' }}>Open full screen →</a>
+          </p>
+        </div>
+      </section>
+
       <div className="loro-wrap" style={{ padding: '48px 0 80px' }}>
 
         {/* Header */}

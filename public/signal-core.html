@@ -165,8 +165,12 @@
   };
   const LANE_ORDER=["own","pol","mny","enr","tec","nws"];
 
-  // ---------- sources (live from loro_source_registry) ----------
-  const SRC=[
+  // ---------- sources ----------
+  // FALLBACK ONLY. The live list is fetched from /api/sources/registry below,
+  // so connecting a source updates this map without editing the page. This
+  // array is what renders if that fetch fails — it was previously the only
+  // source of truth, and went stale as soon as sources were added.
+  let SRC=[
     {slug:"companies_house",label:"Companies House",pub:"Companies House",lane:"own",cad:1,evwk:5,jur:"UK",lic:"Open Government Licence",desc:"UK company filings: incorporations, officer changes, confirmation statements, charges."},
     {slug:"fca_pdmr",label:"FCA PDMR",pub:"Financial Conduct Authority",lane:"own",cad:0.25,evwk:3,jur:"UK",lic:"Open Government Licence",desc:"Persons discharging managerial responsibility — dealings notified under UK MAR."},
     {slug:"sec_edgar",label:"SEC EDGAR",pub:"U.S. Securities & Exchange Commission",lane:"own",cad:1,evwk:100,jur:"US",lic:"Public domain",desc:"Every filing published to EDGAR each business day; entities discovered from the stream, not watchlisted."},
@@ -178,23 +182,37 @@
     {slug:"cisa_kev",label:"CISA KEV",pub:"US Cybersecurity & Infrastructure Security Agency",lane:"tec",cad:6,evwk:3,jur:"US",lic:"Public domain",desc:"Vulnerabilities confirmed as actively exploited in the wild — affected vendor and product named, ransomware use flagged."},
     {slug:"news_coverage",label:"News Coverage",pub:"Various publishers",lane:"nws",cad:0.25,evwk:100,jur:"Global",lic:"Fair dealing — headlines & links",desc:"Continuous monitoring of published coverage, used to judge whether a story is already reported."},
   ];
-  SRC.sort((a,b)=>LANE_ORDER.indexOf(a.lane)-LANE_ORDER.indexOf(b.lane));
-  const SMAP={};SRC.forEach((s,i)=>{s.i=i;SMAP[s.slug]=s;});
+  let SMAP={};
+  function indexSources(){
+    SRC.sort((a,b)=>LANE_ORDER.indexOf(a.lane)-LANE_ORDER.indexOf(b.lane));
+    SMAP={};SRC.forEach((s,i)=>{s.i=i;SMAP[s.slug]=s;});
+  }
+  indexSources();
 
-  // ---------- cross-source match scenarios (illustrative of real joins) ----------
+  // ---------- cross-source matches ----------
+  // The influence circuit is no longer illustrative — donation, declared
+  // interest and company control genuinely join on the donor's Companies House
+  // number, and the detector files candidates from it. Others remain
+  // representative of the join types the engine performs.
   const MATCH=[
-    {k:"Cross-register identity",t:"One issuer, three registers",e:"Barclays PLC",slugs:["companies_house","fca_pdmr","sec_edgar"]},
-    {k:"The influence circuit",t:"Donation → interest → vote",e:"Donor company no. as the join key",slugs:["electoral_commission","mp_interests","commons_divisions","companies_house"]},
-    {k:"Operational-risk link",t:"A named vendor, actively exploited",e:"Fortinet — KEV entry meets an 8-K",slugs:["cisa_kev","sec_edgar"]},
+    {k:"Cross-register identity",t:"One issuer, three registers",e:"Barclays PLC",slugs:["companies_house","fca_pdmr","sec_daily_index"]},
+    {k:"The influence circuit",t:"Donation → company → interest → vote",e:"Joined on the donor's company number",slugs:["electoral_commission","uk_parliament_interests","uk_parliament_divisions","companies_house"]},
+    {k:"Operational-risk link",t:"A named vendor, actively exploited",e:"Fortinet — KEV entry meets an 8-K",slugs:["cisa_kev","sec_daily_index"]},
     {k:"Directors' dealings",t:"Notified dealing, matched officer",e:"PDMR ↔ Companies House officer",slugs:["fca_pdmr","companies_house"]},
-    {k:"Rate-sensitive filing",t:"A print that moves an issuer",e:"ECB reference rate → same-day filing",slugs:["ecb_rates","sec_edgar"]},
-    {k:"Already reported?",t:"Coverage tested against source",e:"News vs the primary filing",slugs:["news_coverage","companies_house","sec_edgar"]},
+    {k:"Rate-sensitive filing",t:"A print that moves an issuer",e:"ECB reference rate → same-day filing",slugs:["ecb_data","sec_daily_index"]},
+    {k:"Already reported?",t:"Coverage tested against source",e:"News vs the primary filing",slugs:["rss_monitoring","companies_house","sec_daily_index"]},
   ];
 
   // ---------- aggregates ----------
-  const AGG={sources:SRC.length,lanes:LANE_ORDER.length,jur:new Set(SRC.map(s=>s.jur)).size,
-    authorities:new Set(SRC.filter(s=>s.pub!=="Various publishers").map(s=>s.pub)).size,
-    evwk:SRC.reduce((a,s)=>a+s.evwk,0)};
+  // Recomputed when the live registry replaces the fallback list.
+  let AGG={};
+  function recomputeAggregates(){
+    AGG={sources:SRC.length,lanes:new Set(SRC.map(s=>s.lane)).size,
+      jur:new Set(SRC.map(s=>s.jur)).size,
+      authorities:new Set(SRC.filter(s=>s.pub!=="Various publishers").map(s=>s.pub)).size,
+      evwk:SRC.reduce((a,s)=>a+(s.evwk||0),0)};
+  }
+  recomputeAggregates();
 
   const rgba=(hex,a)=>{const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16);return "rgba("+r+","+g+","+b+","+a+")";};
   function cadence(h){return h<=0.25?"every 15 min":h<=0.5?"every 30 min":h<=1?"hourly":h<=3?"every 3 hours":h<=6?"every 6 hours":h<=24?"daily":h<=168?"weekly":"monthly";}
@@ -418,8 +436,30 @@
     if((ANIMATE||intro<1)&&running)requestAnimationFrame(frame);else looping=false;
   }
 
+  // ---------- live registry ----------
+  // Replace the fallback list with the real registry, then rebuild. Kept
+  // deliberately simple: if anything fails we keep rendering the fallback
+  // rather than showing an empty core.
+  async function loadLiveSources(){
+    try{
+      const res=await fetch("/api/sources/registry",{cache:"no-store"});
+      if(!res.ok)return;
+      const j=await res.json();
+      if(!j||!Array.isArray(j.sources)||j.sources.length<3)return;
+      SRC=j.sources.map(function(x){
+        return {slug:x.slug,label:x.label,pub:x.pub,lane:x.lane,
+                cad:1,evwk:x.evwk||0,jur:x.jur,lic:x.lic,desc:x.desc};
+      });
+      indexSources();
+      recomputeAggregates();
+      resize();buildParticles();updateReadout();
+      kick();
+    }catch(e){/* keep the fallback */}
+  }
+
   // ---------- init ----------
   resize();buildParticles();updateReadout();
+  loadLiveSources();
   if("IntersectionObserver" in window){new IntersectionObserver(es=>{visOn=es[0].isIntersecting;setRunning();},{threshold:0.01}).observe(cv);}
   document.addEventListener("visibilitychange",()=>{tabVis=!document.hidden;setRunning();});
   kick();
