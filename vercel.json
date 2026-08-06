@@ -79,6 +79,10 @@
     {
       "path": "/api/ingest/ecb-data",
       "schedule": "5 8 * * *"
+    },
+    {
+      "path": "/api/ingest/uk-procurement",
+      "schedule": "35 */6 * * *"
     }
   ]
 }
