@@ -20,7 +20,10 @@ const MODEL = 'text-embedding-3-small'
 // records, so 50 was needlessly conservative: with 2,300+ events queued it
 // would have taken four days to catch up and never kept pace with ingest.
 // Overridable per call for backfills.
-const BATCH_SIZE = 200
+// 150 is the practical ceiling inside the 60s function limit: the cost is the
+// per-row RPC that builds each embedding input, not the embedding call itself.
+// 400 times out.
+const BATCH_SIZE = 150
 
 function getSupabase() {
   return createClient(

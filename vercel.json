@@ -34,7 +34,7 @@
     },
     {
       "path": "/api/embed",
-      "schedule": "15 */2 * * *"
+      "schedule": "15,45 * * * *"
     },
     {
       "path": "/api/score/calculate",
