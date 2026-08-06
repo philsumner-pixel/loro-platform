@@ -167,11 +167,16 @@ export async function GET(req: Request) {
       const updated = pick(r, 'Last Updated', 'LastUpdated')
       const reasons = pick(r, 'UK Statement of Reasons', 'Statement of Reasons', 'OtherInformation')
       const measures = pick(r, 'Sanctions Imposed', 'Sanctions Imposed Indicators')
+      // Another join key into the entity graph: a designated ENTITY often
+      // carries its company registration number.
+      const regNo = pick(r, 'Business registration number (s)', 'Business registration numbers')
+      const country = pick(r, 'Address Country')
+      const parent = pick(r, 'Parent company')
 
       const d = updated.match(/(\d{2})\/(\d{2})\/(\d{4})/)
       const iso = d ? `${d[3]}-${d[2]}-${d[1]}` : updated.slice(0, 10)
 
-      return { uid, name, type, regime, iso, reasons, measures }
+      return { uid, name, type, regime, iso, reasons, measures, regNo, country, parent }
     })
     .filter(r => r.uid && r.name)
     .filter(r => {
@@ -194,10 +199,14 @@ export async function GET(req: Request) {
         designated_name: r.name,
         designation_type: r.type,
         regime: r.regime,
+        business_registration_number: r.regNo || null,
+        country: r.country || null,
+        parent_company: r.parent || null,
       },
       source_metadata: {
         unique_id: r.uid,
         regime: r.regime,
+        business_registration_number: r.regNo || null,
         designation_type: r.type,
         last_updated: r.iso,
         attribution: 'Contains public sector information licensed under the Open Government Licence v3.0',
