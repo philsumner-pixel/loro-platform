@@ -97,6 +97,19 @@ function parseCsv(text: string): Array<Record<string, string>> {
   )
 }
 
+/**
+ * Deterministic key for a donation. Many rows carry no ECRef, and those were
+ * all falling back to the same URL — so they collided on dedupe and were
+ * silently treated as duplicates of one another. Key on the facts instead.
+ */
+function donationKey(parts: {
+  donor: string; donee: string; date: string; value: string; type: string
+}): string {
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, '')
+  return [parts.donor, parts.donee, parts.date, parts.value, parts.type]
+    .map(norm).join('|')
+}
+
 function pick(o: Record<string, string>, ...keys: string[]): string {
   for (const k of keys) {
     const hit = Object.keys(o).find(x => x.toLowerCase() === k.toLowerCase())
@@ -117,6 +130,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url)
   const probe = url.searchParams.get('probe') === '1'
   const months = Number(url.searchParams.get('months') ?? 3)
+  const batchSize = Math.min(Number(url.searchParams.get('batch') ?? 800), 2000)
 
   const auth = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
