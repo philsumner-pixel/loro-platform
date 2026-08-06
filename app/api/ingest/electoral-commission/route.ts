@@ -264,9 +264,15 @@ export async function GET(req: Request) {
       const fresh = allFresh.slice(0, 500)
 
       if (fresh.length) {
+        // Upsert, not insert: there is a unique index on (source, external_id)
+        // and a plain insert fails the ENTIRE batch on a single collision —
+        // one duplicate was discarding 1,000 good rows. Ignoring duplicates
+        // also makes re-running the endpoint safely idempotent.
         const { data: ins, error } = await sb
-          .from('loro_source_events').insert(fresh).select('id')
-        if (error) errors.push(`insert: ${error.message}`)
+          .from('loro_source_events')
+          .upsert(fresh, { onConflict: 'source,external_id', ignoreDuplicates: true })
+          .select('id')
+        if (error) errors.push(`upsert: ${error.message}`)
         inserted = ins?.length ?? 0
       }
     }
