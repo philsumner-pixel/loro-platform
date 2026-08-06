@@ -1440,3 +1440,7 @@ input { font-family: inherit; }
 .loro-stage-bar { height: 6px; background: var(--paper2); border: 1px solid var(--border); }
 .loro-stage-bar span { display: block; height: 100%; background: var(--blue, #1A3A6B); }
 .loro-stage-meta { font-size: 11.5px; color: var(--ink5); margin-top: 8px; }
+
+/* Article cards are now real links */
+.loro-art-link { display: block; text-decoration: none; color: inherit; }
+.loro-art-link:hover .loro-art-title { color: var(--blue-mid, #2C5AA0); }

@@ -1,157 +1,148 @@
-'use client'
+import { createClient } from '@supabase/supabase-js'
 
-interface Article {
-  category: string
-  title: string
-  excerpt: string
-  author: string
-  time: string
-  hasData?: boolean
-  subscriber?: boolean
-  href?: string
+// Real published articles.
+//
+// This component previously rendered a hardcoded demo array — invented
+// headlines, fabricated bylines ("Chris Cannon"), fake timestamps ("6h ago"),
+// and NO href on most cards, which is why most of the homepage was
+// unclickable. It had never been connected to loro_articles, so nothing a
+// journalist published ever reached the front page.
+
+export const revalidate = 60
+
+interface Row {
+  slug: string
+  headline: string
+  standfirst: string | null
+  author: string | null
+  published_at: string
+  lane_slug: string | null
+  category: string | null
+  subscriber_only: boolean | null
+  key_facts: unknown
+  source_citations: unknown
 }
 
-const INTELLIGENCE: Article[] = [
-  {
-    category: 'Payments',
-    title: "PayPal's EU subsidiary restructure triggers €40m PDMR disclosure obligation",
-    excerpt:
-      'New entity structure means three senior executives must now file with ESMA directly — a compliance headache that signals broader regulatory intent.',
-    author: 'Chris Cannon',
-    time: '6h ago',
-    href: '/news/paypal-eu-pdmr-disclosure',
-  },
-  {
-    category: 'FX & Treasury',
-    title:
-      'Wise, Currencycloud and Airwallex: who really controls the GBP-INR corridor?',
-    excerpt:
-      'A Loro analysis of FCA authorisation data and Companies House filings reveals a three-way concentration that regulators may not have modelled.',
-    author: 'Loro Intelligence',
-    time: '8h ago',
-    subscriber: true,
-  },
-  {
-    category: 'Open Banking',
-    title:
-      "Visa's Open Banking API adoption hits an inflection point in UK merchant acquiring",
-    excerpt:
-      'Data shared with Loro suggests A2A payment volumes via Tink and Token.io have doubled in two quarters among SME merchants.',
-    author: 'Chris Cannon',
-    time: 'Yesterday',
-  },
-  {
-    category: 'Banking',
-    title:
-      'The quiet acquisition: how Revolut assembled its EU banking licence network',
-    excerpt:
-      'A deep-dive into nine months of regulatory filings, PDMR disclosures, and Companies House registrations across Lithuania, France and Ireland.',
-    author: 'Loro Intelligence',
-    time: '2 days ago',
-    subscriber: true,
-  },
-  {
-    category: 'Regulation',
-    title:
-      'PSD3 draft: the twelve provisions that will reshape payment institution authorisation',
-    excerpt:
-      "Loro's regulatory analysis team has identified the dozen clauses with the most material implications for UK fintechs seeking EU market access.",
-    author: 'Chris Cannon',
-    time: '2 days ago',
-  },
-  {
-    category: 'ERP & Accounting',
-    title: 'ERP market Q1 2026: Sage wins mid-market, Xero stalls, NetSuite churn rises',
-    excerpt:
-      "Loro's quarterly ERP Vendor Index — compiled from public filings, G2 review data, and Companies House accounts — shows a shifting landscape.",
-    author: 'Loro Data',
-    time: '3 days ago',
-    hasData: true,
-  },
-]
+const COLS = 'slug, headline, standfirst, author, published_at, lane_slug, category, subscriber_only, key_facts, source_citations'
 
-const MARKETS: Article[] = [
-  {
-    category: 'FX Markets',
-    title:
-      'GBP weakness vs EUR: four structural factors the consensus is underweighting',
-    excerpt:
-      "Sterling's underperformance against the euro this quarter isn't about rates. Loro examines the payment flow data that tells a more complex story.",
-    author: 'Loro Intelligence',
-    time: 'Today',
-  },
-  {
-    category: 'Settlement',
-    title:
-      'CHAPS vs Faster Payments: the latency gap is narrowing, and it matters for high-value fintech',
-    excerpt:
-      'New BoE benchmarking data — obtained under a Freedom of Information request — shows average CHAPS settlement at 4.1 minutes in Q1.',
-    author: 'Chris Cannon',
-    time: 'Yesterday',
-  },
-  {
-    category: 'Crypto & On-chain',
-    title:
-      'On-chain signals: three wallet clusters moved £180m into stablecoins 48h before the announcement',
-    excerpt:
-      "Loro's on-chain monitoring flagged unusual USDC accumulation across identified institutional wallets. We followed the money.",
-    author: 'Loro Data',
-    time: '2 days ago',
-    hasData: true,
-  },
-]
+const LANE_LABEL: Record<string, string> = {
+  'ownership-control': 'Ownership & Control',
+  'regulation-enforcement': 'Regulation & Enforcement',
+  'money-markets': 'Money & Markets',
+  'policy-politics': 'Policy & Politics',
+  'energy-sustainability': 'Energy & Sustainability',
+  'technology-infrastructure': 'Technology & Infrastructure',
+}
 
-interface Props {
+/** "6h ago" style, from the real publication time rather than a literal. */
+function relative(iso: string): string {
+  const mins = Math.floor((Date.now() - new Date(iso).getTime()) / 60000)
+  if (mins < 1) return 'just now'
+  if (mins < 60) return `${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return `${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days < 7) return `${days}d ago`
+  return new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+const countOf = (v: unknown): number => (Array.isArray(v) ? v.length : 0)
+
+function sb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
+}
+
+async function getArticles(variant: string, limit: number): Promise<Row[]> {
+  try {
+    const client = sb()
+
+    if (variant === 'markets') {
+      const { data } = await client
+        .from('loro_articles').select(COLS)
+        .not('published_at', 'is', null)
+        .eq('lane_slug', 'money-markets')
+        .order('published_at', { ascending: false })
+        .limit(limit)
+      // Fall back to most recent rather than rendering an empty rail.
+      if (data && data.length) return data as Row[]
+    }
+
+    const { data } = await client
+      .from('loro_articles').select(COLS)
+      .not('published_at', 'is', null)
+      .order('published_at', { ascending: false })
+      .limit(limit)
+    return (data ?? []) as Row[]
+  } catch {
+    return []
+  }
+}
+
+export default async function ArticleGrid({
+  variant = 'intelligence',
+  limit = 6,
+}: {
   variant?: 'intelligence' | 'markets'
-}
+  limit?: number
+}) {
+  const articles = await getArticles(variant, limit)
 
-export default function ArticleGrid({ variant = 'intelligence' }: Props) {
-  const articles = variant === 'markets' ? MARKETS : INTELLIGENCE
+  if (!articles.length) {
+    return (
+      <div className="loro-art-grid">
+        <article className="loro-art-item">
+          <h3 className="loro-art-title">No stories published yet</h3>
+          <p className="loro-art-excerpt">
+            The engine monitors its sources continuously. Stories appear here once a
+            journalist has reviewed and published them.
+          </p>
+        </article>
+      </div>
+    )
+  }
 
   return (
     <div className="loro-art-grid">
-      {articles.map((a, i) => (
-        <article
-          key={i}
-          className="loro-art-item"
-          style={{ cursor: a.href ? 'pointer' : 'default' }}
-          onClick={() => a.href && (window.location.href = a.href)}
-        >
-          <span className="loro-art-cat">{a.category}</span>
-          <h3 className="loro-art-title">{a.title}</h3>
-          <p className="loro-art-excerpt">{a.excerpt}</p>
-          <div className="loro-art-meta">
-            <span>{a.author}</span>
-            <span className="loro-art-dot">·</span>
-            <span>{a.time}</span>
-            {a.hasData && (
-              <>
-                <span className="loro-art-dot">·</span>
-                <span className="loro-art-badge">With data</span>
-              </>
-            )}
-            {a.subscriber && (
-              <>
-                <span className="loro-art-dot">·</span>
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 500,
-                    letterSpacing: '0.08em',
-                    textTransform: 'uppercase',
-                    padding: '1px 7px',
-                    border: '1px solid var(--border)',
-                    borderRadius: 20,
-                    color: 'var(--ink5)',
-                  }}
-                >
-                  Sub
-                </span>
-              </>
-            )}
-          </div>
-        </article>
-      ))}
+      {articles.map(a => {
+        const facts = countOf(a.key_facts)
+        const sources = countOf(a.source_citations)
+        const label = a.lane_slug
+          ? LANE_LABEL[a.lane_slug] ?? a.lane_slug
+          : a.category ?? 'Intelligence'
+
+        return (
+          // A real anchor rather than an onClick handler: every card is now a
+          // proper link, so it is keyboard accessible, opens in a new tab, and
+          // is followable by crawlers — none of which the old handler allowed.
+          <a key={a.slug} href={`/news/${a.slug}`} className="loro-art-item loro-art-link">
+            <span className="loro-art-cat">{label}</span>
+            <h3 className="loro-art-title">{a.headline}</h3>
+            {a.standfirst && <p className="loro-art-excerpt">{a.standfirst}</p>}
+            <div className="loro-art-meta">
+              <span>{a.author ?? 'Loro Staff Writers'}</span>
+              <span className="loro-art-dot">·</span>
+              <span>{relative(a.published_at)}</span>
+              {sources > 0 && (
+                <>
+                  <span className="loro-art-dot">·</span>
+                  <span className="loro-art-badge">
+                    {sources} primary source{sources > 1 ? 's' : ''}
+                  </span>
+                </>
+              )}
+              {facts > 0 && (
+                <>
+                  <span className="loro-art-dot">·</span>
+                  <span className="loro-art-badge">With data</span>
+                </>
+              )}
+            </div>
+          </a>
+        )
+      })}
     </div>
   )
 }

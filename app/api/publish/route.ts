@@ -18,6 +18,10 @@ function slugify(text: string): string {
     .replace(/\s+/g, '-')
     .replace(/-+/g, '-')
     .slice(0, 80)
+    // Truncating at a fixed length can cut mid-word and leave a trailing
+    // hyphen, e.g. '...over-uk-regulatory-'. Cut back to the last whole word.
+    .replace(/-[^-]*$/, m => (m.length > 12 ? '' : m))
+    .replace(/^-+|-+$/g, '')
 }
 
 export async function POST(req: NextRequest) {
@@ -63,15 +67,20 @@ export async function POST(req: NextRequest) {
   // schema.org citation / isBasedOn — the citability claim made verifiable.
   let sourceCitations: ReturnType<typeof citationsFromEvidence> = []
   let entitySlugs: string[] = []
+  let laneSlug: string | null = null
   if (candidate_id) {
     const { data: cand } = await sb
       .from('loro_story_candidates')
-      .select('evidence_packet, entity_id')
+      .select('evidence_packet, entity_id, lane_slug')
       .eq('id', candidate_id)
       .single()
     if (cand?.evidence_packet) {
       sourceCitations = citationsFromEvidence(cand.evidence_packet)
     }
+    // Inherit the content lane from the candidate. Without this every article
+    // published through the newsroom landed with lane_slug null and never
+    // appeared on its lane page or in lane-filtered listings.
+    if (cand?.lane_slug) laneSlug = cand.lane_slug as string
     if (cand?.entity_id) {
       const { data: ent } = await sb
         .from('loro_entities').select('name').eq('id', cand.entity_id).single()
@@ -105,6 +114,7 @@ export async function POST(req: NextRequest) {
       key_facts,
       faq,
       entity_slugs: entitySlugs,
+      lane_slug: laneSlug,
     })
     .select()
     .single()
