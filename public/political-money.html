@@ -178,7 +178,7 @@
     n=Math.max(3,Math.min(n,Math.floor(area/650)||3,48));
     seg.moteCol=mixHex(seg.color,255,0.55);
     for(let k=0;k<n;k++)seg.motes.push({rx:Math.random(),ry:Math.random(),
-      vx:(Math.random()*2-1)*0.028,vy:(Math.random()*2-1)*0.028,sz:sz*(0.7+Math.random()*0.7),ph:Math.random()*6.283});
+      vx:(Math.random()*2-1)*0.012,vy:(Math.random()*2-1)*0.012,sz:sz*(0.7+Math.random()*0.7),ph:Math.random()*6.283});
   }
 
   /* ================= SANKEY (liquid) ================= */
@@ -301,13 +301,14 @@
     if(!n)return;
     if(n.col===1){ if(n.name==="Other recipients")return; partyFilter=(partyFilter===n.name)?null:n.name; donorFilter=null; }
     else{ donorFilter=(donorFilter===n.name)?null:n.name; partyFilter=null; }
-    DRILL=null;document.getElementById("drill").innerHTML="";
+    DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
     renderFilterBar();renderMekkoHeader();computeMekko(true);scheduleDraw();
   });
 
   /* ================= MEKKO (animated build) ================= */
   const mk=document.getElementById("mekko"), mctx=mk.getContext("2d");
-  let mCols=[], mBoxes=[], mHot=null, mGeom=null, mEmpty=null, mClock=0, mSeen=false;
+  let mCols=[], mBoxes=[], mHot=null, mGeom=null, mEmpty=null, mClock=0, mSeen=false, mSelName=null;
+  const popState={}, dimState={};
   const STAG=0.10, DUR=0.62;
   const mkGeom=()=>{const H=600,headH=52,padT=8,padB=10,plotH=H-headH-padT-padB;
     return {headH,padT,plotH,plotTop:headH+padT,plotBot:headH+padT+plotH};};
@@ -377,11 +378,29 @@
     if(mEmpty){mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";mctx.fillText(mEmpty,W/2,H/2);return;}
     if(!mCols.length||!mGeom)return;
     const {padT,plotH,plotTop,plotBot}=mGeom;
-    mCols.forEach((c,i)=>{
+    const ease=ANIMATE?0.2:1;
+    // draw order: the selected (popped) column last so it sits over its neighbours
+    const order=mCols.map((c,i)=>i).sort((a,b)=>((mSelName===mCols[a].name)?1:0)-((mSelName===mCols[b].name)?1:0));
+    order.forEach(i=>{
+      const c=mCols[i];
       const p=ANIMATE?easeOut((mClock - i*STAG)/DUR):1;
       if(p<=0.001)return;
       const lift=(1-p)*12;
-      mctx.globalAlpha=p;
+      const popT=(mSelName===c.name)?1:0, dimT=(mSelName&&mSelName!==c.name)?0.4:1;
+      popState[c.name]=(popState[c.name]||0)+(popT-(popState[c.name]||0))*ease;
+      if(dimState[c.name]==null)dimState[c.name]=1;
+      dimState[c.name]+=(dimT-dimState[c.name])*ease;
+      const pop=popState[c.name], cd=dimState[c.name];
+
+      mctx.save();
+      // 3D pop: scale up around the column centre and lift toward the viewer
+      const ccx=c.x+c.w/2, ccy=plotTop+plotH*0.42, sc=1+0.045*pop;
+      mctx.translate(ccx,ccy);mctx.scale(sc,sc);mctx.translate(-ccx,-ccy);
+      mctx.translate(0,-5*pop);
+      if(pop>0.01){mctx.save();mctx.shadowColor="rgba(0,0,0,"+(0.55*pop).toFixed(3)+")";mctx.shadowBlur=40*pop;mctx.shadowOffsetY=14*pop;
+        mctx.fillStyle="#0c1320";mctx.fillRect(c.x,plotTop-2,c.w,plotH+4);mctx.restore();}
+
+      mctx.globalAlpha=p*cd;
       mctx.fillStyle=c.colour;mctx.fillRect(c.x,padT+lift,c.w,4);
       mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
       mctx.font="700 "+(c.w>150?14:c.w>90?12:10.5)+"px Inter, sans-serif";
@@ -393,35 +412,42 @@
       mctx.globalAlpha=1;
       const clipTop=plotTop + plotH*(1-p) + lift;
       mctx.save();mctx.beginPath();mctx.rect(c.x-2,clipTop,c.w+4,plotBot+lift-clipTop+2);mctx.clip();
-      // pass 1 — dimensional fill: vertical body gradient + top sheen + shadow seam
+      // pass 1 — lit-slab material: body gradient + top sheen + left/right bevels + seam
       c.segs.forEach(s=>{
-        const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.2;const yy=s.y+lift;
+        const lit=!mHot||mHot.donor===s.donor;const al=(lit?1:0.22)*cd;const yy=s.y+lift, bw=Math.min(16,c.w*0.22);
         const gd=mctx.createLinearGradient(0,yy,0,yy+s.h);
-        gd.addColorStop(0,mixHex(s.color,255,0.12));gd.addColorStop(0.5,s.color);gd.addColorStop(1,mixHex(s.color,0,0.16));
+        gd.addColorStop(0,mixHex(s.color,255,0.17));gd.addColorStop(0.42,s.color);gd.addColorStop(1,mixHex(s.color,0,0.24));
         mctx.globalAlpha=al;mctx.fillStyle=gd;mctx.fillRect(c.x,yy,c.w,s.h);
-        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,20));
-        gg.addColorStop(0,"rgba(255,255,255,.16)");gg.addColorStop(1,"rgba(255,255,255,0)");
-        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,20));
-        mctx.globalAlpha=al*0.5;mctx.fillStyle="rgba(6,9,16,.75)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
+        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,24));
+        gg.addColorStop(0,"rgba(255,255,255,.20)");gg.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,24));
+        const lb=mctx.createLinearGradient(c.x,0,c.x+bw,0);
+        lb.addColorStop(0,"rgba(255,255,255,.13)");lb.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=lb;mctx.fillRect(c.x,yy,bw,s.h);
+        const rb=mctx.createLinearGradient(c.x+c.w-bw,0,c.x+c.w,0);
+        rb.addColorStop(0,"rgba(6,9,16,0)");rb.addColorStop(1,"rgba(6,9,16,.3)");
+        mctx.fillStyle=rb;mctx.fillRect(c.x+c.w-bw,yy,bw,s.h);
+        mctx.globalAlpha=al*0.55;mctx.fillStyle="rgba(6,9,16,.82)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
       });
-      // pass 2 — living motes (concentration texture), additive
+      // pass 2 — motes glint (additive), brighter on a popped column
       mctx.globalCompositeOperation="lighter";
       c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const yy=s.y+lift;if(!s.motes)return;
         for(const m of s.motes){
           if(ANIMATE){m.rx+=m.vx*sDt;m.ry+=m.vy*sDt;if(m.rx<0)m.rx+=1;else if(m.rx>1)m.rx-=1;if(m.ry<0)m.ry+=1;else if(m.ry>1)m.ry-=1;}
-          const tw=0.55+0.45*Math.sin(m.ph+(ANIMATE?mClock*2.2:0));
-          const a=(lit?0.9:0.16)*tw*p;if(a<=0.03)continue;
-          mctx.fillStyle=rgbaC(s.moteCol,a);mctx.beginPath();mctx.arc(c.x+m.rx*c.w,yy+m.ry*s.h,m.sz,0,6.283);mctx.fill();
+          const tw=0.4+0.6*Math.sin(m.ph+(ANIMATE?mClock*2.2:0));
+          const a=(lit?0.95:0.12)*tw*p*cd*(1+0.5*pop);if(a<=0.03)continue;
+          mctx.fillStyle=rgbaC(s.moteCol,Math.min(1,a));mctx.beginPath();mctx.arc(c.x+m.rx*c.w,yy+m.ry*s.h,m.sz*(1+0.25*pop),0,6.283);mctx.fill();
         }});
       mctx.globalCompositeOperation="source-over";
       // pass 3 — labels on top
-      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.2;const yy=s.y+lift;
+      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const al=(lit?1:0.22)*cd;const yy=s.y+lift;
         if(s.h>24&&c.w>110){mctx.globalAlpha=al;
           mctx.fillStyle="rgba(6,9,16,.92)";mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
           mctx.fillText(s.donor,c.x+7,yy+6);
           mctx.font="400 10px 'IBM Plex Mono', monospace";mctx.fillText(s.share+"%  "+money(s.value),c.x+7,yy+19);}
       });
       mctx.restore();mctx.globalAlpha=1;
+      mctx.restore();
     });
   }
 
@@ -448,6 +474,7 @@
   let DRILL=null, drillView="donors";
 
   async function openDrill(recipient,donorType){
+    mSelName=recipient;scheduleDraw();
     const el=document.getElementById("drill");
     el.innerHTML='<div class="drill"><div class="sub">Loading donations…</div></div>';
     el.scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -503,7 +530,7 @@
         '<button data-view="donors" aria-pressed="'+(drillView==="donors")+'">By donor</button>'+
         '<button data-view="each" aria-pressed="'+(drillView==="each")+'">Every donation</button>'+
       '</div>'+rows+'</div>';
-    document.getElementById("drillClose").onclick=()=>{DRILL=null;el.innerHTML="";};
+    document.getElementById("drillClose").onclick=()=>{DRILL=null;mSelName=null;el.innerHTML="";scheduleDraw();};
     el.querySelectorAll(".tabs button").forEach(b=>{b.onclick=()=>{drillView=b.dataset.view;renderDrill();};});
   }
 
@@ -520,7 +547,7 @@
       el.innerHTML='<span style="color:#556080">Showing all. Click a source or recipient in the flow above to drive the breakdown.</span>';return;
     }
     document.getElementById("clearF").onclick=()=>{partyFilter=null;donorFilter=null;
-      DRILL=null;document.getElementById("drill").innerHTML="";
+      DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
       renderFilterBar();renderMekkoHeader();computeMekko(true);scheduleDraw();};
   }
 
@@ -569,7 +596,7 @@
       FLOW=f;COMP=c;
       document.getElementById("sankeyState").style.display="none";
       document.getElementById("mekkoState").style.display="none";
-      DRILL=null;document.getElementById("drill").innerHTML="";
+      DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
       renderMeta();renderFilterBar();renderMekkoHeader();
       sizeCanvases();sIntro=0;computeSankey();computeMekko(true);
       scheduleDraw();
