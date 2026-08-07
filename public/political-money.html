@@ -164,6 +164,22 @@
   const cub=(a,b,c,d,t)=>{const m=1-t;return m*m*m*a+3*m*m*t*b+3*m*t*t*c+t*t*t*d;};
   const clamp01=t=>t<0?0:t>1?1:t;
   const easeOut=t=>1-Math.pow(1-clamp01(t),3);
+  const mixHex=(hex,to,a)=>{hex=hex.replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+    return "#"+[r,g,b].map(x=>Math.round(x+(to-x)*a).toString(16).padStart(2,"0")).join("");};
+  // living texture: mote count follows the NUMBER of donations, mote size follows the AVERAGE cheque —
+  // so many small cheques read as a fine dense shimmer, a few huge cheques as sparse bright motes.
+  function seedMotes(seg,w){
+    seg.motes=[];const area=w*seg.h;let n,sz;
+    if(seg.count!=null){const avg=seg.value/(seg.count||1);
+      sz=Math.max(0.9,Math.min(4,(Math.log10(Math.max(avg,1))-3)*1.05+1.15));
+      n=Math.round(Math.sqrt(seg.count)*3);}
+    else{sz=1.3;n=Math.round(area/2600);}
+    n=Math.max(3,Math.min(n,Math.floor(area/650)||3,48));
+    seg.moteCol=mixHex(seg.color,255,0.55);
+    for(let k=0;k<n;k++)seg.motes.push({rx:Math.random(),ry:Math.random(),
+      vx:(Math.random()*2-1)*0.028,vy:(Math.random()*2-1)*0.028,sz:sz*(0.7+Math.random()*0.7),ph:Math.random()*6.283});
+  }
 
   /* ================= SANKEY (liquid) ================= */
   const sk=document.getElementById("sankey"), sctx=sk.getContext("2d");
@@ -319,7 +335,8 @@
       let y=headH+padT;
       r.segments.slice().sort((a,b)=>b.value-a.value).forEach(s=>{
         const h=(s.value/r.total)*plotH;
-        col.segs.push({donor:s.donor,value:s.value,share:s.share,count:s.count,y,h,color:DONOR[s.donor]||"#7c8aa8"});
+        const so={donor:s.donor,value:s.value,share:s.share,count:s.count,y,h,color:DONOR[s.donor]||"#7c8aa8"};
+        col.segs.push(so);seedMotes(so,w);
         mBoxes.push({x,y,w,h,recipient:r.name,donor:s.donor,value:s.value,share:s.share,count:s.count,total:r.total});
         y+=h;
       });
@@ -344,8 +361,9 @@
     list.forEach(r=>{
       const w=Math.max(30,(r.total/grand)*(W-8-totalGap));
       const share=Math.round(r.total/(recGrand[r.name]||r.total)*100);
-      const col={x,w,name:r.name,total:r.total,colour:partyColour(r.name),
-        segs:[{donor:donorFilter,value:r.total,share,count:null,y:headH+padT,h:plotH,color:DONOR[donorFilter]||"#7c8aa8"}]};
+      const so={donor:donorFilter,value:r.total,share,count:null,y:headH+padT,h:plotH,color:DONOR[donorFilter]||"#7c8aa8"};
+      seedMotes(so,w);
+      const col={x,w,name:r.name,total:r.total,colour:partyColour(r.name),segs:[so]};
       mBoxes.push({x,y:headH+padT,w,h:plotH,recipient:r.name,donor:donorFilter,value:r.total,share,count:null,total:(recGrand[r.name]||r.total)});
       mCols.push(col);x+=w+gap;
     });
@@ -375,20 +393,33 @@
       mctx.globalAlpha=1;
       const clipTop=plotTop + plotH*(1-p) + lift;
       mctx.save();mctx.beginPath();mctx.rect(c.x-2,clipTop,c.w+4,plotBot+lift-clipTop+2);mctx.clip();
+      // pass 1 — dimensional fill: vertical body gradient + top sheen + shadow seam
       c.segs.forEach(s=>{
-        const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.22;
-        const yy=s.y+lift;
-        mctx.globalAlpha=al;mctx.fillStyle=s.color;mctx.fillRect(c.x,yy,c.w,s.h);
-        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,22));
-        gg.addColorStop(0,"rgba(255,255,255,.12)");gg.addColorStop(1,"rgba(255,255,255,0)");
-        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,22));
-        mctx.globalAlpha=al*0.55;mctx.fillStyle="rgba(6,9,16,.7)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
-        mctx.globalAlpha=al;
-        if(s.h>24&&c.w>110){
-          mctx.fillStyle="rgba(6,9,16,.85)";mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
+        const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.2;const yy=s.y+lift;
+        const gd=mctx.createLinearGradient(0,yy,0,yy+s.h);
+        gd.addColorStop(0,mixHex(s.color,255,0.12));gd.addColorStop(0.5,s.color);gd.addColorStop(1,mixHex(s.color,0,0.16));
+        mctx.globalAlpha=al;mctx.fillStyle=gd;mctx.fillRect(c.x,yy,c.w,s.h);
+        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,20));
+        gg.addColorStop(0,"rgba(255,255,255,.16)");gg.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,20));
+        mctx.globalAlpha=al*0.5;mctx.fillStyle="rgba(6,9,16,.75)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
+      });
+      // pass 2 — living motes (concentration texture), additive
+      mctx.globalCompositeOperation="lighter";
+      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const yy=s.y+lift;if(!s.motes)return;
+        for(const m of s.motes){
+          if(ANIMATE){m.rx+=m.vx*sDt;m.ry+=m.vy*sDt;if(m.rx<0)m.rx+=1;else if(m.rx>1)m.rx-=1;if(m.ry<0)m.ry+=1;else if(m.ry>1)m.ry-=1;}
+          const tw=0.55+0.45*Math.sin(m.ph+(ANIMATE?mClock*2.2:0));
+          const a=(lit?0.9:0.16)*tw*p;if(a<=0.03)continue;
+          mctx.fillStyle=rgbaC(s.moteCol,a);mctx.beginPath();mctx.arc(c.x+m.rx*c.w,yy+m.ry*s.h,m.sz,0,6.283);mctx.fill();
+        }});
+      mctx.globalCompositeOperation="source-over";
+      // pass 3 — labels on top
+      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.2;const yy=s.y+lift;
+        if(s.h>24&&c.w>110){mctx.globalAlpha=al;
+          mctx.fillStyle="rgba(6,9,16,.92)";mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
           mctx.fillText(s.donor,c.x+7,yy+6);
-          mctx.font="400 10px 'IBM Plex Mono', monospace";mctx.fillText(s.share+"%  "+money(s.value),c.x+7,yy+19);
-        }
+          mctx.font="400 10px 'IBM Plex Mono', monospace";mctx.fillText(s.share+"%  "+money(s.value),c.x+7,yy+19);}
       });
       mctx.restore();mctx.globalAlpha=1;
     });
@@ -401,7 +432,7 @@
     if(b){
       tip.innerHTML='<div class="t">'+b.recipient+'</div><div class="v">'+b.donor+'</div>'+
         '<div class="v">'+money(b.value)+' · '+b.share+'% of '+money(b.total)+'</div>'+
-        (b.count!=null?'<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+'</div>':'')+
+        (b.count!=null?'<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+' · avg '+money(b.value/b.count)+'</div>':'')+
         '<div class="v" style="opacity:.7">click to see who paid</div>';
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
