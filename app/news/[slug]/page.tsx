@@ -9,6 +9,9 @@ import ArticleAd from '@/components/ArticleAd'
 import NewsletterSection from '@/components/NewsletterSection'
 import SiteFooter from '@/components/SiteFooter'
 
+// Read at request time so newly published articles appear without a redeploy.
+export const revalidate = 60
+
 interface PageProps {
   params: { slug: string }
 }

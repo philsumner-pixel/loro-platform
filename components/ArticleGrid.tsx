@@ -8,7 +8,10 @@ import { createClient } from '@supabase/supabase-js'
 // unclickable. It had never been connected to loro_articles, so nothing a
 // journalist published ever reached the front page.
 
-export const revalidate = 60
+// NB: revalidate is NOT exported here. Route-segment config only takes effect
+// in a page, layout or route file — exporting it from a component is silently
+// ignored, which is what left the homepage statically generated at build time
+// so newly published articles never appeared. It is set in app/page.tsx.
 
 interface Row {
   slug: string

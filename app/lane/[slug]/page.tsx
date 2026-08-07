@@ -7,6 +7,9 @@ import NewsletterSection from '@/components/NewsletterSection'
 import SiteFooter from '@/components/SiteFooter'
 import LaneNav from '@/components/LaneNav'
 
+// Read at request time so newly published articles appear without a redeploy.
+export const revalidate = 120
+
 // Reader-facing view of a content lane. Same taxonomy the newsroom filters by,
 // so editorial and reader navigation cannot drift apart.
 

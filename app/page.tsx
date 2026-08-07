@@ -11,6 +11,11 @@ import AdSlot from '@/components/AdSlot'
 import SponsorTag from '@/components/SponsorTag'
 import FakeAd from '@/components/FakeAd'
 
+// The homepage reads published articles at request time. Without this the
+// route is statically generated at build and newly published stories never
+// appear until the next deploy.
+export const revalidate = 60
+
 export default function HomePage() {
   return (
     <>

@@ -116,8 +116,12 @@ const LANES = [
 ]
 const LANE_LABEL: Record<string,string> = Object.fromEntries(LANES.map(l => [l.slug, l.label]))
 
+// The pipeline made visible: unreviewed -> shortlisted -> drafting -> published.
+// Inbox previously included shortlisted items, so shortlisting a story left it
+// exactly where it was and the journalist had no way to see their shortlist.
 const TABS = [
-  { key: 'new,shortlisted', label: 'Inbox', statuses: ['new','shortlisted'] },
+  { key: 'new',             label: 'Inbox', statuses: ['new'] },
+  { key: 'shortlisted',     label: 'Shortlist', statuses: ['shortlisted'] },
   { key: 'in_draft',        label: 'In draft', statuses: ['in_draft'] },
   { key: 'published',       label: 'Published', statuses: ['published'] },
   { key: 'discarded,expired', label: 'Archive', statuses: ['discarded','expired'] },
@@ -952,8 +956,8 @@ export default function NewsroomPage() {
               onClick={() => setActiveTab(tab)}>
               {tab.label}
               <span className="loro-nr-tab-count">
-                {tab.key === 'new,shortlisted'
-                  ? (statusCounts['new'] ?? 0) + (statusCounts['shortlisted'] ?? 0)
+                {tab.key === 'new'
+                  ? (statusCounts['new'] ?? 0)
                   : tab.key === 'signal_digest'
                   ? digests.filter(d => d.status === 'pending').length
                   : tab.key === 'video'
@@ -1081,7 +1085,7 @@ export default function NewsroomPage() {
         {loading && <div className="loro-nr-empty">Loading…</div>}
 
         {/* Inbox — three columns */}
-        {!loading && activeTab.key === 'new,shortlisted' && (
+        {!loading && activeTab.key === 'new' && (
           candidates.length === 0
             ? <div className="loro-nr-empty">No candidates in queue.</div>
             : (
@@ -1518,7 +1522,7 @@ export default function NewsroomPage() {
         )}
 
         {/* Draft / Published — flat list */}
-        {!loading && activeTab.key !== 'new,shortlisted' && activeTab.key !== 'signal_digest' && (
+        {!loading && activeTab.key !== 'new' && activeTab.key !== 'signal_digest' && (
           candidates.length === 0
             ? <div className="loro-nr-empty">No candidates in this queue.</div>
             : (
@@ -1539,6 +1543,15 @@ export default function NewsroomPage() {
                       <div className="loro-nr-row-actions" onClick={e=>e.stopPropagation()}>
                         {c.status==='published'&&c.published_slug && <a href={`/news/${c.published_slug}`} style={{fontSize:12,fontWeight:500,color:'var(--blue-mid)'}}>Read →</a>}
                         {c.status==='in_draft' && <button className="loro-nr-btn primary" onClick={()=>openDraft(c)}>Open draft</button>}
+                        {c.status==='shortlisted' && (
+                          <>
+                            <button className="loro-nr-btn success" disabled={updating===c.id}
+                              onClick={()=>{updateStatus(c.id,'in_draft');openDraft(c)}}>Write this →</button>
+                            <button className="loro-nr-btn" disabled={updating===c.id}
+                              title="Send back to the inbox"
+                              onClick={()=>updateStatus(c.id,'new')}>↩ Unshortlist</button>
+                          </>
+                        )}
                         {(c.status==='discarded'||c.status==='expired') && (
                           <>
                             <span className={`loro-nr-archive-pill ${c.status}`}>{c.status==='expired'?'Expired':'Discarded'}</span>
