@@ -41,6 +41,26 @@
   .note{font-size:12px;color:var(--ink4);line-height:1.7;margin-top:18px;max-width:840px}
   .note strong{color:var(--ink3);font-weight:500}
   .state{padding:40px 0;text-align:center;color:var(--ink4);font-size:13px}
+  .drill{border:1px solid var(--line);background:var(--panel);padding:20px 22px}
+  .drill h3{font-family:'Playfair Display',serif;font-size:19px;font-weight:600;color:var(--ink)}
+  .drill .sub{font-size:12px;color:var(--ink4);margin-top:5px;line-height:1.6}
+  .drill table{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  .drill th{text-align:left;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;
+            color:var(--ink4);font-weight:600;padding:7px 10px;border-bottom:1px solid var(--line)}
+  .drill th.num,.drill td.num{text-align:right;font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums}
+  .drill td{padding:9px 10px;border-bottom:1px solid rgba(140,160,200,.07);color:var(--ink2)}
+  .drill tr:hover td{background:rgba(255,255,255,.02)}
+  .drill .nm{color:var(--ink);font-weight:500}
+  .drill .cn{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink4)}
+  .drill .cn a{color:#7e9bd6;text-decoration:none}
+  .drill .cn a:hover{text-decoration:underline}
+  .drill .close{float:right;background:none;border:1px solid var(--line);color:var(--ink3);
+                cursor:pointer;font-size:11.5px;padding:5px 10px}
+  .drill .close:hover{color:var(--ink)}
+  .drill .tabs{display:flex;gap:5px;margin-top:14px}
+  .drill .tabs button{font-family:inherit;font-size:11px;padding:5px 10px;border:1px solid var(--line);
+    background:transparent;color:var(--ink3);cursor:pointer}
+  .drill .tabs button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
   .filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px;
              min-height:30px;font-size:12px;color:var(--ink3)}
   .chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;
@@ -93,6 +113,8 @@
   <canvas id="mekko" height="600"></canvas>
   <div class="state" id="mekkoState"></div>
   <div class="legend" id="legend"></div>
+
+  <div id="drill" style="margin-top:26px"></div>
 
   <p class="note" id="finding"></p>
   <p class="note">
@@ -306,11 +328,85 @@
     if(b){
       tip.innerHTML='<div class="t">'+b.recipient+'</div><div class="v">'+b.donor+'</div>'+
         '<div class="v">'+money(b.value)+' · '+b.share+'% of '+money(b.total)+'</div>'+
-        '<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+'</div>';
+        '<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+'</div>'+
+        '<div class="v" style="opacity:.7">click to see who paid</div>';
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
   mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;drawMekko();});
+  mk.addEventListener("click",e=>{
+    const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+    if(b)openDrill(b.recipient,b.donor);
+  });
+
+  /* ---------------- drill-down: who actually paid ---------------- */
+  let DRILL=null, drillView="donors";
+
+  async function openDrill(recipient,donorType){
+    const el=document.getElementById("drill");
+    el.innerHTML='<div class="drill"><div class="sub">Loading donations…</div></div>';
+    el.scrollIntoView({behavior:"smooth",block:"nearest"});
+    try{
+      const res=await fetch("/api/donations/detail?months="+months+
+        "&recipient="+encodeURIComponent(recipient)+"&donorType="+encodeURIComponent(donorType));
+      DRILL=await res.json();DRILL._recipient=recipient;DRILL._donorType=donorType;
+      renderDrill();
+    }catch(e){
+      el.innerHTML='<div class="drill"><div class="sub">Donation detail unavailable.</div></div>';
+    }
+  }
+
+  function renderDrill(){
+    const el=document.getElementById("drill");
+    if(!DRILL)return;
+    const d=DRILL, n=d.donors.length;
+    if(!n){
+      el.innerHTML='<div class="drill"><div class="sub">No individual donations found for this selection.</div></div>';
+      return;
+    }
+    const ch=n=>String(n).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+
+    let rows;
+    if(drillView==="donors"){
+      rows=d.donors.map(x=>'<tr>'+
+        '<td class="nm">'+ch(x.donor)+(x.variants>1?' <span class="cn">('+x.variants+' name variants)</span>':'')+
+          (x.companyNumber?'<div class="cn"><a href="https://find-and-update.company-information.service.gov.uk/company/'+
+            ch(x.companyNumber)+'" target="_blank" rel="noopener">Company '+ch(x.companyNumber)+' →</a></div>':'')+'</td>'+
+        '<td class="num">'+money(x.total)+'</td>'+
+        '<td class="num">'+x.donations+'</td>'+
+        '<td class="num">'+money(x.largest)+'</td>'+
+        '<td class="num">'+(x.last||"").slice(0,10)+'</td></tr>').join("");
+      rows='<table><thead><tr><th>Donor</th><th class="num">Total</th><th class="num">Donations</th>'+
+           '<th class="num">Largest</th><th class="num">Most recent</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    }else{
+      rows=d.donations.map(x=>'<tr>'+
+        '<td class="nm">'+ch(x.donor)+
+          (x.companyNumber?'<div class="cn"><a href="https://find-and-update.company-information.service.gov.uk/company/'+
+            ch(x.companyNumber)+'" target="_blank" rel="noopener">Company '+ch(x.companyNumber)+' →</a></div>':'')+'</td>'+
+        '<td class="num">'+money(x.value)+'</td>'+
+        '<td class="num">'+(x.accepted||"").slice(0,10)+'</td>'+
+        '<td>'+ch(x.type||"—")+'</td></tr>').join("");
+      rows='<table><thead><tr><th>Donor</th><th class="num">Amount</th><th class="num">Accepted</th>'+
+           '<th>Type</th></tr></thead><tbody>'+rows+'</tbody></table>';
+    }
+
+    el.innerHTML='<div class="drill">'+
+      '<button class="close" id="drillClose">Close ×</button>'+
+      '<h3>'+ch(d._donorType)+' donations to '+ch(d._recipient)+'</h3>'+
+      '<div class="sub">'+money(d.total)+' from '+n+' donor'+(n>1?'s':'')+
+        ' · '+d.donations.length+' individual donation'+(d.donations.length>1?'s':'')+
+        ' in this window. Company numbers link to Companies House so the donor can be checked.</div>'+
+      '<div class="tabs">'+
+        '<button data-view="donors" aria-pressed="'+(drillView==="donors")+'">By donor</button>'+
+        '<button data-view="each" aria-pressed="'+(drillView==="each")+'">Every donation</button>'+
+      '</div>'+rows+'</div>';
+
+    document.getElementById("drillClose").onclick=()=>{DRILL=null;el.innerHTML="";};
+    el.querySelectorAll(".tabs button").forEach(b=>{
+      b.onclick=()=>{drillView=b.dataset.view;renderDrill();};
+    });
+  }
 
   /* ---------------- shared ---------------- */
   function renderFilterBar(){
@@ -354,6 +450,7 @@
       FLOW=f;COMP=c;
       document.getElementById("sankeyState").style.display="none";
       document.getElementById("mekkoState").style.display="none";
+      DRILL=null;document.getElementById("drill").innerHTML="";
       renderMeta();renderFilterBar();resize();
     }catch(e){
       document.getElementById("sankeyState").textContent="Donation data unavailable.";
