@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loro — Political Money</title>
+<meta name="description" content="Where UK political money comes from and how each party is funded. Built from the Electoral Commission register.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#060910;--panel:#0b0f17;--line:rgba(140,160,200,.14);
+        --ink:#e9eefa;--ink2:#c2cbe0;--ink3:#7c8aa8;--ink4:#556080}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink2);font-family:'Inter',system-ui,sans-serif}
+  .wrap{max-width:1300px;margin:0 auto;padding:34px 24px 80px}
+  .eyebrow{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7e9bd6;font-weight:600}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(30px,4.6vw,48px);font-weight:700;
+     line-height:1.03;letter-spacing:-.02em;color:var(--ink);margin-top:10px}
+  h1 em{font-style:italic}
+  .dek{font-size:15px;color:var(--ink3);line-height:1.65;max-width:700px;margin-top:12px}
+  h2.sec{font-family:'Playfair Display',serif;font-size:22px;font-weight:600;color:var(--ink);
+         margin:44px 0 4px}
+  .sec-dek{font-size:13px;color:var(--ink4);line-height:1.6;max-width:660px;margin-bottom:14px}
+  .controls{display:flex;gap:18px;flex-wrap:wrap;margin:16px 0 6px;align-items:center}
+  .group{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+  .group .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);font-weight:600;margin-right:4px}
+  button.ctl{font-family:inherit;font-size:11.5px;padding:6px 11px;border:1px solid var(--line);
+             background:transparent;color:var(--ink3);cursor:pointer}
+  button.ctl:hover{color:var(--ink);border-color:rgba(140,160,200,.36)}
+  button.ctl[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
+  .window{font-size:11.5px;color:var(--ink4);margin:10px 0;font-family:'IBM Plex Mono',monospace}
+  canvas{width:100%;display:block;background:var(--panel);border:1px solid var(--line);cursor:pointer}
+  .legend{display:flex;gap:13px;flex-wrap:wrap;margin-top:12px}
+  .legend span{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink3)}
+  .legend i{width:10px;height:10px;display:block}
+  .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s;background:#020509;
+       border:1px solid var(--line);padding:10px 12px;font-size:12px;max-width:280px;z-index:40;line-height:1.5}
+  .tip .t{font-weight:600;color:var(--ink);margin-bottom:3px}
+  .tip .v{font-family:'IBM Plex Mono',monospace;color:var(--ink3)}
+  .note{font-size:12px;color:var(--ink4);line-height:1.7;margin-top:18px;max-width:840px}
+  .note strong{color:var(--ink3);font-weight:500}
+  .state{padding:40px 0;text-align:center;color:var(--ink4);font-size:13px}
+  .filterbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 4px;
+             min-height:30px;font-size:12px;color:var(--ink3)}
+  .chip{display:inline-flex;align-items:center;gap:8px;padding:5px 12px;
+        border:1px solid var(--line);background:rgba(255,255,255,.03)}
+  .chip b{color:var(--ink);font-weight:600}
+  .chip button{background:none;border:none;color:var(--ink4);cursor:pointer;font-size:14px;line-height:1;padding:0 0 0 4px}
+  .chip button:hover{color:var(--ink)}
+  .swatch{width:10px;height:10px;display:inline-block}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Loro · Political finance</div>
+  <h1>Political <em>money</em></h1>
+  <p class="dek">Every donation reported to the Electoral Commission — where it comes from, what
+    kind of recipient it reaches, and how that leaves each party funded. Click any party in the
+    flow to filter the breakdown beneath it.</p>
+
+  <div class="controls">
+    <div class="group">
+      <span class="lbl">Window</span>
+      <button class="ctl" data-months="6" aria-pressed="false">6m</button>
+      <button class="ctl" data-months="12" aria-pressed="true">12m</button>
+      <button class="ctl" data-months="24" aria-pressed="false">24m</button>
+    </div>
+  </div>
+  <div class="window" id="window"></div>
+
+  <h2 class="sec">The flow of money</h2>
+  <p class="sec-dek">Donor type, to the kind of recipient it reaches, to who. Band thickness is
+    money, not the number of cheques. Click a recipient to filter the breakdown below.</p>
+  <canvas id="sankey" height="520"></canvas>
+  <div class="state" id="sankeyState">Loading donation register…</div>
+
+  <h2 class="sec">How each party is funded</h2>
+  <p class="sec-dek">Column width is the total raised; the bands are who it came from. Two parties
+    can raise similar sums from entirely different places.</p>
+
+  <div class="controls">
+    <div class="group">
+      <span class="lbl">Recipients</span>
+      <button class="ctl kind" data-kind="Registered party" aria-pressed="true">Parties</button>
+      <button class="ctl kind" data-kind="Individual politician" aria-pressed="false">Politicians</button>
+      <button class="ctl kind" data-kind="Campaign group" aria-pressed="false">Campaign groups</button>
+      <button class="ctl kind" data-kind="All" aria-pressed="false">All</button>
+    </div>
+  </div>
+  <div class="filterbar" id="filterbar"></div>
+
+  <canvas id="mekko" height="600"></canvas>
+  <div class="state" id="mekkoState"></div>
+  <div class="legend" id="legend"></div>
+
+  <p class="note" id="finding"></p>
+  <p class="note">
+    <strong>Reporting lag.</strong> The Electoral Commission publishes on a delay — parties report
+    quarterly, regulated donees monthly — so recent months are always incomplete. Every window here
+    ends at the last fully reported month rather than today, so periods stay comparable. Party
+    colours are used for identification; party logos are trademarks and are not reproduced.
+    Donations are lawful and shown as a matter of public record. Contains Electoral Commission
+    Information © Electoral Commission and/or database right.
+  </p>
+</div>
+<div class="tip" id="tip"></div>
+
+<script>
+(function(){
+  const tip=document.getElementById("tip");
+  let months=12, kind="Registered party", partyFilter=null;
+  let FLOW=null, COMP=null, dpr=1;
+
+  // Official party colours. Logos are trademarks, so colour is the identifier —
+  // the same convention the FT, BBC and Guardian use.
+  const PARTY={
+    "Reform UK":"#12B6CF","Conservative and Unionist Party":"#0087DC",
+    "Conservatives Together":"#0087DC","Labour Party":"#E4003B",
+    "Liberal Democrats":"#FAA61A","Green Party":"#6AB023",
+    "Scottish National Party (SNP)":"#FDF38E","Plaid Cymru":"#005B54",
+    "Sinn Féin":"#326760","Democratic Unionist Party - D.U.P.":"#D46A4C",
+    "Ulster Unionist Party":"#48A5EE","Alliance - Alliance Party":"#F6CB2F",
+    "Co-operative Party":"#3F1D70","Your Party":"#8663c4",
+    "Social Democratic & Labour Party":"#2AA82C","Traditional Unionist Voice":"#0C3A6A"
+  };
+  const partyColour=n=>PARTY[n]||"#8fa3c8";
+
+  const DONOR={
+    "Individual":"#5b8cff","Public Fund":"#f2b84b","Company":"#35c2e8",
+    "Trade Union":"#f0637e","Unincorporated Association":"#9b7bff",
+    "Other":"#7c8aa8","Friendly Society":"#63e6b8",
+    "Limited Liability Partnership":"#5bd1ff","Impermissible Donor":"#ff5c5c",
+    "Trust":"#ff8a5b","Registered Political Party":"#a0b4d8",
+    "Building Society":"#8fd6c0","Unidentifiable Donor":"#6b7893","Unknown":"#6b7893"};
+  const money=v=>v>=1e6?"£"+(v/1e6).toFixed(1)+"m":v>=1e3?"£"+Math.round(v/1e3)+"k":"£"+Math.round(v);
+
+  /* ---------------- SANKEY ---------------- */
+  const sk=document.getElementById("sankey"), sctx=sk.getContext("2d");
+  let sBands=[], sNodes=[], sHot=null;
+
+  function drawSankey(){
+    const W=sk.clientWidth,H=520;
+    sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
+    sBands=[];sNodes=[];
+    if(!FLOW||!FLOW.paths||!FLOW.paths.length)return;
+
+    const padX=Math.max(140,W*0.13), padY=22, colW=13, gap=5;
+    const usable=H-padY*2;
+    const paths=FLOW.paths;
+
+    const tot=(key)=>{const m={};paths.forEach(p=>m[p[key]]=(m[p[key]]||0)+p.value);return m;};
+    const dT=tot("donor"), tT=tot("type"), rT=tot("to");
+    const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1;
+
+    const TOP=12;
+    const topR=Object.keys(rT).sort((a,b)=>rT[b]-rT[a]).slice(0,TOP);
+    const keep=new Set(topR);
+    const rT2={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT2[k]=(rT2[k]||0)+p.value;});
+
+    function place(totals,x){
+      const names=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
+      const avail=usable-gap*(names.length-1);
+      let y=padY;const pos={};
+      names.forEach(n=>{const h=Math.max(3,totals[n]/grand*avail);pos[n]={x,y,h,v:totals[n]};y+=h+gap;});
+      return pos;
+    }
+    const P0=place(dT,padX), P1=place(tT,(W-colW)/2), P2=place(rT2,W-padX-colW);
+    Object.entries(P0).forEach(([n,p])=>sNodes.push({...p,name:n,col:0,colour:DONOR[n]||"#7c8aa8"}));
+    Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:"#4a5a78"}));
+    Object.entries(P2).forEach(([n,p])=>sNodes.push({...p,name:n,col:2,colour:partyColour(n)}));
+
+    const cur={};
+    const stage=(from,to,pos1,pos2,stageId)=>{
+      const agg={};
+      paths.forEach(p=>{
+        const a=p[from], b=(to==="to"&&!keep.has(p.to))?"Other recipients":p[to];
+        const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;
+      });
+      Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
+        const [a,b]=k.split("||");const p1=pos1[a],p2=pos2[b];if(!p1||!p2)return;
+        const k1=stageId+"a"+a,k2=stageId+"b"+b;
+        const h1=Math.max(1,v/p1.v*p1.h), h2=Math.max(1,v/p2.v*p2.h);
+        const y1=p1.y+(cur[k1]=cur[k1]||0);cur[k1]+=h1;
+        const y2=p2.y+(cur[k2]=cur[k2]||0);cur[k2]+=h2;
+        sBands.push({x1:p1.x+colW,x2:p2.x,y1,h1,y2,h2,v,from:a,to:b,
+          colour:stageId===0?(DONOR[a]||"#7c8aa8"):partyColour(b)});
+      });
+    };
+    stage("donor","type",P0,P1,0);
+    stage("type","to",P1,P2,1);
+
+    sBands.forEach(b=>{
+      const lit=!sHot||sHot===b.from||sHot===b.to||(partyFilter&&b.to===partyFilter);
+      sctx.globalAlpha=lit?0.5:0.09;
+      sctx.fillStyle=b.colour;
+      sctx.beginPath();sctx.moveTo(b.x1,b.y1);
+      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y1,(b.x1+b.x2)/2,b.y2,b.x2,b.y2);
+      sctx.lineTo(b.x2,b.y2+b.h2);
+      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y2+b.h2,(b.x1+b.x2)/2,b.y1+b.h1,b.x1,b.y1+b.h1);
+      sctx.closePath();sctx.fill();
+    });
+    sctx.globalAlpha=1;
+
+    sNodes.forEach(n=>{
+      const active=partyFilter&&n.col===2&&n.name===partyFilter;
+      sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,colW,n.h);
+      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,colW+4,n.h+4);}
+      if(n.h<10)return;
+      sctx.fillStyle=active?"#e9eefa":"#c2cbe0";
+      sctx.font=(active?"600 ":"500 ")+"11.5px Inter, sans-serif";
+      sctx.textBaseline="middle";
+      if(n.col===0){sctx.textAlign="right";sctx.fillText(n.name,n.x-8,n.y+n.h/2);}
+      else if(n.col===2){sctx.textAlign="left";
+        const nm=n.name.length>24?n.name.slice(0,23)+"…":n.name;
+        sctx.fillText(nm,n.x+colW+8,n.y+n.h/2);}
+      else{sctx.textAlign="center";sctx.font="500 10.5px Inter, sans-serif";
+        sctx.fillText(n.name,n.x+colW/2,n.y-7);}
+    });
+  }
+
+  sk.addEventListener("mousemove",e=>{
+    const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h);
+    sHot=n?n.name:null;drawSankey();
+    sk.style.cursor=(n&&n.col===2)?"pointer":"default";
+    if(n){
+      tip.innerHTML='<div class="t">'+n.name+'</div><div class="v">'+money(n.v)+'</div>'+
+        (n.col===2?'<div class="v">click to filter the breakdown</div>':'');
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
+    }else tip.style.opacity=0;
+  });
+  sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;drawSankey();});
+  sk.addEventListener("click",e=>{
+    const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&n.col===2);
+    if(!n||n.name==="Other recipients")return;
+    partyFilter=(partyFilter===n.name)?null:n.name;
+    renderFilterBar();drawSankey();drawMekko();
+  });
+
+  /* ---------------- MEKKO ---------------- */
+  const mk=document.getElementById("mekko"), mctx=mk.getContext("2d");
+  let mBoxes=[], mHot=null;
+
+  function drawMekko(){
+    const W=mk.clientWidth,H=600;
+    mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,W,H);
+    mBoxes=[];
+    if(!COMP||!COMP.recipients||!COMP.recipients.length)return;
+
+    let list=COMP.recipients;
+    if(partyFilter)list=list.filter(r=>r.name===partyFilter);
+    if(!list.length){
+      mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";
+      mctx.fillText(partyFilter+" has no reported donations in this window.",W/2,H/2);return;
+    }
+
+    // Party names sit ABOVE their column, not rotated beneath it.
+    const headH=52, padT=8, padB=10;
+    const plotH=H-headH-padT-padB;
+    const grand=list.reduce((a,r)=>a+r.total,0)||1;
+    const gap=list.length>1?7:0, totalGap=gap*(list.length-1);
+    let x=4;
+
+    list.forEach(r=>{
+      const w=Math.max(30,(r.total/grand)*(W-8-totalGap));
+      const col=partyColour(r.name);
+
+      // header: colour bar, name, total
+      mctx.fillStyle=col;mctx.fillRect(x,padT,w,4);
+      mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
+      mctx.font="700 "+(w>150?14:w>90?12:10.5)+"px Inter, sans-serif";
+      const nm=w>210?r.name:w>130?(r.name.length>20?r.name.slice(0,19)+"…":r.name)
+                 :(r.name.length>13?r.name.slice(0,12)+"…":r.name);
+      mctx.fillText(nm,x,padT+12);
+      mctx.fillStyle="#7c8aa8";mctx.font="500 11px 'IBM Plex Mono', monospace";
+      mctx.fillText(money(r.total),x,padT+30);
+
+      let y=headH+padT;
+      r.segments.slice().sort((a,b)=>b.value-a.value).forEach(s=>{
+        const h=(s.value/r.total)*plotH;
+        const lit=!mHot||mHot.donor===s.donor;
+        mctx.globalAlpha=lit?1:0.2;
+        mctx.fillStyle=DONOR[s.donor]||"#7c8aa8";
+        mctx.fillRect(x,y,w,h);
+        mBoxes.push({x,y,w,h,recipient:r.name,donor:s.donor,value:s.value,share:s.share,count:s.count,total:r.total});
+        if(h>24&&w>110){
+          mctx.fillStyle="rgba(6,9,16,.85)";
+          mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
+          mctx.fillText(s.donor,x+7,y+6);
+          mctx.font="400 10px 'IBM Plex Mono', monospace";
+          mctx.fillText(s.share+"%  "+money(s.value),x+7,y+19);
+        }
+        y+=h;
+      });
+      mctx.globalAlpha=1;
+      x+=w+gap;
+    });
+  }
+
+  mk.addEventListener("mousemove",e=>{
+    const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
+    mHot=b||null;drawMekko();
+    if(b){
+      tip.innerHTML='<div class="t">'+b.recipient+'</div><div class="v">'+b.donor+'</div>'+
+        '<div class="v">'+money(b.value)+' · '+b.share+'% of '+money(b.total)+'</div>'+
+        '<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+'</div>';
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
+    }else tip.style.opacity=0;
+  });
+  mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;drawMekko();});
+
+  /* ---------------- shared ---------------- */
+  function renderFilterBar(){
+    const el=document.getElementById("filterbar");
+    if(!partyFilter){el.innerHTML='<span style="color:#556080">Showing all. Click a recipient in the flow above to filter.</span>';return;}
+    el.innerHTML='<span class="chip"><i class="swatch" style="background:'+partyColour(partyFilter)+'"></i>'+
+      'Filtered to <b>'+partyFilter+'</b><button title="Clear filter" id="clearF">×</button></span>';
+    document.getElementById("clearF").onclick=()=>{partyFilter=null;renderFilterBar();drawSankey();drawMekko();};
+  }
+
+  function renderMeta(){
+    const seen=new Set();
+    (COMP.recipients||[]).forEach(r=>r.segments.forEach(s=>seen.add(s.donor)));
+    document.getElementById("legend").innerHTML=[...seen]
+      .map(d=>'<span><i style="background:'+(DONOR[d]||"#7c8aa8")+'"></i>'+d+'</span>').join("");
+    const fmtM=d=>d?new Date(d).toLocaleDateString("en-GB",{month:"long",year:"numeric"}):"";
+    document.getElementById("window").textContent=
+      COMP.window_start?"Window: "+fmtM(COMP.window_start)+" – "+fmtM(COMP.window_end)+"  ·  ends at last fully reported month":"";
+    const t=(COMP.recipients||[])[0];
+    if(t&&t.segments.length){
+      const lead=t.segments.slice().sort((a,b)=>b.value-a.value)[0];
+      document.getElementById("finding").innerHTML="<strong>"+t.name+"</strong> raised "+money(t.total)+
+        " in this window, "+lead.share+"% of it from "+lead.donor.toLowerCase()+" donors across "+
+        lead.count+" donation"+(lead.count>1?"s":"")+".";
+    }
+  }
+
+  function resize(){
+    dpr=Math.min(devicePixelRatio||1,2);
+    [sk,mk].forEach(c=>{const h=c===sk?520:600;c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
+    drawSankey();drawMekko();
+  }
+
+  async function load(){
+    document.getElementById("sankeyState").style.display="block";
+    try{
+      const [f,c]=await Promise.all([
+        fetch("/api/donations/flows?months="+months+"&min=10000").then(r=>r.json()),
+        fetch("/api/donations/composition?months="+months+"&kind="+encodeURIComponent(kind)+"&top=12").then(r=>r.json())
+      ]);
+      FLOW=f;COMP=c;
+      document.getElementById("sankeyState").style.display="none";
+      document.getElementById("mekkoState").style.display="none";
+      renderMeta();renderFilterBar();resize();
+    }catch(e){
+      document.getElementById("sankeyState").textContent="Donation data unavailable.";
+    }
+  }
+
+  document.querySelectorAll("button.ctl").forEach(b=>{
+    b.addEventListener("click",()=>{
+      const isKind=b.classList.contains("kind");
+      document.querySelectorAll("button.ctl").forEach(x=>{
+        if(x.classList.contains("kind")===isKind)x.setAttribute("aria-pressed","false");
+      });
+      b.setAttribute("aria-pressed","true");
+      if(isKind){kind=b.dataset.kind;partyFilter=null;}
+      else months=Number(b.dataset.months);
+      load();
+    });
+  });
+
+  addEventListener("resize",resize);
+  load();
+})();
+</script>
+</body>
+</html>
