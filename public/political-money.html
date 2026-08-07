@@ -86,20 +86,6 @@
       <button class="ctl" data-months="12" aria-pressed="true">12m</button>
       <button class="ctl" data-months="24" aria-pressed="false">24m</button>
     </div>
-  </div>
-  <div class="window" id="window"></div>
-
-  <h2 class="sec">The flow of money</h2>
-  <p class="sec-dek">Donor type, to the kind of recipient it reaches, to who. Each ribbon is a live
-    current — thickness is money, not the number of cheques. Click a recipient to filter the breakdown below.</p>
-  <canvas id="sankey" height="520"></canvas>
-  <div class="state" id="sankeyState">Loading donation register…</div>
-
-  <h2 class="sec">How each party is funded</h2>
-  <p class="sec-dek">Column width is the total raised; the bands are who it came from. Two parties
-    can raise similar sums from entirely different places.</p>
-
-  <div class="controls">
     <div class="group">
       <span class="lbl">Recipients</span>
       <button class="ctl kind" data-kind="Registered party" aria-pressed="true">Parties</button>
@@ -108,6 +94,19 @@
       <button class="ctl kind" data-kind="All" aria-pressed="false">All</button>
     </div>
   </div>
+  <div class="window" id="window"></div>
+
+  <h2 class="sec">The flow of money</h2>
+  <p class="sec-dek">Which donor type funds which recipient. Each ribbon is a live current — thickness
+    is money — and it is <em>attributed</em>: a ribbon exists only where that donor type actually gave to that
+    recipient. Colour follows the donor. Click a recipient to filter the breakdown below.</p>
+  <canvas id="sankey" height="520"></canvas>
+  <div class="state" id="sankeyState">Loading donation register…</div>
+
+  <h2 class="sec">How each party is funded</h2>
+  <p class="sec-dek">Column width is the total raised; the bands are who it came from. Two parties
+    can raise similar sums from entirely different places.</p>
+
   <div class="filterbar" id="filterbar"></div>
 
   <canvas id="mekko" height="600"></canvas>
@@ -168,7 +167,7 @@
 
   /* ================= SANKEY (liquid) ================= */
   const sk=document.getElementById("sankey"), sctx=sk.getContext("2d");
-  let sBands=[], sNodes=[], sHot=null, sParts=[], sGrand=1, sIntro=0;
+  let sBands=[], sNodes=[], sHot=null, sParts=[], sGrand=1, sIntro=0, sEmpty=null;
 
   function ribbonPath(b){
     sctx.beginPath();sctx.moveTo(b.x1,b.y1);
@@ -181,18 +180,19 @@
 
   function computeSankey(){
     const W=sk.clientWidth,H=520;
-    sBands=[];sNodes=[];sParts=[];
+    sBands=[];sNodes=[];sParts=[];sEmpty=null;
     if(!FLOW||!FLOW.paths||!FLOW.paths.length)return;
-    const padX=Math.max(140,W*0.13), padY=22, colW=13, gap=5;
+    // TRUE attribution: only paths of the selected recipient type; a ribbon is a real donor→recipient amount.
+    const paths=FLOW.paths.filter(p=> kind==="All" ? true : p.type===kind);
+    if(!paths.length){sEmpty="No donations of this recipient type above £10,000 in this window.";return;}
+    const padX=Math.max(150,W*0.14), padY=22, colW=13, gap=5;
     const usable=H-padY*2;
-    const paths=FLOW.paths;
-    const tot=key=>{const m={};paths.forEach(p=>m[p[key]]=(m[p[key]]||0)+p.value);return m;};
-    const dT=tot("donor"), tT=tot("type"), rT=tot("to");
+    const dT={}, rAll={};
+    paths.forEach(p=>{dT[p.donor]=(dT[p.donor]||0)+p.value; rAll[p.to]=(rAll[p.to]||0)+p.value;});
     const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1; sGrand=grand;
     const TOP=12;
-    const topR=Object.keys(rT).sort((a,b)=>rT[b]-rT[a]).slice(0,TOP);
-    const keep=new Set(topR);
-    const rT2={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT2[k]=(rT2[k]||0)+p.value;});
+    const keep=new Set(Object.keys(rAll).sort((a,b)=>rAll[b]-rAll[a]).slice(0,TOP));
+    const rT={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT[k]=(rT[k]||0)+p.value;});
     function place(totals,x){
       const names=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
       const avail=usable-gap*(names.length-1);
@@ -200,29 +200,22 @@
       names.forEach(n=>{const h=Math.max(3,totals[n]/grand*avail);pos[n]={x,y,h,v:totals[n]};y+=h+gap;});
       return pos;
     }
-    const P0=place(dT,padX), P1=place(tT,(W-colW)/2), P2=place(rT2,W-padX-colW);
+    const P0=place(dT,padX), P1=place(rT, W-padX-colW);
     Object.entries(P0).forEach(([n,p])=>sNodes.push({...p,name:n,col:0,colour:DONOR[n]||"#7c8aa8"}));
-    Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:"#4a5a78"}));
-    Object.entries(P2).forEach(([n,p])=>sNodes.push({...p,name:n,col:2,colour:partyColour(n)}));
-    const cur={};
-    const stage=(from,to,pos1,pos2,stageId)=>{
-      const agg={};
-      paths.forEach(p=>{const a=p[from], b=(to==="to"&&!keep.has(p.to))?"Other recipients":p[to];
-        const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;});
-      Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
-        const [a,b]=k.split("||");const p1=pos1[a],p2=pos2[b];if(!p1||!p2)return;
-        const k1=stageId+"a"+a,k2=stageId+"b"+b;
-        const h1=Math.max(1,v/p1.v*p1.h), h2=Math.max(1,v/p2.v*p2.h);
-        const y1=p1.y+(cur[k1]=cur[k1]||0);cur[k1]+=h1;
-        const y2=p2.y+(cur[k2]=cur[k2]||0);cur[k2]+=h2;
-        sBands.push({x1:p1.x+colW,x2:p2.x,y1,h1,y2,h2,v,from:a,to:b,
-          colour:stageId===0?(DONOR[a]||"#7c8aa8"):partyColour(b)});
-      });
-    };
-    stage("donor","type",P0,P1,0);
-    stage("type","to",P1,P2,1);
+    Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:partyColour(n)}));
+    // bands: aggregate the real (donor → recipient) pairs
+    const cur={}, agg={};
+    paths.forEach(p=>{const a=p.donor,b=keep.has(p.to)?p.to:"Other recipients";const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;});
+    Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
+      const [a,b]=k.split("||");const p1=P0[a],p2=P1[b];if(!p1||!p2)return;
+      const k1="a"+a,k2="b"+b;
+      const h1=Math.max(1,v/p1.v*p1.h), h2=Math.max(1,v/p2.v*p2.h);
+      const y1=p1.y+(cur[k1]=cur[k1]||0);cur[k1]+=h1;
+      const y2=p2.y+(cur[k2]=cur[k2]||0);cur[k2]+=h2;
+      sBands.push({x1:p1.x+colW,x2:p2.x,y1,h1,y2,h2,v,from:a,to:b,colour:DONOR[a]||"#7c8aa8"});
+    });
     // seed particles ∝ money
-    const PK=340;let tp=0;
+    const PK=360;let tp=0;
     sBands.forEach((b,bi)=>{const n=Math.max(2,Math.round(b.v/grand*PK));
       for(let k=0;k<n&&tp<900;k++,tp++)sParts.push({bi,f:0.06+Math.random()*0.88,t:Math.random(),
         sp:0.18+Math.random()*0.24,sz:0.8+Math.random()*1.1});});
@@ -233,6 +226,7 @@
     sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
     const bg=sctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
     sctx.fillStyle=bg;sctx.fillRect(0,0,W,H);
+    if(sEmpty){sctx.fillStyle="#556080";sctx.font="400 13px Inter, sans-serif";sctx.textAlign="center";sctx.textBaseline="middle";sctx.fillText(sEmpty,W/2,H/2);return;}
     if(!sBands.length)return;
     sIntro=Math.min(1,sIntro+(ANIMATE?0.02:1));
     // ribbon vessels
@@ -250,20 +244,18 @@
       sctx.globalCompositeOperation="source-over";}
     // nodes + labels
     sNodes.forEach(n=>{
-      const active=partyFilter&&n.col===2&&n.name===partyFilter;
-      sctx.fillStyle=rgbaC(n.colour,0.28);sctx.fillRect(n.x-1.5,n.y-1.5,13+3,n.h+3);
+      const active=partyFilter&&n.col===1&&n.name===partyFilter;
+      sctx.fillStyle=rgbaC(n.colour,0.28);sctx.fillRect(n.x-1.5,n.y-1.5,16,n.h+3);
       sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,13,n.h);
-      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,13+4,n.h+4);}
+      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,17,n.h+4);}
       if(n.h<10)return;
       sctx.fillStyle=active?"#e9eefa":"#c2cbe0";
       sctx.font=(active?"600 ":"500 ")+"11.5px Inter, sans-serif";
       sctx.textBaseline="middle";
       if(n.col===0){sctx.textAlign="right";sctx.fillText(n.name,n.x-8,n.y+n.h/2);}
-      else if(n.col===2){sctx.textAlign="left";
+      else{sctx.textAlign="left";
         const nm=n.name.length>24?n.name.slice(0,23)+"…":n.name;
-        sctx.fillText(nm,n.x+13+8,n.y+n.h/2);}
-      else{sctx.textAlign="center";sctx.font="500 10.5px Inter, sans-serif";
-        sctx.fillText(n.name,n.x+13/2,n.y-7);}
+        sctx.fillText(nm,n.x+21,n.y+n.h/2);}
     });
   }
 
@@ -271,17 +263,17 @@
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h);
     sHot=n?n.name:null; if(!ANIMATE)drawSankeyFrame();
-    sk.style.cursor=(n&&n.col===2)?"pointer":"default";
+    sk.style.cursor=(n&&n.col===1)?"pointer":"default";
     if(n){
       tip.innerHTML='<div class="t">'+n.name+'</div><div class="v">'+money(n.v)+'</div>'+
-        (n.col===2?'<div class="v">click to filter the breakdown</div>':'');
+        (n.col===1?'<div class="v">click to filter the breakdown</div>':'');
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
   sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;if(!ANIMATE)drawSankeyFrame();});
   sk.addEventListener("click",e=>{
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
-    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&n.col===2);
+    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&n.col===1);
     if(!n||n.name==="Other recipients")return;
     partyFilter=(partyFilter===n.name)?null:n.name;
     renderFilterBar();computeMekko(true);scheduleDraw();
