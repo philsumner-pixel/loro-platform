@@ -26,7 +26,7 @@
   .group{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
   .group .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);font-weight:600;margin-right:4px}
   button.ctl{font-family:inherit;font-size:11.5px;padding:6px 11px;border:1px solid var(--line);
-             background:transparent;color:var(--ink3);cursor:pointer}
+             background:transparent;color:var(--ink3);cursor:pointer;transition:.16s}
   button.ctl:hover{color:var(--ink);border-color:rgba(140,160,200,.36)}
   button.ctl[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
   .window{font-size:11.5px;color:var(--ink4);margin:10px 0;font-family:'IBM Plex Mono',monospace}
@@ -90,8 +90,8 @@
   <div class="window" id="window"></div>
 
   <h2 class="sec">The flow of money</h2>
-  <p class="sec-dek">Donor type, to the kind of recipient it reaches, to who. Band thickness is
-    money, not the number of cheques. Click a recipient to filter the breakdown below.</p>
+  <p class="sec-dek">Donor type, to the kind of recipient it reaches, to who. Each ribbon is a live
+    current — thickness is money, not the number of cheques. Click a recipient to filter the breakdown below.</p>
   <canvas id="sankey" height="520"></canvas>
   <div class="state" id="sankeyState">Loading donation register…</div>
 
@@ -131,6 +131,8 @@
 <script>
 (function(){
   const tip=document.getElementById("tip");
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ANIMATE = !reduce;
   let months=12, kind="Registered party", partyFilter=null;
   let FLOW=null, COMP=null, dpr=1;
 
@@ -157,29 +159,40 @@
     "Building Society":"#8fd6c0","Unidentifiable Donor":"#6b7893","Unknown":"#6b7893"};
   const money=v=>v>=1e6?"£"+(v/1e6).toFixed(1)+"m":v>=1e3?"£"+Math.round(v/1e3)+"k":"£"+Math.round(v);
 
-  /* ---------------- SANKEY ---------------- */
+  // colour helpers for the glow
+  const rgbaC=(hex,a)=>{hex=hex.replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);return "rgba("+r+","+g+","+b+","+a+")";};
+  const cub=(a,b,c,d,t)=>{const m=1-t;return m*m*m*a+3*m*m*t*b+3*m*t*t*c+t*t*t*d;};
+  const clamp01=t=>t<0?0:t>1?1:t;
+  const easeOut=t=>1-Math.pow(1-clamp01(t),3);
+
+  /* ================= SANKEY (liquid) ================= */
   const sk=document.getElementById("sankey"), sctx=sk.getContext("2d");
-  let sBands=[], sNodes=[], sHot=null;
+  let sBands=[], sNodes=[], sHot=null, sParts=[], sGrand=1, sIntro=0;
 
-  function drawSankey(){
+  function ribbonPath(b){
+    sctx.beginPath();sctx.moveTo(b.x1,b.y1);
+    sctx.bezierCurveTo((b.x1+b.x2)/2,b.y1,(b.x1+b.x2)/2,b.y2,b.x2,b.y2);
+    sctx.lineTo(b.x2,b.y2+b.h2);
+    sctx.bezierCurveTo((b.x1+b.x2)/2,b.y2+b.h2,(b.x1+b.x2)/2,b.y1+b.h1,b.x1,b.y1+b.h1);
+    sctx.closePath();
+  }
+  const bandLit=b=>!sHot||sHot===b.from||sHot===b.to||(partyFilter&&b.to===partyFilter);
+
+  function computeSankey(){
     const W=sk.clientWidth,H=520;
-    sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
-    sBands=[];sNodes=[];
+    sBands=[];sNodes=[];sParts=[];
     if(!FLOW||!FLOW.paths||!FLOW.paths.length)return;
-
     const padX=Math.max(140,W*0.13), padY=22, colW=13, gap=5;
     const usable=H-padY*2;
     const paths=FLOW.paths;
-
-    const tot=(key)=>{const m={};paths.forEach(p=>m[p[key]]=(m[p[key]]||0)+p.value);return m;};
+    const tot=key=>{const m={};paths.forEach(p=>m[p[key]]=(m[p[key]]||0)+p.value);return m;};
     const dT=tot("donor"), tT=tot("type"), rT=tot("to");
-    const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1;
-
+    const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1; sGrand=grand;
     const TOP=12;
     const topR=Object.keys(rT).sort((a,b)=>rT[b]-rT[a]).slice(0,TOP);
     const keep=new Set(topR);
     const rT2={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT2[k]=(rT2[k]||0)+p.value;});
-
     function place(totals,x){
       const names=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
       const avail=usable-gap*(names.length-1);
@@ -191,14 +204,11 @@
     Object.entries(P0).forEach(([n,p])=>sNodes.push({...p,name:n,col:0,colour:DONOR[n]||"#7c8aa8"}));
     Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:"#4a5a78"}));
     Object.entries(P2).forEach(([n,p])=>sNodes.push({...p,name:n,col:2,colour:partyColour(n)}));
-
     const cur={};
     const stage=(from,to,pos1,pos2,stageId)=>{
       const agg={};
-      paths.forEach(p=>{
-        const a=p[from], b=(to==="to"&&!keep.has(p.to))?"Other recipients":p[to];
-        const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;
-      });
+      paths.forEach(p=>{const a=p[from], b=(to==="to"&&!keep.has(p.to))?"Other recipients":p[to];
+        const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;});
       Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
         const [a,b]=k.split("||");const p1=pos1[a],p2=pos2[b];if(!p1||!p2)return;
         const k1=stageId+"a"+a,k2=stageId+"b"+b;
@@ -211,23 +221,39 @@
     };
     stage("donor","type",P0,P1,0);
     stage("type","to",P1,P2,1);
+    // seed particles ∝ money
+    const PK=340;let tp=0;
+    sBands.forEach((b,bi)=>{const n=Math.max(2,Math.round(b.v/grand*PK));
+      for(let k=0;k<n&&tp<900;k++,tp++)sParts.push({bi,f:0.06+Math.random()*0.88,t:Math.random(),
+        sp:0.18+Math.random()*0.24,sz:0.8+Math.random()*1.1});});
+  }
 
-    sBands.forEach(b=>{
-      const lit=!sHot||sHot===b.from||sHot===b.to||(partyFilter&&b.to===partyFilter);
-      sctx.globalAlpha=lit?0.5:0.09;
-      sctx.fillStyle=b.colour;
-      sctx.beginPath();sctx.moveTo(b.x1,b.y1);
-      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y1,(b.x1+b.x2)/2,b.y2,b.x2,b.y2);
-      sctx.lineTo(b.x2,b.y2+b.h2);
-      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y2+b.h2,(b.x1+b.x2)/2,b.y1+b.h1,b.x1,b.y1+b.h1);
-      sctx.closePath();sctx.fill();
-    });
+  function drawSankeyFrame(){
+    const W=sk.clientWidth,H=520;
+    sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
+    const bg=sctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    sctx.fillStyle=bg;sctx.fillRect(0,0,W,H);
+    if(!sBands.length)return;
+    sIntro=Math.min(1,sIntro+(ANIMATE?0.02:1));
+    // ribbon vessels
+    sBands.forEach(b=>{const lit=bandLit(b);sctx.globalAlpha=(lit?0.15:0.03)*sIntro;sctx.fillStyle=b.colour;ribbonPath(b);sctx.fill();});
     sctx.globalAlpha=1;
-
+    // particles
+    if(ANIMATE){sctx.globalCompositeOperation="lighter";
+      for(const p of sParts){const b=sBands[p.bi];if(!b)continue;const lit=bandLit(b);
+        p.t+=p.sp*sDt;if(p.t>=1)p.t-=1;
+        const a=(lit?0.9:0.05)*sIntro;if(a<=0.02)continue;
+        const sy=b.y1+p.f*b.h1, ty=b.y2+p.f*b.h2, mx=(b.x1+b.x2)/2;
+        const x=cub(b.x1,mx,mx,b.x2,p.t), y=cub(sy,sy,ty,ty,p.t);
+        const r=p.sz*(1+0.4*Math.sin((p.t+p.f)*6.28));
+        sctx.fillStyle=rgbaC(b.colour,a);sctx.beginPath();sctx.arc(x,y,r,0,6.283);sctx.fill();}
+      sctx.globalCompositeOperation="source-over";}
+    // nodes + labels
     sNodes.forEach(n=>{
       const active=partyFilter&&n.col===2&&n.name===partyFilter;
-      sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,colW,n.h);
-      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,colW+4,n.h+4);}
+      sctx.fillStyle=rgbaC(n.colour,0.28);sctx.fillRect(n.x-1.5,n.y-1.5,13+3,n.h+3);
+      sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,13,n.h);
+      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,13+4,n.h+4);}
       if(n.h<10)return;
       sctx.fillStyle=active?"#e9eefa":"#c2cbe0";
       sctx.font=(active?"600 ":"500 ")+"11.5px Inter, sans-serif";
@@ -235,16 +261,16 @@
       if(n.col===0){sctx.textAlign="right";sctx.fillText(n.name,n.x-8,n.y+n.h/2);}
       else if(n.col===2){sctx.textAlign="left";
         const nm=n.name.length>24?n.name.slice(0,23)+"…":n.name;
-        sctx.fillText(nm,n.x+colW+8,n.y+n.h/2);}
+        sctx.fillText(nm,n.x+13+8,n.y+n.h/2);}
       else{sctx.textAlign="center";sctx.font="500 10.5px Inter, sans-serif";
-        sctx.fillText(n.name,n.x+colW/2,n.y-7);}
+        sctx.fillText(n.name,n.x+13/2,n.y-7);}
     });
   }
 
   sk.addEventListener("mousemove",e=>{
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h);
-    sHot=n?n.name:null;drawSankey();
+    sHot=n?n.name:null; if(!ANIMATE)drawSankeyFrame();
     sk.style.cursor=(n&&n.col===2)?"pointer":"default";
     if(n){
       tip.innerHTML='<div class="t">'+n.name+'</div><div class="v">'+money(n.v)+'</div>'+
@@ -252,79 +278,97 @@
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
-  sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;drawSankey();});
+  sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;if(!ANIMATE)drawSankeyFrame();});
   sk.addEventListener("click",e=>{
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&n.col===2);
     if(!n||n.name==="Other recipients")return;
     partyFilter=(partyFilter===n.name)?null:n.name;
-    renderFilterBar();drawSankey();drawMekko();
+    renderFilterBar();computeMekko(true);scheduleDraw();
   });
 
-  /* ---------------- MEKKO ---------------- */
+  /* ================= MEKKO (animated build) ================= */
   const mk=document.getElementById("mekko"), mctx=mk.getContext("2d");
-  let mBoxes=[], mHot=null;
+  let mCols=[], mBoxes=[], mHot=null, mGeom=null, mEmpty=null, mClock=0, mSeen=false;
+  const STAG=0.10, DUR=0.62;
 
-  function drawMekko(){
+  function computeMekko(replay){
     const W=mk.clientWidth,H=600;
-    mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,W,H);
-    mBoxes=[];
-    if(!COMP||!COMP.recipients||!COMP.recipients.length)return;
-
+    mCols=[];mBoxes=[];mEmpty=null;
+    if(!COMP||!COMP.recipients||!COMP.recipients.length){if(replay){mClock=0;mSeen=mVis;}return;}
     let list=COMP.recipients;
     if(partyFilter)list=list.filter(r=>r.name===partyFilter);
-    if(!list.length){
-      mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";
-      mctx.fillText(partyFilter+" has no reported donations in this window.",W/2,H/2);return;
-    }
-
-    // Party names sit ABOVE their column, not rotated beneath it.
+    if(!list.length){mEmpty=partyFilter+" has no reported donations in this window.";if(replay){mClock=0;mSeen=mVis;}return;}
     const headH=52, padT=8, padB=10;
     const plotH=H-headH-padT-padB;
+    mGeom={headH,padT,plotH,plotTop:headH+padT,plotBot:headH+padT+plotH};
     const grand=list.reduce((a,r)=>a+r.total,0)||1;
     const gap=list.length>1?7:0, totalGap=gap*(list.length-1);
     let x=4;
-
     list.forEach(r=>{
       const w=Math.max(30,(r.total/grand)*(W-8-totalGap));
-      const col=partyColour(r.name);
-
-      // header: colour bar, name, total
-      mctx.fillStyle=col;mctx.fillRect(x,padT,w,4);
-      mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
-      mctx.font="700 "+(w>150?14:w>90?12:10.5)+"px Inter, sans-serif";
-      const nm=w>210?r.name:w>130?(r.name.length>20?r.name.slice(0,19)+"…":r.name)
-                 :(r.name.length>13?r.name.slice(0,12)+"…":r.name);
-      mctx.fillText(nm,x,padT+12);
-      mctx.fillStyle="#7c8aa8";mctx.font="500 11px 'IBM Plex Mono', monospace";
-      mctx.fillText(money(r.total),x,padT+30);
-
+      const col={x,w,name:r.name,total:r.total,colour:partyColour(r.name),segs:[]};
       let y=headH+padT;
       r.segments.slice().sort((a,b)=>b.value-a.value).forEach(s=>{
         const h=(s.value/r.total)*plotH;
-        const lit=!mHot||mHot.donor===s.donor;
-        mctx.globalAlpha=lit?1:0.2;
-        mctx.fillStyle=DONOR[s.donor]||"#7c8aa8";
-        mctx.fillRect(x,y,w,h);
+        col.segs.push({donor:s.donor,value:s.value,share:s.share,count:s.count,y,h,color:DONOR[s.donor]||"#7c8aa8"});
         mBoxes.push({x,y,w,h,recipient:r.name,donor:s.donor,value:s.value,share:s.share,count:s.count,total:r.total});
-        if(h>24&&w>110){
-          mctx.fillStyle="rgba(6,9,16,.85)";
-          mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
-          mctx.fillText(s.donor,x+7,y+6);
-          mctx.font="400 10px 'IBM Plex Mono', monospace";
-          mctx.fillText(s.share+"%  "+money(s.value),x+7,y+19);
-        }
         y+=h;
       });
+      mCols.push(col);x+=w+gap;
+    });
+    if(replay){mClock=0;mSeen=mVis;}
+  }
+
+  function drawMekkoFrame(){
+    const W=mk.clientWidth,H=600;
+    mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,W,H);
+    const bg=mctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    mctx.fillStyle=bg;mctx.fillRect(0,0,W,H);
+    if(mEmpty){mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";mctx.fillText(mEmpty,W/2,H/2);return;}
+    if(!mCols.length||!mGeom)return;
+    const {padT,plotH,plotTop,plotBot}=mGeom;
+    mCols.forEach((c,i)=>{
+      const p=ANIMATE?easeOut((mClock - i*STAG)/DUR):1;
+      if(p<=0.001)return;
+      const lift=(1-p)*12;
+      // header
+      mctx.globalAlpha=p;
+      mctx.fillStyle=c.colour;mctx.fillRect(c.x,padT+lift,c.w,4);
+      mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
+      mctx.font="700 "+(c.w>150?14:c.w>90?12:10.5)+"px Inter, sans-serif";
+      const nm=c.w>210?c.name:c.w>130?(c.name.length>20?c.name.slice(0,19)+"…":c.name)
+                 :(c.name.length>13?c.name.slice(0,12)+"…":c.name);
+      mctx.fillText(nm,c.x,padT+12+lift);
+      mctx.fillStyle="#7c8aa8";mctx.font="500 11px 'IBM Plex Mono', monospace";
+      mctx.fillText(money(c.total),c.x,padT+30+lift);
       mctx.globalAlpha=1;
-      x+=w+gap;
+      // reveal bottom-up via clip
+      const clipTop=plotTop + plotH*(1-p) + lift;
+      mctx.save();mctx.beginPath();mctx.rect(c.x-2,clipTop,c.w+4,plotBot+lift-clipTop+2);mctx.clip();
+      c.segs.forEach(s=>{
+        const lit=!mHot||mHot.donor===s.donor;const al=lit?1:0.22;
+        const yy=s.y+lift;
+        mctx.globalAlpha=al;mctx.fillStyle=s.color;mctx.fillRect(c.x,yy,c.w,s.h);
+        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,22));
+        gg.addColorStop(0,"rgba(255,255,255,.12)");gg.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,22));
+        mctx.globalAlpha=al*0.55;mctx.fillStyle="rgba(6,9,16,.7)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
+        mctx.globalAlpha=al;
+        if(s.h>24&&c.w>110){
+          mctx.fillStyle="rgba(6,9,16,.85)";mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
+          mctx.fillText(s.donor,c.x+7,yy+6);
+          mctx.font="400 10px 'IBM Plex Mono', monospace";mctx.fillText(s.share+"%  "+money(s.value),c.x+7,yy+19);
+        }
+      });
+      mctx.restore();mctx.globalAlpha=1;
     });
   }
 
   mk.addEventListener("mousemove",e=>{
     const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
-    mHot=b||null;drawMekko();
+    mHot=b||null;if(!ANIMATE)drawMekkoFrame();
     if(b){
       tip.innerHTML='<div class="t">'+b.recipient+'</div><div class="v">'+b.donor+'</div>'+
         '<div class="v">'+money(b.value)+' · '+b.share+'% of '+money(b.total)+'</div>'+
@@ -333,7 +377,7 @@
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
-  mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;drawMekko();});
+  mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;if(!ANIMATE)drawMekkoFrame();});
   mk.addEventListener("click",e=>{
     const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
@@ -366,7 +410,6 @@
       return;
     }
     const ch=n=>String(n).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-
     let rows;
     if(drillView==="donors"){
       rows=d.donors.map(x=>'<tr>'+
@@ -390,7 +433,6 @@
       rows='<table><thead><tr><th>Donor</th><th class="num">Amount</th><th class="num">Accepted</th>'+
            '<th>Type</th></tr></thead><tbody>'+rows+'</tbody></table>';
     }
-
     el.innerHTML='<div class="drill">'+
       '<button class="close" id="drillClose">Close ×</button>'+
       '<h3>'+ch(d._donorType)+' donations to '+ch(d._recipient)+'</h3>'+
@@ -401,11 +443,8 @@
         '<button data-view="donors" aria-pressed="'+(drillView==="donors")+'">By donor</button>'+
         '<button data-view="each" aria-pressed="'+(drillView==="each")+'">Every donation</button>'+
       '</div>'+rows+'</div>';
-
     document.getElementById("drillClose").onclick=()=>{DRILL=null;el.innerHTML="";};
-    el.querySelectorAll(".tabs button").forEach(b=>{
-      b.onclick=()=>{drillView=b.dataset.view;renderDrill();};
-    });
+    el.querySelectorAll(".tabs button").forEach(b=>{b.onclick=()=>{drillView=b.dataset.view;renderDrill();};});
   }
 
   /* ---------------- shared ---------------- */
@@ -414,7 +453,7 @@
     if(!partyFilter){el.innerHTML='<span style="color:#556080">Showing all. Click a recipient in the flow above to filter.</span>';return;}
     el.innerHTML='<span class="chip"><i class="swatch" style="background:'+partyColour(partyFilter)+'"></i>'+
       'Filtered to <b>'+partyFilter+'</b><button title="Clear filter" id="clearF">×</button></span>';
-    document.getElementById("clearF").onclick=()=>{partyFilter=null;renderFilterBar();drawSankey();drawMekko();};
+    document.getElementById("clearF").onclick=()=>{partyFilter=null;renderFilterBar();computeMekko(true);scheduleDraw();};
   }
 
   function renderMeta(){
@@ -434,11 +473,11 @@
     }
   }
 
-  function resize(){
+  function sizeCanvases(){
     dpr=Math.min(devicePixelRatio||1,2);
-    [sk,mk].forEach(c=>{const h=c===sk?520:600;c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
-    drawSankey();drawMekko();
+    [[sk,520],[mk,600]].forEach(([c,h])=>{c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
   }
+  function resize(){sizeCanvases();computeSankey();computeMekko(false);scheduleDraw();if(!ANIMATE){drawSankeyFrame();drawMekkoFrame();}}
 
   async function load(){
     document.getElementById("sankeyState").style.display="block";
@@ -451,7 +490,10 @@
       document.getElementById("sankeyState").style.display="none";
       document.getElementById("mekkoState").style.display="none";
       DRILL=null;document.getElementById("drill").innerHTML="";
-      renderMeta();renderFilterBar();resize();
+      renderMeta();renderFilterBar();
+      sizeCanvases();sIntro=0;computeSankey();computeMekko(true);
+      scheduleDraw();
+      if(!ANIMATE){drawSankeyFrame();drawMekkoFrame();}
     }catch(e){
       document.getElementById("sankeyState").textContent="Donation data unavailable.";
     }
@@ -469,6 +511,32 @@
       load();
     });
   });
+
+  /* ---------------- animation loop (pausable) ---------------- */
+  let rafOn=false, sVis=false, mVis=false, tabVis=true, lastTs=0, sDt=0;
+  const needLoop=()=>ANIMATE && tabVis && (sVis||mVis);
+  function tick(ts){
+    if(!rafOn)return;
+    sDt=Math.min(0.05,(ts-lastTs)/1000||0);lastTs=ts;mClock+=sDt;
+    if(sVis)drawSankeyFrame();
+    if(mVis)drawMekkoFrame();
+    if(needLoop())requestAnimationFrame(tick);else rafOn=false;
+  }
+  function scheduleDraw(){
+    if(ANIMATE){if(needLoop()&&!rafOn){rafOn=true;lastTs=0;requestAnimationFrame(tick);}}
+    else{if(sVis)drawSankeyFrame();if(mVis)drawMekkoFrame();}
+  }
+  if("IntersectionObserver" in window){
+    const io=new IntersectionObserver(es=>{
+      es.forEach(e=>{const vis=e.isIntersecting;
+        if(e.target===sk)sVis=vis;
+        if(e.target===mk){mVis=vis;if(vis&&!mSeen){mClock=0;mSeen=true;}}
+      });
+      scheduleDraw();
+    },{threshold:0.04});
+    io.observe(sk);io.observe(mk);
+  }else{sVis=mVis=true;}
+  document.addEventListener("visibilitychange",()=>{tabVis=!document.hidden;scheduleDraw();});
 
   addEventListener("resize",resize);
   load();
