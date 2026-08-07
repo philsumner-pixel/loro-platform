@@ -8,12 +8,12 @@ export default function Masthead() {
         </div>
 
         <nav className="loro-mast-nav">
-          <a href="#" className="active">News</a>
-          <a href="#">Markets</a>
-          <a href="#">FX Tracker</a>
-          <a href="#">Funding</a>
-          <a href="/dashboard">Intelligence</a>
-          <a href="#">Regulation</a>
+          <a href="/news" className="active">News</a>
+          <a href="/lane/money-markets">Markets</a>
+          <a href="/political-money.html">Political Money</a>
+          <a href="/lane/ownership-control">Ownership</a>
+          <a href="/intelligence">Intelligence</a>
+          <a href="/lane/regulation-enforcement">Regulation</a>
         </nav>
 
         <div className="loro-mast-right">

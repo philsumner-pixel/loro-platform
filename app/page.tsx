@@ -33,7 +33,7 @@ export default function HomePage() {
           <div className="loro-section-wrap">
             <div className="loro-section-hd" style={{ marginBottom: 1 }}>
               <span className="loro-section-title">Latest intelligence</span>
-              <a className="loro-section-link" href="#">All stories →</a>
+              <a className="loro-section-link" href="/news">All stories →</a>
             </div>
             <ArticleGrid variant="intelligence" />
           </div>
@@ -64,7 +64,7 @@ export default function HomePage() {
                 <span className="loro-section-title">Markets</span>
                 <SponsorTag name={undefined} />
               </div>
-              <a className="loro-section-link" href="#">All market coverage →</a>
+              <a className="loro-section-link" href="/lane/money-markets">All market coverage →</a>
             </div>
             <ArticleGrid variant="markets" />
           </div>

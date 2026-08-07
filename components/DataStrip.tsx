@@ -1,140 +1,148 @@
-'use client'
+import { createClient } from '@supabase/supabase-js'
 
-import { useState, useEffect } from 'react'
+// Live figures from Loro's own ingest.
+//
+// This strip previously carried entirely fabricated numbers — an invented
+// Modulr Series C, a "Settlement Index 8.2s" (a figure we established was not
+// real), and a Barclays CFO share sale. Sitting under the masthead labelled
+// "LIVE DATA", that is the most damaging kind of placeholder. Everything here
+// now comes from a source in the registry and says where it came from.
 
-interface FXWidget {
-  rate: number | null
-  pct: number | null
-  dateLabel: string
+interface Metric {
+  eyebrow: string
+  sub: string
+  value: string
+  change?: string
+  changeDir?: 'up' | 'down'
+  note: string
 }
 
-function getPrevDate(): string {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().split('T')[0]
+function sb() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }
 
-export default function DataStrip() {
-  const [fx, setFx] = useState<FXWidget>({ rate: null, pct: null, dateLabel: '' })
+const money = (v: number) =>
+  v >= 1e6 ? `£${(v / 1e6).toFixed(1)}m` : v >= 1e3 ? `£${Math.round(v / 1e3)}k` : `£${Math.round(v)}`
 
-  useEffect(() => {
-    async function loadFX() {
-      try {
-        const [todayRes, prevRes] = await Promise.all([
-          fetch('https://api.frankfurter.app/latest?from=GBP&to=EUR'),
-          fetch(`https://api.frankfurter.app/${getPrevDate()}?from=GBP&to=EUR`),
-        ])
-        const today = await todayRes.json()
-        const prev = await prevRes.json()
+async function getMetrics(): Promise<Metric[]> {
+  const out: Metric[] = []
+  try {
+    const client = sb()
 
-        const rate = today.rates.EUR as number
-        const prevRate = prev.rates.EUR as number
-        const pct = ((rate - prevRate) / prevRate) * 100
+    // 1. ECB reference rate — from our own ECB ingest.
+    const { data: ecb } = await client
+      .from('loro_source_events')
+      .select('raw_content')
+      .eq('source', 'ecb_data')
+      .order('event_date', { ascending: false })
+      .limit(20)
 
-        const d = new Date(today.date + 'T12:00:00Z')
-        const dateLabel = d.toLocaleDateString('en-GB', {
-          day: 'numeric',
-          month: 'short',
-        })
+    const fx = (ecb ?? []).find(r => {
+      const s = (r.raw_content as { series?: string })?.series ?? ''
+      return s.toLowerCase().includes('pound sterling')
+    })?.raw_content as { value?: number; previous?: number; period?: string } | undefined
 
-        setFx({ rate, pct, dateLabel })
-      } catch {
-        // fail silently
-      }
+    if (fx?.value) {
+      const chg = fx.previous ? fx.value - fx.previous : 0
+      out.push({
+        eyebrow: 'FX reference', sub: 'EUR / GBP',
+        value: fx.value.toFixed(4),
+        change: chg ? `${chg > 0 ? '↑' : '↓'} ${Math.abs(chg).toFixed(4)}` : undefined,
+        changeDir: chg > 0 ? 'up' : 'down',
+        note: `ECB reference rate · ${fx.period ?? ''}`,
+      })
     }
-    loadFX()
-  }, [])
 
-  const rateStr = fx.rate ? fx.rate.toFixed(4) : null
-  const pctStr =
-    fx.pct !== null
-      ? `${fx.pct >= 0 ? '↑ +' : '↓ '}${Math.abs(fx.pct).toFixed(2)}%`
-      : null
-  const pctClass =
-    fx.pct !== null
-      ? fx.pct >= 0
-        ? 'loro-dw-chg loro-dw-up'
-        : 'loro-dw-chg loro-dw-dn'
-      : 'loro-dw-chg loro-dw-flat'
+    // 2. Largest political donation in the corpus.
+    const { data: don } = await client
+      .from('loro_source_events')
+      .select('raw_content, source_metadata')
+      .eq('source', 'electoral_commission')
+      .order('event_date', { ascending: false })
+      .limit(400)
+
+    const biggest = (don ?? [])
+      .map(d => ({
+        rc: d.raw_content as { donor?: string; donee?: string },
+        v: Number((d.source_metadata as { value_gbp?: number })?.value_gbp ?? 0),
+      }))
+      .sort((a, b) => b.v - a.v)[0]
+
+    if (biggest?.v) {
+      out.push({
+        eyebrow: 'Political funding', sub: biggest.rc?.donee ?? 'Reported donation',
+        value: money(biggest.v),
+        note: `${biggest.rc?.donor ?? 'Donor'} · Electoral Commission`,
+      })
+    }
+
+    // 3. Grid carbon intensity — National Grid ESO.
+    const { data: grid } = await client
+      .from('loro_source_events')
+      .select('raw_content, event_date')
+      .eq('source', 'carbon_intensity')
+      .order('event_date', { ascending: false })
+      .limit(1)
+
+    const g = grid?.[0]?.raw_content as
+      { avg_intensity?: number; renewables_pct?: number } | undefined
+    if (g?.avg_intensity) {
+      out.push({
+        eyebrow: 'GB grid', sub: 'Carbon intensity',
+        value: `${g.avg_intensity}g`,
+        note: `CO2/kWh · renewables ${g.renewables_pct ?? '—'}% · National Grid ESO`,
+      })
+    }
+
+    // 4. Corpus scale — what the engine is actually reading.
+    const { count: events } = await client
+      .from('loro_source_events')
+      .select('id', { count: 'exact', head: true })
+    const { data: srcs } = await client
+      .from('loro_source_registry').select('slug').eq('is_active', true)
+
+    if (events) {
+      out.push({
+        eyebrow: 'Loro engine', sub: 'Primary records held',
+        value: events.toLocaleString(),
+        note: `${(srcs ?? []).length} live sources · see /sources`,
+      })
+    }
+  } catch {
+    // Strip is non-critical.
+  }
+  return out
+}
+
+export default async function DataStrip() {
+  const metrics = await getMetrics()
+  if (!metrics.length) return null
 
   return (
     <div className="loro-data-strip">
       <div className="loro-wrap">
-      <div className="loro-data-lbl">Live data</div>
-
-      <div className="loro-data-widgets">
-
-        {/* FX Pulse — live from ECB */}
-        <div className="loro-dw">
-          <div className="loro-dw-eye">FX Pulse</div>
-          <div className="loro-dw-sub">GBP / EUR</div>
-          <div className="loro-dw-row">
-            {rateStr ? (
-              <>
-                <span className="loro-dw-val">{rateStr}</span>
-                <span className={pctClass}>{pctStr}</span>
-              </>
-            ) : (
-              <span
-                className="loro-sk"
-                style={{ width: 80, height: 22 }}
-              />
-            )}
-          </div>
-          <div className="loro-dw-note">
-            {fx.dateLabel
-              ? `ECB mid-market · ${fx.dateLabel}`
-              : 'ECB mid-market · Loading…'}
-          </div>
+        <div className="loro-data-lbl">Live data</div>
+        <div className="loro-data-widgets">
+          {metrics.map(m => (
+            <div className="loro-dw" key={m.eyebrow}>
+              <div className="loro-dw-eye">{m.eyebrow}</div>
+              <div className="loro-dw-sub">{m.sub}</div>
+              <div className="loro-dw-row">
+                <span className="loro-dw-val" style={{ fontSize: 20 }}>{m.value}</span>
+                {m.change && (
+                  <span className={`loro-dw-chg ${m.changeDir === 'up' ? 'loro-dw-up' : 'loro-dw-dn'}`}>
+                    {m.change}
+                  </span>
+                )}
+              </div>
+              <div className="loro-dw-note">{m.note}</div>
+            </div>
+          ))}
         </div>
-
-        {/* Latest Funding — placeholder until pipeline connected */}
-        <div className="loro-dw">
-          <div className="loro-dw-eye">Latest Funding</div>
-          <div className="loro-dw-sub">Modulr · Series C</div>
-          <div className="loro-dw-row">
-            <span className="loro-dw-val" style={{ fontSize: 20 }}>
-              £95m
-            </span>
-            <span
-              className="loro-dw-chg"
-              style={{ color: 'var(--ink4)', fontSize: 12 }}
-            >
-              raised
-            </span>
-          </div>
-          <div className="loro-dw-note">4 hours ago · Valuation £600m</div>
-        </div>
-
-        {/* Settlement Index — placeholder until index built */}
-        <div className="loro-dw">
-          <div className="loro-dw-eye">Settlement Index</div>
-          <div className="loro-dw-sub">SEPA Instant</div>
-          <div className="loro-dw-row">
-            <span className="loro-dw-val" style={{ fontSize: 20 }}>
-              8.2s
-            </span>
-            <span className="loro-dw-chg loro-dw-up">↓ −0.3s</span>
-          </div>
-          <div className="loro-dw-note">EU average · Q2 2026 benchmark</div>
-        </div>
-
-        {/* Ownership Intel — placeholder until PDMR pipeline connected */}
-        <div className="loro-dw">
-          <div className="loro-dw-eye">Ownership Intel</div>
-          <div className="loro-dw-sub">CFO · Barclays PLC</div>
-          <div className="loro-dw-row">
-            <span className="loro-dw-val" style={{ fontSize: 20 }}>
-              £2.1m
-            </span>
-            <span className="loro-dw-chg loro-dw-dn">sold</span>
-          </div>
-          <div className="loro-dw-note">Form PDMR · FCA · 6h ago</div>
-        </div>
-
       </div>
-
-      </div>{/* /loro-wrap */}
     </div>
   )
 }

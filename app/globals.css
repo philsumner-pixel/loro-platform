@@ -1475,3 +1475,41 @@ input { font-family: inherit; }
 }
 
 .loro-ticker-src { font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; opacity: 0.45; margin-left: 4px; }
+
+/* ── All stories archive ────────────────────────────────────────────── */
+.loro-archive { max-width: 860px; margin: 0 auto; padding: 40px 24px 70px; }
+.loro-archive-head { padding-bottom: 20px; border-bottom: 2px solid var(--ink); }
+.loro-archive-head h1 {
+  font-family: 'Playfair Display', serif; font-size: clamp(30px,5vw,44px);
+  font-weight: 700; line-height: 1.06; letter-spacing: -0.01em;
+}
+.loro-archive-head p { font-size: 14.5px; color: var(--ink3); margin-top: 10px; line-height: 1.65; }
+.loro-archive-day { margin-top: 34px; }
+.loro-archive-day h2 {
+  font-size: 10.5px; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--ink4); font-weight: 600; padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+.loro-archive-item {
+  display: block; padding: 20px 0; border-bottom: 1px solid var(--border);
+  text-decoration: none; color: inherit;
+}
+.loro-archive-item:hover h3 { color: var(--blue-mid, #2C5AA0); }
+.loro-archive-item .cat {
+  font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--blue-mid, #2C5AA0); font-weight: 600;
+}
+.loro-archive-item h3 {
+  font-family: 'Playfair Display', serif; font-size: 21px; font-weight: 600;
+  line-height: 1.3; margin-top: 7px; transition: color 0.15s ease;
+}
+.loro-archive-item p { font-size: 14.5px; color: var(--ink3); line-height: 1.6; margin-top: 8px; }
+.loro-archive-item .meta {
+  display: flex; gap: 7px; align-items: center; flex-wrap: wrap;
+  font-size: 11.5px; color: var(--ink5); margin-top: 10px;
+}
+.loro-archive-item .badge {
+  font-size: 10px; letter-spacing: 0.04em; padding: 2px 7px;
+  border: 1px solid var(--border); color: var(--ink4);
+}
+.loro-archive-empty { padding: 50px 0; color: var(--ink4); font-size: 15px; line-height: 1.7; }
