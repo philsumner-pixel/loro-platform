@@ -20,6 +20,7 @@ interface Match {
   match_reason: string
   status: string
   decided_by: string | null
+  decided_at: string | null
   evidence: {
     name_a?: string; name_b?: string
     company_number_a?: string | null; company_number_b?: string | null
@@ -34,6 +35,20 @@ export default function EntityMatchPanel() {
   const [status, setStatus] = useState('pending')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
+  // Who is reviewing. Decisions were previously all attributed to the literal
+  // string 'newsroom', so the audit trail recorded THAT a call was made but not
+  // WHO made it — which is the part that matters if a merge is ever questioned.
+  const [reviewer, setReviewer] = useState('')
+
+  useEffect(() => {
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('loro_reviewer') : null
+    if (saved) setReviewer(saved)
+  }, [])
+
+  function saveReviewer(v: string) {
+    setReviewer(v)
+    if (typeof window !== 'undefined') window.localStorage.setItem('loro_reviewer', v)
+  }
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -48,12 +63,19 @@ export default function EntityMatchPanel() {
   useEffect(() => { load() }, [load])
 
   async function decide(m: Match, decision: 'confirmed' | 'rejected', keep?: string) {
+    if (!reviewer.trim()) {
+      alert('Add your name first — merges are recorded against the person who made the call.')
+      return
+    }
     setBusy(m.id)
     try {
       const res = await fetch('/api/entities/matches', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ match_id: m.id, decision, keep_entity: keep }),
+        body: JSON.stringify({
+          match_id: m.id, decision, keep_entity: keep,
+          decided_by: reviewer.trim() || 'unattributed',
+        }),
       })
       const d = await res.json()
       if (d.error) throw new Error(d.error)
@@ -65,6 +87,25 @@ export default function EntityMatchPanel() {
       }))
     } catch (e) {
       alert(e instanceof Error ? e.message : 'Decision failed')
+    } finally { setBusy(null) }
+  }
+
+  // Merges link rather than destroy, so they can be reversed. Without this the
+  // audit trail would record a mistake without offering any way to correct it.
+  async function undo(m: Match) {
+    if (!confirm('Separate these entities again? Events return to their original records.')) return
+    setBusy(m.id)
+    try {
+      const res = await fetch('/api/entities/matches', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ match_id: m.id, decided_by: reviewer.trim() || 'unattributed' }),
+      })
+      const d = await res.json()
+      if (d.error) throw new Error(d.error)
+      load()
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Undo failed')
     } finally { setBusy(null) }
   }
 
@@ -89,9 +130,21 @@ export default function EntityMatchPanel() {
             automatically — a wrong merge would assert that two real people are one.
           </p>
         </div>
-        <button className="loro-nr-btn primary" onClick={generate} disabled={busy === 'generate'}>
-          {busy === 'generate' ? 'Scanning…' : 'Find new candidates'}
-        </button>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0 }}>
+          <input
+            value={reviewer}
+            onChange={e => saveReviewer(e.target.value)}
+            placeholder="Your name"
+            title="Recorded against every decision you make"
+            style={{
+              padding: '7px 11px', border: '1px solid var(--border)', fontSize: 12.5,
+              fontFamily: 'Inter, sans-serif', outline: 'none', width: 130,
+            }}
+          />
+          <button className="loro-nr-btn primary" onClick={generate} disabled={busy === 'generate'}>
+            {busy === 'generate' ? 'Scanning…' : 'Find new candidates'}
+          </button>
+        </div>
       </div>
 
       <div className="loro-em-tabs">
@@ -153,9 +206,17 @@ export default function EntityMatchPanel() {
                       onClick={() => decide(m, 'rejected')}>Different — never ask again</button>
                   </div>
                 )}
-                {status !== 'pending' && m.decided_by && (
+                {status !== 'pending' && (
                   <div className="loro-em-decided">
-                    {m.status} by {m.decided_by}
+                    <strong>{m.status === 'confirmed' ? 'Merged' : 'Kept separate'}</strong>
+                    {' by '}{m.decided_by ?? 'unattributed'}
+                    {m.decided_at && ` · ${new Date(m.decided_at).toLocaleString('en-GB', {
+                      day: 'numeric', month: 'short', year: 'numeric',
+                      hour: '2-digit', minute: '2-digit' })}`}
+                    {m.status === 'confirmed' && (
+                      <button className="loro-nr-btn" style={{ marginLeft: 10, fontSize: 11, padding: '4px 9px' }}
+                        onClick={() => undo(m)} disabled={busy === m.id}>Undo merge</button>
+                    )}
                   </div>
                 )}
               </div>

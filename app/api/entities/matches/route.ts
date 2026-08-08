@@ -65,6 +65,23 @@ export async function POST(req: Request) {
   }
 }
 
+// Reverse a confirmed merge.
+export async function PATCH(req: Request) {
+  try {
+    const { match_id, decided_by } = await req.json()
+    if (!match_id) {
+      return NextResponse.json({ error: 'match_id required' }, { status: 400 })
+    }
+    const { data, error } = await sb().rpc('loro_undo_entity_match', {
+      match_id, undone_by: decided_by ?? 'newsroom',
+    })
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json(data)
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'failed' }, { status: 500 })
+  }
+}
+
 // Generate fresh candidates.
 export async function PUT() {
   try {
