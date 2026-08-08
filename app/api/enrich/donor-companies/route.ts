@@ -126,8 +126,13 @@ export async function GET(req: Request) {
             registration_number: p.identification?.registration_number,
           }))
 
-        // Upsert the donor as an entity, so it joins the graph properly.
-        const { data: ent } = await sb
+        // Upsert the donor as an entity so it joins the graph. This silently
+        // failed for weeks: there was no unique index on companies_house_id, so
+        // onConflict had nothing to match, the upsert errored, and entity_id
+        // was written null — leaving every UK event unattached to the entity
+        // graph and the cross-source signal permanently silent. The error is
+        // now surfaced rather than swallowed.
+        const { data: ent, error: entErr } = await sb
           .from('loro_entities')
           .upsert({
             name: profile.company_name ?? (d.donor_names ?? [])[0] ?? num,
@@ -138,6 +143,10 @@ export async function GET(req: Request) {
           }, { onConflict: 'companies_house_id' })
           .select('id')
           .single()
+
+        if (entErr || !ent?.id) {
+          errors.push(`${num}: entity upsert failed — ${entErr?.message ?? 'no id returned'}`)
+        }
 
         // Record the control structure as a source event so it enters the
         // corpus, gets embedded, and can be clustered alongside everything else.
