@@ -9,6 +9,7 @@ import PanelErrorBoundary from '@/components/PanelErrorBoundary'
 import SeoPanel from '@/components/SeoPanel'
 import AnswerBlockPanel from '@/components/AnswerBlockPanel'
 import AiVisibilityPanel from '@/components/AiVisibilityPanel'
+import EntityMatchPanel from '@/components/EntityMatchPanel'
 const RichEditor = dynamic(() => import('@/components/RichEditor'), {
   ssr: false,
   loading: () => <div className="loro-rt-loading">Loading editor…</div>,
@@ -128,6 +129,7 @@ const TABS = [
   { key: 'signal_digest',   label: 'Signal Digest', statuses: [] },
   { key: 'video',           label: 'Video', statuses: [] },
   { key: 'ai_visibility',   label: 'AI Visibility', statuses: [] },
+  { key: 'entities',        label: 'Entities', statuses: [] },
 ]
 
 const TRIGGER_LABELS: Record<string, string> = {
@@ -1061,7 +1063,7 @@ export default function NewsroomPage() {
           </div>
         )}
 
-        {!loading && activeTab.key !== 'signal_digest' && activeTab.key !== 'video' && activeTab.key !== 'ai_visibility' && (
+        {!loading && activeTab.key !== 'signal_digest' && activeTab.key !== 'video' && activeTab.key !== 'ai_visibility' && activeTab.key !== 'entities' && (
           <div className="loro-lane-bar">
             <span className="loro-lane-label">Lane</span>
             <button className={`loro-lane-pill${laneFilter === null ? ' active' : ''}`}
@@ -1140,6 +1142,7 @@ export default function NewsroomPage() {
 
         {/* Signal Digest tab */}
         {activeTab.key === 'ai_visibility' && <AiVisibilityPanel />}
+        {activeTab.key === 'entities' && <EntityMatchPanel />}
 
         {activeTab.key === 'signal_digest' && (
           <div>
