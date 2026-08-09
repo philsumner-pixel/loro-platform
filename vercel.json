@@ -83,6 +83,10 @@
     {
       "path": "/api/ingest/uk-sanctions",
       "schedule": "55 7 * * *"
+    },
+    {
+      "path": "/api/entities/link",
+      "schedule": "50 */4 * * *"
     }
   ]
 }
