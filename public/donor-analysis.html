@@ -24,7 +24,7 @@
   .controls{display:flex;gap:5px;flex-wrap:wrap;margin:14px 0 8px;align-items:center}
   .controls .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);font-weight:600;margin-right:5px}
   button.ctl{font-family:inherit;font-size:11.5px;padding:6px 11px;border:1px solid var(--line);
-             background:transparent;color:var(--ink3);cursor:pointer}
+             background:transparent;color:var(--ink3);cursor:pointer;transition:.16s}
   button.ctl:hover{color:var(--ink);border-color:rgba(140,160,200,.36)}
   button.ctl[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
   .tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s;background:#020509;
@@ -57,21 +57,21 @@
 
   <h2 class="sec">How concentrated is each party's funding?</h2>
   <p class="sec-dek">Each bar is the share of a party's money coming from its single largest
-    donor, its top three, and its top ten. A long first segment means a party depends on very
-    few people.</p>
+    donor, its top three, and its top ten. A long, bright first segment means a party depends on very
+    few people — and it pulses harder the more concentrated it is.</p>
   <canvas id="conc" height="440"></canvas>
   <div class="lead" id="concLead"></div>
 
   <h2 class="sec">Who gives to more than one recipient</h2>
-  <p class="sec-dek">Donors on the left, recipients on the right. Only those giving to two or
-    more appear — the people and companies funding across party lines, which is a different
-    question from who funds whom.</p>
+  <p class="sec-dek">Donors on the left, recipients on the right — each thread is a live current of
+    money. Only those giving to two or more appear: the people and companies funding across party
+    lines, which is a different question from who funds whom. Hover a name to trace it.</p>
   <canvas id="net" height="520"></canvas>
   <div class="lead" id="netLead"></div>
 
   <h2 class="sec">When the money arrives</h2>
   <p class="sec-dek">Reported donations by week. Clustering ahead of an election, a leadership
-    contest or a significant vote is the pattern worth asking about.</p>
+    contest or a significant vote is the pattern worth asking about. Hover a week for the split.</p>
   <canvas id="time" height="360"></canvas>
 
   <p class="note">
@@ -87,6 +87,9 @@
 <script>
 (function(){
   const tip=document.getElementById("tip");
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ANIMATE=!reduce;
+  const LOWQ = reduce || (window.matchMedia&&matchMedia("(pointer: coarse)").matches) || (navigator.hardwareConcurrency||8)<=4;
   let DATA=null, months=12, dpr=1;
   const money=v=>v>=1e6?"£"+(v/1e6).toFixed(1)+"m":v>=1e3?"£"+Math.round(v/1e3)+"k":"£"+Math.round(v);
   const PARTY={"Reform UK":"#12B6CF","Conservative and Unionist Party":"#0087DC","Labour Party":"#E4003B",
@@ -94,42 +97,85 @@
     "Scottish National Party (SNP)":"#FDF38E","Plaid Cymru":"#005B54","Labour Together":"#8663c4",
     "Your Party":"#9b7bff","Sinn Féin":"#326760"};
   const pc=n=>PARTY[n]||"#8fa3c8";
+  const rgbaC=(hex,a)=>{hex=(hex||"#8fa3c8").replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    return "rgba("+parseInt(hex.slice(0,2),16)+","+parseInt(hex.slice(2,4),16)+","+parseInt(hex.slice(4,6),16)+","+a+")";};
+  const mixHex=(hex,to,a)=>{hex=hex.replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    return "#"+[0,2,4].map(i=>{const x=parseInt(hex.slice(i,i+2),16);return Math.round(x+(to-x)*a).toString(16).padStart(2,"0");}).join("");};
+  const easeOut=t=>t<=0?0:t>=1?1:1-Math.pow(1-t,3);
+  const cub=(a,b,c,d,t)=>{const m=1-t;return m*m*m*a+3*m*m*t*b+3*m*t*t*c+t*t*t*d;};
 
-  /* ---- concentration ---- */
-  const cc=document.getElementById("conc"), cx=cc.getContext("2d");
-  let cBoxes=[];
-  function drawConc(){
-    const W=cc.clientWidth,H=440; cx.setTransform(dpr,0,0,dpr,0,0); cx.clearRect(0,0,W,H); cBoxes=[];
-    if(!DATA)return;
-    const rows=DATA.concentration.slice(0,9);
-    if(!rows.length)return;
+  const cc=document.getElementById("conc"), ccx=cc.getContext("2d");
+  const nc=document.getElementById("net"), ncx=nc.getContext("2d");
+  const tc=document.getElementById("time"), tcx=tc.getContext("2d");
+
+  /* =============== CONCENTRATION =============== */
+  let cBoxes=[], cParts=[], cGeom=null;
+  function computeConc(){
+    cBoxes=[];cParts=[];cGeom=null;
+    if(!DATA||!DATA.concentration)return;
+    const W=cc.clientWidth,H=440;
+    const rows=DATA.concentration.slice(0,9); if(!rows.length)return;
     const padL=Math.min(230,W*0.26), padR=70, padT=16, gap=8;
     const barH=Math.min(34,(H-padT*2-gap*(rows.length-1))/rows.length);
     const plotW=W-padL-padR;
+    cGeom={rows,padL,padR,padT,gap,barH,plotW,W,H};
     rows.forEach((r,i)=>{
-      const y=padT+i*(barH+gap);
-      cx.fillStyle="rgba(255,255,255,.04)"; cx.fillRect(padL,y,plotW,barH);
-      const segs=[{p:r.top1,c:pc(r.recipient),l:"Largest donor"},
-                  {p:Math.max(0,r.top3-r.top1),c:pc(r.recipient)+"aa",l:"2nd–3rd"},
-                  {p:Math.max(0,r.top10-r.top3),c:pc(r.recipient)+"55",l:"4th–10th"}];
-      let x=padL;
-      segs.forEach(s=>{
-        const w=plotW*(s.p/100); if(w<=0)return;
-        cx.fillStyle=s.c; cx.fillRect(x,y,w,barH);
-        cBoxes.push({x,y,w,h:barH,r,seg:s});
-        x+=w;
-      });
-      cx.fillStyle="#e9eefa"; cx.font="600 12.5px Inter, sans-serif"; cx.textAlign="right"; cx.textBaseline="middle";
-      const nm=r.recipient.length>28?r.recipient.slice(0,27)+"…":r.recipient;
-      cx.fillText(nm,padL-10,y+barH/2-6);
-      cx.fillStyle="#556080"; cx.font="400 10.5px 'IBM Plex Mono', monospace";
-      cx.fillText(money(r.total)+" · "+r.donors+" donors",padL-10,y+barH/2+8);
-      cx.fillStyle="#c2cbe0"; cx.font="600 12px 'IBM Plex Mono', monospace"; cx.textAlign="left";
-      cx.fillText(r.top3+"%",W-padR+10,y+barH/2);
+      const y=padT+i*(barH+gap), fill=plotW*(Math.min(100,r.top10)/100);
+      const n=LOWQ?4:Math.max(4,Math.round(fill/26));
+      for(let k=0;k<n;k++)cParts.push({i,t:Math.random(),off:0.12+Math.random()*0.76,sp:0.14+Math.random()*0.16,sz:0.8+Math.random()*1.0});
     });
-    cx.fillStyle="#556080"; cx.font="500 10px Inter, sans-serif"; cx.textAlign="left";
-    cx.fillText("Share from top 10 donors →",padL,H-8);
-    cx.textAlign="right"; cx.fillText("top 3",W-padR+34,H-8);
+  }
+  function drawConc(){
+    const W=cc.clientWidth,H=440; ccx.setTransform(dpr,0,0,dpr,0,0);
+    const bg=ccx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    ccx.fillStyle=bg;ccx.fillRect(0,0,W,H);
+    if(!cGeom)return;
+    const {rows,padL,padR,padT,gap,barH,plotW}=cGeom; cBoxes=[];
+    rows.forEach((r,i)=>{
+      const y=padT+i*(barH+gap), rev=reveal(vConc,i,0.07,0.6), col=pc(r.recipient);
+      // track
+      ccx.fillStyle="rgba(255,255,255,.035)";ccx.fillRect(padL,y,plotW,barH);
+      const segDef=[{p:r.top1,a:1,l:"Largest donor"},
+                    {p:Math.max(0,r.top3-r.top1),a:0.62,l:"2nd–3rd"},
+                    {p:Math.max(0,r.top10-r.top3),a:0.34,l:"4th–10th"}];
+      let x=padL;
+      segDef.forEach(s=>{
+        const full=plotW*(s.p/100), w=full*rev; if(full<=0)return;
+        if(w>0.5){
+          const gd=ccx.createLinearGradient(0,y,0,y+barH);
+          gd.addColorStop(0,rgbaC(mixHex(col,255,0.22),s.a));gd.addColorStop(0.5,rgbaC(col,s.a));gd.addColorStop(1,rgbaC(mixHex(col,0,0.2),s.a));
+          ccx.fillStyle=gd;ccx.fillRect(x,y,w,barH);
+          const sh=ccx.createLinearGradient(0,y,0,y+Math.min(barH,10));sh.addColorStop(0,"rgba(255,255,255,.22)");sh.addColorStop(1,"rgba(255,255,255,0)");
+          ccx.fillStyle=sh;ccx.fillRect(x,y,w,Math.min(barH,10));
+        }
+        cBoxes.push({x,y,w:full,h:barH,r,seg:{p:s.p,l:s.l}});
+        x+=full;
+      });
+      // concentration pulse: the more top1 dominates, the harder the head glows
+      const headW=plotW*(r.top1/100)*rev;
+      if(ANIMATE&&headW>1){const pulse=0.5+0.5*Math.sin(clock*2.2+i);const g=0.10+0.5*(r.top1/100);
+        ccx.globalCompositeOperation="lighter";const rg=ccx.createLinearGradient(padL,0,padL+headW,0);
+        rg.addColorStop(0,rgbaC(col,g*pulse));rg.addColorStop(1,rgbaC(col,0));
+        ccx.fillStyle=rg;ccx.fillRect(padL,y,headW,barH);ccx.globalCompositeOperation="source-over";}
+      // flowing money current
+      if(ANIMATE){const fill=plotW*(Math.min(100,r.top10)/100)*rev;
+        ccx.globalCompositeOperation="lighter";
+        for(const p of cParts){if(p.i!==i)continue;p.t+=p.sp*dt;if(p.t>=1)p.t-=1;
+          const px=padL+p.t*fill, py=y+p.off*barH, a=(px<padL+headW?0.9:0.5)*rev;if(a<=0.03)continue;
+          ccx.fillStyle=rgbaC(mixHex(col,255,0.4),a);ccx.beginPath();ccx.arc(px,py,p.sz,0,6.283);ccx.fill();}
+        ccx.globalCompositeOperation="source-over";}
+      // labels
+      const la=rev;
+      ccx.fillStyle=rgbaC("#e9eefa",la);ccx.font="600 12.5px Inter, sans-serif";ccx.textAlign="right";ccx.textBaseline="middle";
+      ccx.fillText(r.recipient.length>28?r.recipient.slice(0,27)+"…":r.recipient,padL-10,y+barH/2-6);
+      ccx.fillStyle=rgbaC("#7c8aa8",la);ccx.font="400 10.5px 'IBM Plex Mono', monospace";
+      ccx.fillText(money(r.total)+" · "+r.donors+" donors",padL-10,y+barH/2+8);
+      ccx.fillStyle=rgbaC("#c2cbe0",la);ccx.font="600 12px 'IBM Plex Mono', monospace";ccx.textAlign="left";
+      ccx.fillText(Math.round(r.top3)+"%",cGeom.W-padR+10,y+barH/2);
+    });
+    ccx.fillStyle="#556080";ccx.font="500 10px Inter, sans-serif";ccx.textAlign="left";
+    ccx.fillText("Share from top 10 donors →",padL,H-8);
+    ccx.textAlign="right";ccx.fillText("top 3",cGeom.W-padR+34,H-8);
   }
   cc.addEventListener("mousemove",e=>{
     const r=cc.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
@@ -141,12 +187,12 @@
   });
   cc.addEventListener("mouseleave",()=>tip.style.opacity=0);
 
-  /* ---- network ---- */
-  const nc=document.getElementById("net"), nx=nc.getContext("2d");
-  let nEdges=[],nHot=null;
-  function drawNet(){
-    const W=nc.clientWidth,H=520; nx.setTransform(dpr,0,0,dpr,0,0); nx.clearRect(0,0,W,H); nEdges=[];
-    if(!DATA||!DATA.network.length)return;
+  /* =============== NETWORK =============== */
+  let nEdges=[], nParts=[], nHot=null, nGeom=null;
+  function computeNet(){
+    nEdges=[];nParts=[];nGeom=null;
+    if(!DATA||!DATA.network||!DATA.network.length)return;
+    const W=nc.clientWidth,H=520;
     const donors=[...new Set(DATA.network.map(d=>d.donor))].slice(0,22);
     const dset=new Set(donors);
     const edges=DATA.network.filter(d=>dset.has(d.donor));
@@ -157,91 +203,172 @@
     donors.forEach((n,i)=>dpos[n]=padY+dy*(i+0.5));
     recips.forEach((n,i)=>rpos[n]=padY+ry*(i+0.5));
     const maxV=Math.max(...edges.map(e=>e.value),1);
-
-    edges.forEach(e=>{
-      const y1=dpos[e.donor],y2=rpos[e.recipient]; if(y1==null||y2==null)return;
-      const lit=!nHot||nHot===e.donor||nHot===e.recipient;
-      nx.globalAlpha=lit?0.5:0.07; nx.strokeStyle=pc(e.recipient);
-      nx.lineWidth=Math.max(1,Math.sqrt(e.value/maxV)*7);
-      nx.beginPath(); nx.moveTo(padX,y1);
-      nx.bezierCurveTo(W/2,y1,W/2,y2,W-padX,y2); nx.stroke();
-      nEdges.push({...e,y1,y2});
-    });
-    nx.globalAlpha=1; nx.font="500 11px Inter, sans-serif"; nx.textBaseline="middle";
-    donors.forEach(n=>{
-      nx.fillStyle="#5b8cff"; nx.beginPath(); nx.arc(padX,dpos[n],3.5,0,7); nx.fill();
-      nx.fillStyle=(!nHot||nHot===n)?"#c2cbe0":"#3d4860"; nx.textAlign="right";
-      nx.fillText(n.length>26?n.slice(0,25)+"…":n,padX-9,dpos[n]);
-    });
-    recips.forEach(n=>{
-      nx.fillStyle=pc(n); nx.beginPath(); nx.arc(W-padX,rpos[n],4,0,7); nx.fill();
-      nx.fillStyle=(!nHot||nHot===n)?"#c2cbe0":"#3d4860"; nx.textAlign="left";
-      nx.fillText(n.length>26?n.slice(0,25)+"…":n,W-padX+9,rpos[n]);
-    });
+    edges.forEach(e=>{const y1=dpos[e.donor],y2=rpos[e.recipient];if(y1==null||y2==null)return;
+      const ei=nEdges.length;
+      nEdges.push({...e,y1,y2,w:Math.max(1,Math.sqrt(e.value/maxV)*7),col:pc(e.recipient)});
+      const n=LOWQ?3:Math.max(3,Math.round(Math.sqrt(e.value/maxV)*16));
+      for(let k=0;k<n;k++)nParts.push({ei,t:Math.random(),off:(Math.random()*2-1),sp:0.16+Math.random()*0.2,sz:0.8+Math.random()*1.0});});
+    nGeom={W,H,padX,donors,recips,dpos,rpos};
+  }
+  function drawNet(){
+    const W=nc.clientWidth,H=520; ncx.setTransform(dpr,0,0,dpr,0,0);
+    const bg=ncx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    ncx.fillStyle=bg;ncx.fillRect(0,0,W,H);
+    if(!nGeom)return;
+    const {padX,donors,recips,dpos,rpos}=nGeom;
+    const rev=reveal(vNet,0,0,0.9);
+    const lit=e=>!nHot||nHot===e.donor||nHot===e.recipient;
+    // base threads
+    nEdges.forEach(e=>{const a=(lit(e)?0.16:0.03)*rev;if(a<=0.01)return;
+      ncx.strokeStyle=rgbaC(e.col,a);ncx.lineWidth=e.w;
+      ncx.beginPath();ncx.moveTo(padX,e.y1);ncx.bezierCurveTo(W/2,e.y1,W/2,e.y2,W-padX,e.y2);ncx.stroke();});
+    // particle currents
+    if(ANIMATE){ncx.globalCompositeOperation="lighter";
+      for(const p of nParts){const e=nEdges[p.ei];if(!e)continue;const l=lit(e);
+        p.t+=p.sp*dt;if(p.t>=1)p.t-=1;
+        const a=(l?0.9:0.05)*rev;if(a<=0.03)continue;
+        const bx=cub(padX,W/2,W/2,W-padX,p.t), by=cub(e.y1,e.y1,e.y2,e.y2,p.t);
+        const nxp=cub(padX,W/2,W/2,W-padX,Math.min(1,p.t+0.01)), nyp=cub(e.y1,e.y1,e.y2,e.y2,Math.min(1,p.t+0.01));
+        const ang=Math.atan2(nyp-by,nxp-bx), off=p.off*e.w*0.4;
+        ncx.fillStyle=rgbaC(mixHex(e.col,255,0.35),a);ncx.beginPath();
+        ncx.arc(bx+Math.cos(ang+1.57)*off,by+Math.sin(ang+1.57)*off,p.sz,0,6.283);ncx.fill();}
+      ncx.globalCompositeOperation="source-over";}
+    // nodes + labels
+    ncx.font="500 11px Inter, sans-serif";ncx.textBaseline="middle";
+    donors.forEach(n=>{const a=(!nHot||nHot===n)?1:0.32;
+      ncx.fillStyle=rgbaC("#5b8cff",0.35*rev);ncx.beginPath();ncx.arc(padX,dpos[n],6,0,6.283);ncx.fill();
+      ncx.fillStyle=rgbaC("#7fa6ff",a*rev);ncx.beginPath();ncx.arc(padX,dpos[n],3.4,0,6.283);ncx.fill();
+      ncx.fillStyle=rgbaC(nHot&&nHot!==n?"#3d4860":"#c2cbe0",rev);ncx.textAlign="right";
+      ncx.fillText(n.length>26?n.slice(0,25)+"…":n,padX-9,dpos[n]);});
+    recips.forEach(n=>{const a=(!nHot||nHot===n)?1:0.32, col=pc(n);
+      ncx.fillStyle=rgbaC(col,0.4*rev);ncx.beginPath();ncx.arc(W-padX,rpos[n],7,0,6.283);ncx.fill();
+      ncx.fillStyle=rgbaC(col,a*rev);ncx.beginPath();ncx.arc(W-padX,rpos[n],4,0,6.283);ncx.fill();
+      ncx.fillStyle=rgbaC(nHot&&nHot!==n?"#3d4860":"#c2cbe0",rev);ncx.textAlign="left";
+      ncx.fillText(n.length>26?n.slice(0,25)+"…":n,W-padX+9,rpos[n]);});
   }
   nc.addEventListener("mousemove",e=>{
     const r=nc.getBoundingClientRect(),my=e.clientY-r.top,mx=e.clientX-r.left;
-    const W=nc.clientWidth,padX=Math.min(200,W*0.2);
+    if(!nGeom){return;} const {W,padX}=nGeom;
     let hit=null;
-    nEdges.forEach(ed=>{ if(Math.abs(mx-padX)<70&&Math.abs(my-ed.y1)<7)hit=ed.donor;
-                         if(Math.abs(mx-(W-padX))<70&&Math.abs(my-ed.y2)<7)hit=ed.recipient; });
-    nHot=hit; drawNet();
-    if(hit){
-      const rel=nEdges.filter(e=>e.donor===hit||e.recipient===hit);
-      const tot=rel.reduce((a,e)=>a+e.value,0);
+    nEdges.forEach(ed=>{ if(Math.abs(mx-padX)<70&&Math.abs(my-ed.y1)<8)hit=ed.donor;
+                         if(Math.abs(mx-(nc.clientWidth-padX))<70&&Math.abs(my-ed.y2)<8)hit=ed.recipient; });
+    nHot=hit; if(!ANIMATE)drawNet();
+    if(hit){const rel=nEdges.filter(e=>e.donor===hit||e.recipient===hit);const tot=rel.reduce((a,e)=>a+e.value,0);
       tip.innerHTML='<div class="t">'+hit+'</div><div class="v">'+money(tot)+' across '+rel.length+' link'+(rel.length>1?'s':'')+'</div>';
-      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
-    } else tip.style.opacity=0;
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";}
+    else tip.style.opacity=0;
   });
-  nc.addEventListener("mouseleave",()=>{nHot=null;tip.style.opacity=0;drawNet();});
+  nc.addEventListener("mouseleave",()=>{nHot=null;tip.style.opacity=0;if(!ANIMATE)drawNet();});
 
-  /* ---- timeline ---- */
-  const tc=document.getElementById("time"), tx=tc.getContext("2d");
-  function drawTime(){
-    const W=tc.clientWidth,H=360; tx.setTransform(dpr,0,0,dpr,0,0); tx.clearRect(0,0,W,H);
-    if(!DATA||!DATA.timeline.length)return;
+  /* =============== TIMELINE =============== */
+  let tGeom=null, tHot=-1;
+  function computeTime(){
+    tGeom=null;
+    if(!DATA||!DATA.timeline||!DATA.timeline.length)return;
+    const W=tc.clientWidth,H=360;
     const weeks={};
-    DATA.timeline.forEach(t=>{ (weeks[t.week]=weeks[t.week]||{}); weeks[t.week][t.recipient]=t.total; });
+    DATA.timeline.forEach(t=>{(weeks[t.week]=weeks[t.week]||{});weeks[t.week][t.recipient]=t.total;});
     const keys=Object.keys(weeks).sort();
     const parties=[...new Set(DATA.timeline.map(t=>t.recipient))]
       .map(p=>({p,v:DATA.timeline.filter(t=>t.recipient===p).reduce((a,t)=>a+t.total,0)}))
       .sort((a,b)=>b.v-a.v).slice(0,6).map(x=>x.p);
     const maxW=Math.max(...keys.map(k=>parties.reduce((a,p)=>a+(weeks[k][p]||0),0)),1);
-    const padL=56,padB=26,padT=14;
-    const bw=Math.max(1,(W-padL-10)/keys.length-1);
-    keys.forEach((k,i)=>{
-      let y=H-padB;
-      const x=padL+i*((W-padL-10)/keys.length);
-      parties.forEach(p=>{
-        const v=weeks[k][p]||0; if(!v)return;
-        const h=(v/maxW)*(H-padT-padB);
-        tx.fillStyle=pc(p); tx.fillRect(x,y-h,bw,h); y-=h;
-      });
-    });
-    tx.strokeStyle="rgba(140,160,200,.2)"; tx.beginPath(); tx.moveTo(padL,H-padB); tx.lineTo(W-10,H-padB); tx.stroke();
-    tx.fillStyle="#556080"; tx.font="400 10px 'IBM Plex Mono', monospace"; tx.textAlign="right";
-    tx.fillText(money(maxW),padL-8,padT+8);
-    tx.textAlign="left";
-    if(keys.length){ tx.fillText(keys[0],padL,H-8);
-      tx.textAlign="right"; tx.fillText(keys[keys.length-1],W-10,H-8); }
+    const padL=56,padB=26,padT=14, step=(W-padL-10)/keys.length, bw=Math.max(1,step-1);
+    tGeom={W,H,weeks,keys,parties,maxW,padL,padB,padT,step,bw};
   }
+  function drawTime(){
+    const W=tc.clientWidth,H=360; tcx.setTransform(dpr,0,0,dpr,0,0);
+    const bg=tcx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    tcx.fillStyle=bg;tcx.fillRect(0,0,W,H);
+    if(!tGeom)return;
+    const {weeks,keys,parties,maxW,padL,padB,padT,step,bw}=tGeom;
+    const plotH=H-padT-padB;
+    keys.forEach((k,i)=>{
+      const rev=reveal(vTime,i,0.008,0.5); if(rev<=0.001)return;
+      const x=padL+i*step; let y=H-padB;
+      const total=parties.reduce((a,p)=>a+(weeks[k][p]||0),0);
+      const hot=i===tHot;
+      parties.forEach(p=>{const v=weeks[k][p]||0;if(!v)return;
+        const h=(v/maxW)*plotH*rev; const col=pc(p);
+        const gd=tcx.createLinearGradient(0,y-h,0,y);
+        gd.addColorStop(0,rgbaC(mixHex(col,255,0.28),hot?1:0.92));gd.addColorStop(1,rgbaC(mixHex(col,0,0.15),hot?1:0.92));
+        tcx.fillStyle=gd;tcx.fillRect(x,y-h,bw,h);
+        y-=h;});
+      // glowing cap on the column top ∝ height (peaks glow more), gentle pulse
+      if(total>0){const th=(total/maxW)*plotH*rev, ty=H-padB-th;
+        const glow=(hot?1:0.5)+(ANIMATE?0.25*Math.sin(clock*1.6+i*0.3):0);
+        tcx.globalCompositeOperation="lighter";
+        const cap=tcx.createRadialGradient(x+bw/2,ty,0,x+bw/2,ty,Math.max(6,bw*1.6));
+        cap.addColorStop(0,rgbaC(pc(parties[0]),0.5*glow*(0.4+0.6*(th/plotH))));cap.addColorStop(1,"rgba(0,0,0,0)");
+        tcx.fillStyle=cap;tcx.fillRect(x-bw,ty-8,bw*3,16);
+        tcx.globalCompositeOperation="source-over";
+        tcx.fillStyle=rgbaC("#e9eefa",(hot?0.9:0.5)*rev);tcx.fillRect(x,ty-1,bw,1.4);}
+    });
+    tcx.strokeStyle="rgba(140,160,200,.2)";tcx.beginPath();tcx.moveTo(padL,H-padB);tcx.lineTo(W-10,H-padB);tcx.stroke();
+    tcx.fillStyle="#556080";tcx.font="400 10px 'IBM Plex Mono', monospace";tcx.textAlign="right";
+    tcx.fillText(money(maxW),padL-8,padT+8);
+    tcx.textAlign="left";
+    if(keys.length){tcx.fillText(keys[0],padL,H-8);tcx.textAlign="right";tcx.fillText(keys[keys.length-1],W-10,H-8);}
+  }
+  tc.addEventListener("mousemove",e=>{
+    const r=tc.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
+    if(!tGeom){return;} const {keys,weeks,parties,padL,step,padB,padT}=tGeom;
+    const i=Math.floor((mx-padL)/step);
+    if(i>=0&&i<keys.length&&my<tc.clientHeight-padB+4){tHot=i;if(!ANIMATE)drawTime();
+      const k=keys[i];const rows=parties.map(p=>({p,v:weeks[k][p]||0})).filter(o=>o.v>0).sort((a,b)=>b.v-a.v);
+      const tot=rows.reduce((a,o)=>a+o.v,0);
+      tip.innerHTML='<div class="t">Week of '+k+'</div><div class="v">'+money(tot)+' reported</div>'+
+        rows.slice(0,4).map(o=>'<div class="v">'+o.p+' — '+money(o.v)+'</div>').join("");
+      tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";}
+    else{tHot=-1;tip.style.opacity=0;if(!ANIMATE)drawTime();}
+  });
+  tc.addEventListener("mouseleave",()=>{tHot=-1;tip.style.opacity=0;if(!ANIMATE)drawTime();});
 
+  /* =============== leads =============== */
   function leads(){
     if(!DATA||!DATA.concentration.length)return;
     const top=[...DATA.concentration].sort((a,b)=>b.top1-a.top1)[0];
     document.getElementById("concLead").innerHTML=
-      "<b>"+top.topDonor+"</b> alone accounts for <b>"+top.top1+"%</b> of "+top.recipient+
-      "'s "+money(top.total)+" — from "+top.donors+" donors in total. Its top three give "+top.top3+"%.";
-    const spread=[...DATA.network].sort((a,b)=>b.recipientCount-a.recipientCount)[0];
+      "<b>"+top.topDonor+"</b> alone accounts for <b>"+Math.round(top.top1)+"%</b> of "+top.recipient+
+      "'s "+money(top.total)+" — from "+top.donors+" donors in total. Its top three give "+Math.round(top.top3)+"%.";
+    const spread=[...(DATA.network||[])].sort((a,b)=>b.recipientCount-a.recipientCount)[0];
     if(spread) document.getElementById("netLead").innerHTML=
       "<b>"+spread.donor+"</b> gave to <b>"+spread.recipientCount+" different recipients</b>, "+
       money(spread.donorTotal)+" in total — the widest spread in the register for this period.";
   }
 
+  /* =============== animation loop (pausable) =============== */
+  let clock=0,last=0,dt=0,rafOn=false,tabVis=true;
+  const vConc={c:cc,vis:false,t0:-1}, vNet={c:nc,vis:false,t0:-1}, vTime={c:tc,vis:false,t0:-1};
+  const V=[vConc,vNet,vTime];
+  function reveal(v,i,stag,dur){if(!ANIMATE)return 1;if(v.t0<0)return 0;return easeOut((clock-v.t0-i*stag)/dur);}
+  const anyVis=()=>V.some(v=>v.vis);
+  const needLoop=()=>ANIMATE&&tabVis&&anyVis();
+  function tick(ts){
+    if(!rafOn)return;
+    dt=Math.min(0.05,(ts-last)/1000||0);last=ts;clock+=dt;
+    if(vConc.vis)drawConc();
+    if(vNet.vis)drawNet();
+    if(vTime.vis)drawTime();
+    if(needLoop())requestAnimationFrame(tick);else rafOn=false;
+  }
+  function scheduleDraw(){
+    if(ANIMATE){if(needLoop()&&!rafOn){rafOn=true;last=0;requestAnimationFrame(tick);}}
+    else{if(vConc.vis)drawConc();if(vNet.vis)drawNet();if(vTime.vis)drawTime();}
+  }
+  if("IntersectionObserver" in window){
+    const map=new Map([[cc,vConc],[nc,vNet],[tc,vTime]]);
+    const io=new IntersectionObserver(es=>{es.forEach(e=>{const v=map.get(e.target);if(!v)return;
+      v.vis=e.isIntersecting; if(v.vis&&v.t0<0)v.t0=clock;});scheduleDraw();},{threshold:0.03});
+    [cc,nc,tc].forEach(c=>io.observe(c));
+  }else{V.forEach(v=>{v.vis=true;v.t0=0;});}
+  document.addEventListener("visibilitychange",()=>{tabVis=!document.hidden;scheduleDraw();});
+
   function resize(){
-    dpr=Math.min(devicePixelRatio||1,2);
+    dpr=Math.min(devicePixelRatio||1,LOWQ?1.5:2);
     [[cc,440],[nc,520],[tc,360]].forEach(([c,h])=>{c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
-    drawConc();drawNet();drawTime();
+    computeConc();computeNet();computeTime();
+    if(!ANIMATE){drawConc();drawNet();drawTime();}else scheduleDraw();
   }
 
   async function load(){
@@ -250,7 +377,9 @@
       const res=await fetch("/api/donations/analytics?months="+months);
       DATA=await res.json();
       document.getElementById("state").style.display="none";
-      leads(); resize();
+      leads();
+      V.forEach(v=>{v.t0=v.vis?clock:-1;}); // replay reveal for whatever's on screen
+      resize();
     }catch(e){ document.getElementById("state").textContent="Donation data unavailable."; }
   }
   document.querySelectorAll("button.ctl").forEach(b=>b.addEventListener("click",()=>{
