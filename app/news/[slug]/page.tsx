@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { splitForAd } from '@/lib/article-body'
 import { buildArticleSchema, buildFaqSchema } from '@/lib/article-schema'
+import CoverageMeter from '@/components/CoverageMeter'
 import TickerStrip from '@/components/TickerStrip'
 import Masthead from '@/components/Masthead'
 import ArticleAd from '@/components/ArticleAd'
@@ -157,6 +158,17 @@ export default async function ArticlePage({ params }: PageProps) {
                 )}
               </figure>
             )}
+
+            {/* How covered this story is elsewhere, and how that has moved
+                since publication. */}
+            <CoverageMeter
+              status={article.coverage_status}
+              coverageNow={article.coverage_now}
+              coverageAtPublish={article.coverage_at_publish}
+              wasFirst={article.was_first}
+              checkedAt={article.coverage_checked_at}
+              publishedAt={article.published_at}
+            />
 
             {/* Answer block — visible (so it's crawlable and genuinely useful)
                 and mirrored into schema.org so engines can lift it. */}

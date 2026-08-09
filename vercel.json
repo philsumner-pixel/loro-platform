@@ -87,6 +87,10 @@
     {
       "path": "/api/entities/link",
       "schedule": "50 */4 * * *"
+    },
+    {
+      "path": "/api/coverage/recheck",
+      "schedule": "10 */6 * * *"
     }
   ]
 }

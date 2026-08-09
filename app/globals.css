@@ -1575,3 +1575,26 @@ input { font-family: inherit; }
   color: var(--ink5); margin-top: 14px;
 }
 .loro-datahub-note { font-size: 12.5px; color: var(--ink5); line-height: 1.7; margin-top: 28px; max-width: 720px; }
+
+/* ── Coverage meter ─────────────────────────────────────────────────── */
+.loro-cov { border: 1px solid var(--border); padding: 14px 16px; margin: 0 0 24px; background: var(--paper2); }
+.loro-cov-excl  { border-left: 3px solid #2D7A2D; }
+.loro-cov-light { border-left: 3px solid #8A6A1F; }
+.loro-cov-mid   { border-left: 3px solid var(--ink4); }
+.loro-cov-wide  { border-left: 3px solid var(--ink5); }
+.loro-cov-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.loro-cov-label {
+  font-size: 9.5px; letter-spacing: 0.13em; text-transform: uppercase;
+  color: var(--ink5); font-weight: 600;
+}
+.loro-cov-bars { display: inline-flex; gap: 3px; }
+.loro-cov-bars span {
+  width: 16px; height: 5px; background: var(--border); display: block;
+}
+.loro-cov-excl  .loro-cov-bars span.on { background: #2D7A2D; }
+.loro-cov-light .loro-cov-bars span.on { background: #B8912F; }
+.loro-cov-mid   .loro-cov-bars span.on { background: var(--ink4); }
+.loro-cov-wide  .loro-cov-bars span.on { background: var(--ink4); }
+.loro-cov-status { font-size: 12px; font-weight: 600; color: var(--ink); }
+.loro-cov-line { font-size: 14px; color: var(--ink2); line-height: 1.55; margin-top: 9px; }
+.loro-cov-meth { font-size: 11px; color: var(--ink5); line-height: 1.5; margin-top: 7px; }
