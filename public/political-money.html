@@ -26,7 +26,7 @@
   .group{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
   .group .lbl{font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ink4);font-weight:600;margin-right:4px}
   button.ctl{font-family:inherit;font-size:11.5px;padding:6px 11px;border:1px solid var(--line);
-             background:transparent;color:var(--ink3);cursor:pointer}
+             background:transparent;color:var(--ink3);cursor:pointer;transition:.16s}
   button.ctl:hover{color:var(--ink);border-color:rgba(140,160,200,.36)}
   button.ctl[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--bg);font-weight:600}
   .window{font-size:11.5px;color:var(--ink4);margin:10px 0;font-family:'IBM Plex Mono',monospace}
@@ -76,8 +76,8 @@
   <div class="eyebrow">Loro · Political finance</div>
   <h1>Political <em>money</em></h1>
   <p class="dek">Every donation reported to the Electoral Commission — where it comes from, what
-    kind of recipient it reaches, and how that leaves each party funded. Click any party in the
-    flow to filter the breakdown beneath it.</p>
+    kind of recipient it reaches, and how that leaves each party funded. Click any source or
+    recipient in the flow to drive the breakdown beneath it.</p>
 
   <div class="controls">
     <div class="group">
@@ -86,20 +86,6 @@
       <button class="ctl" data-months="12" aria-pressed="true">12m</button>
       <button class="ctl" data-months="24" aria-pressed="false">24m</button>
     </div>
-  </div>
-  <div class="window" id="window"></div>
-
-  <h2 class="sec">The flow of money</h2>
-  <p class="sec-dek">Donor type, to the kind of recipient it reaches, to who. Band thickness is
-    money, not the number of cheques. Click a recipient to filter the breakdown below.</p>
-  <canvas id="sankey" height="520"></canvas>
-  <div class="state" id="sankeyState">Loading donation register…</div>
-
-  <h2 class="sec">How each party is funded</h2>
-  <p class="sec-dek">Column width is the total raised; the bands are who it came from. Two parties
-    can raise similar sums from entirely different places.</p>
-
-  <div class="controls">
     <div class="group">
       <span class="lbl">Recipients</span>
       <button class="ctl kind" data-kind="Registered party" aria-pressed="true">Parties</button>
@@ -108,6 +94,19 @@
       <button class="ctl kind" data-kind="All" aria-pressed="false">All</button>
     </div>
   </div>
+  <div class="window" id="window"></div>
+
+  <h2 class="sec">The flow of money</h2>
+  <p class="sec-dek">Which donor type funds which recipient. Each ribbon is a live current — thickness
+    is money — and it is <em>attributed</em>: a ribbon exists only where that donor type actually gave to that
+    recipient. Colour follows the donor. Click a <em>source</em> or a <em>recipient</em> to drive the breakdown below.</p>
+  <canvas id="sankey" height="520"></canvas>
+  <div class="state" id="sankeyState">Loading donation register…</div>
+
+  <h2 class="sec" id="mekkoHead">How each party is funded</h2>
+  <p class="sec-dek" id="mekkoDek">Column width is the total raised; the bands are who it came from. Two parties
+    can raise similar sums from entirely different places.</p>
+
   <div class="filterbar" id="filterbar"></div>
 
   <canvas id="mekko" height="600"></canvas>
@@ -131,7 +130,9 @@
 <script>
 (function(){
   const tip=document.getElementById("tip");
-  let months=12, kind="Registered party", partyFilter=null;
+  const reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const ANIMATE = !reduce;
+  let months=12, kind="Registered party", partyFilter=null, donorFilter=null;
   let FLOW=null, COMP=null, dpr=1;
 
   // Official party colours. Logos are trademarks, so colour is the identifier —
@@ -157,29 +158,63 @@
     "Building Society":"#8fd6c0","Unidentifiable Donor":"#6b7893","Unknown":"#6b7893"};
   const money=v=>v>=1e6?"£"+(v/1e6).toFixed(1)+"m":v>=1e3?"£"+Math.round(v/1e3)+"k":"£"+Math.round(v);
 
-  /* ---------------- SANKEY ---------------- */
+  // colour helpers for the glow
+  const rgbaC=(hex,a)=>{hex=hex.replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);return "rgba("+r+","+g+","+b+","+a+")";};
+  const cub=(a,b,c,d,t)=>{const m=1-t;return m*m*m*a+3*m*m*t*b+3*m*t*t*c+t*t*t*d;};
+  const clamp01=t=>t<0?0:t>1?1:t;
+  const easeOut=t=>1-Math.pow(1-clamp01(t),3);
+  const mixHex=(hex,to,a)=>{hex=hex.replace("#","");if(hex.length===3)hex=hex.split("").map(c=>c+c).join("");
+    const r=parseInt(hex.slice(0,2),16),g=parseInt(hex.slice(2,4),16),b=parseInt(hex.slice(4,6),16);
+    return "#"+[r,g,b].map(x=>Math.round(x+(to-x)*a).toString(16).padStart(2,"0")).join("");};
+  // living texture: mote count follows the NUMBER of donations, mote size follows the AVERAGE cheque —
+  // so many small cheques read as a fine dense shimmer, a few huge cheques as sparse bright motes.
+  function seedMotes(seg,w){
+    seg.motes=[];const area=w*seg.h;let n,sz;
+    if(seg.count!=null){const avg=seg.value/(seg.count||1);
+      sz=Math.max(0.9,Math.min(4,(Math.log10(Math.max(avg,1))-3)*1.05+1.15));
+      n=Math.round(Math.sqrt(seg.count)*3);}
+    else{sz=1.3;n=Math.round(area/2600);}
+    n=Math.max(3,Math.min(n,Math.floor(area/650)||3,48));
+    seg.moteCol=mixHex(seg.color,255,0.55);
+    for(let k=0;k<n;k++)seg.motes.push({rx:Math.random(),ry:Math.random(),
+      vx:(Math.random()*2-1)*0.012,vy:(Math.random()*2-1)*0.012,sz:sz*(0.7+Math.random()*0.7),ph:Math.random()*6.283});
+  }
+
+  /* ================= SANKEY (liquid) ================= */
   const sk=document.getElementById("sankey"), sctx=sk.getContext("2d");
-  let sBands=[], sNodes=[], sHot=null;
+  let sBands=[], sNodes=[], sHot=null, sParts=[], sGrand=1, sIntro=0, sEmpty=null;
 
-  function drawSankey(){
+  function ribbonPath(b){
+    sctx.beginPath();sctx.moveTo(b.x1,b.y1);
+    sctx.bezierCurveTo((b.x1+b.x2)/2,b.y1,(b.x1+b.x2)/2,b.y2,b.x2,b.y2);
+    sctx.lineTo(b.x2,b.y2+b.h2);
+    sctx.bezierCurveTo((b.x1+b.x2)/2,b.y2+b.h2,(b.x1+b.x2)/2,b.y1+b.h1,b.x1,b.y1+b.h1);
+    sctx.closePath();
+  }
+  // hover overrides; otherwise a locked source/recipient filter dims the rest
+  const bandLit=b=>{
+    if(sHot)return sHot===b.from||sHot===b.to;
+    if(partyFilter)return b.to===partyFilter;
+    if(donorFilter)return b.from===donorFilter;
+    return true;
+  };
+
+  function computeSankey(){
     const W=sk.clientWidth,H=520;
-    sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
-    sBands=[];sNodes=[];
+    sBands=[];sNodes=[];sParts=[];sEmpty=null;
     if(!FLOW||!FLOW.paths||!FLOW.paths.length)return;
-
-    const padX=Math.max(140,W*0.13), padY=22, colW=13, gap=5;
+    // TRUE attribution: only paths of the selected recipient type; a ribbon is a real donor→recipient amount.
+    const paths=FLOW.paths.filter(p=> kind==="All" ? true : p.type===kind);
+    if(!paths.length){sEmpty="No donations of this recipient type above £10,000 in this window.";return;}
+    const padX=Math.max(150,W*0.14), padY=22, colW=13, gap=5;
     const usable=H-padY*2;
-    const paths=FLOW.paths;
-
-    const tot=(key)=>{const m={};paths.forEach(p=>m[p[key]]=(m[p[key]]||0)+p.value);return m;};
-    const dT=tot("donor"), tT=tot("type"), rT=tot("to");
-    const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1;
-
+    const dT={}, rAll={};
+    paths.forEach(p=>{dT[p.donor]=(dT[p.donor]||0)+p.value; rAll[p.to]=(rAll[p.to]||0)+p.value;});
+    const grand=Object.values(dT).reduce((a,b)=>a+b,0)||1; sGrand=grand;
     const TOP=12;
-    const topR=Object.keys(rT).sort((a,b)=>rT[b]-rT[a]).slice(0,TOP);
-    const keep=new Set(topR);
-    const rT2={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT2[k]=(rT2[k]||0)+p.value;});
-
+    const keep=new Set(Object.keys(rAll).sort((a,b)=>rAll[b]-rAll[a]).slice(0,TOP));
+    const rT={};paths.forEach(p=>{const k=keep.has(p.to)?p.to:"Other recipients";rT[k]=(rT[k]||0)+p.value;});
     function place(totals,x){
       const names=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
       const avail=usable-gap*(names.length-1);
@@ -187,153 +222,248 @@
       names.forEach(n=>{const h=Math.max(3,totals[n]/grand*avail);pos[n]={x,y,h,v:totals[n]};y+=h+gap;});
       return pos;
     }
-    const P0=place(dT,padX), P1=place(tT,(W-colW)/2), P2=place(rT2,W-padX-colW);
+    const P0=place(dT,padX), P1=place(rT, W-padX-colW);
     Object.entries(P0).forEach(([n,p])=>sNodes.push({...p,name:n,col:0,colour:DONOR[n]||"#7c8aa8"}));
-    Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:"#4a5a78"}));
-    Object.entries(P2).forEach(([n,p])=>sNodes.push({...p,name:n,col:2,colour:partyColour(n)}));
-
-    const cur={};
-    const stage=(from,to,pos1,pos2,stageId)=>{
-      const agg={};
-      paths.forEach(p=>{
-        const a=p[from], b=(to==="to"&&!keep.has(p.to))?"Other recipients":p[to];
-        const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;
-      });
-      Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
-        const [a,b]=k.split("||");const p1=pos1[a],p2=pos2[b];if(!p1||!p2)return;
-        const k1=stageId+"a"+a,k2=stageId+"b"+b;
-        const h1=Math.max(1,v/p1.v*p1.h), h2=Math.max(1,v/p2.v*p2.h);
-        const y1=p1.y+(cur[k1]=cur[k1]||0);cur[k1]+=h1;
-        const y2=p2.y+(cur[k2]=cur[k2]||0);cur[k2]+=h2;
-        sBands.push({x1:p1.x+colW,x2:p2.x,y1,h1,y2,h2,v,from:a,to:b,
-          colour:stageId===0?(DONOR[a]||"#7c8aa8"):partyColour(b)});
-      });
-    };
-    stage("donor","type",P0,P1,0);
-    stage("type","to",P1,P2,1);
-
-    sBands.forEach(b=>{
-      const lit=!sHot||sHot===b.from||sHot===b.to||(partyFilter&&b.to===partyFilter);
-      sctx.globalAlpha=lit?0.5:0.09;
-      sctx.fillStyle=b.colour;
-      sctx.beginPath();sctx.moveTo(b.x1,b.y1);
-      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y1,(b.x1+b.x2)/2,b.y2,b.x2,b.y2);
-      sctx.lineTo(b.x2,b.y2+b.h2);
-      sctx.bezierCurveTo((b.x1+b.x2)/2,b.y2+b.h2,(b.x1+b.x2)/2,b.y1+b.h1,b.x1,b.y1+b.h1);
-      sctx.closePath();sctx.fill();
+    Object.entries(P1).forEach(([n,p])=>sNodes.push({...p,name:n,col:1,colour:partyColour(n)}));
+    // bands: aggregate the real (donor → recipient) pairs
+    const cur={}, agg={};
+    paths.forEach(p=>{const a=p.donor,b=keep.has(p.to)?p.to:"Other recipients";const k=a+"||"+b;agg[k]=(agg[k]||0)+p.value;});
+    Object.entries(agg).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{
+      const [a,b]=k.split("||");const p1=P0[a],p2=P1[b];if(!p1||!p2)return;
+      const k1="a"+a,k2="b"+b;
+      const h1=Math.max(1,v/p1.v*p1.h), h2=Math.max(1,v/p2.v*p2.h);
+      const y1=p1.y+(cur[k1]=cur[k1]||0);cur[k1]+=h1;
+      const y2=p2.y+(cur[k2]=cur[k2]||0);cur[k2]+=h2;
+      sBands.push({x1:p1.x+colW,x2:p2.x,y1,h1,y2,h2,v,from:a,to:b,colour:DONOR[a]||"#7c8aa8"});
     });
-    sctx.globalAlpha=1;
+    // seed particles ∝ money
+    const PK=360;let tp=0;
+    sBands.forEach((b,bi)=>{const n=Math.max(2,Math.round(b.v/grand*PK));
+      for(let k=0;k<n&&tp<900;k++,tp++)sParts.push({bi,f:0.06+Math.random()*0.88,t:Math.random(),
+        sp:0.18+Math.random()*0.24,sz:0.8+Math.random()*1.1});});
+  }
 
+  function drawSankeyFrame(){
+    const W=sk.clientWidth,H=520;
+    sctx.setTransform(dpr,0,0,dpr,0,0);sctx.clearRect(0,0,W,H);
+    const bg=sctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    sctx.fillStyle=bg;sctx.fillRect(0,0,W,H);
+    if(sEmpty){sctx.fillStyle="#556080";sctx.font="400 13px Inter, sans-serif";sctx.textAlign="center";sctx.textBaseline="middle";sctx.fillText(sEmpty,W/2,H/2);return;}
+    if(!sBands.length)return;
+    sIntro=Math.min(1,sIntro+(ANIMATE?0.02:1));
+    // ribbon vessels
+    sBands.forEach(b=>{const lit=bandLit(b);sctx.globalAlpha=(lit?0.15:0.03)*sIntro;sctx.fillStyle=b.colour;ribbonPath(b);sctx.fill();});
+    sctx.globalAlpha=1;
+    // particles
+    if(ANIMATE){sctx.globalCompositeOperation="lighter";
+      for(const p of sParts){const b=sBands[p.bi];if(!b)continue;const lit=bandLit(b);
+        p.t+=p.sp*sDt;if(p.t>=1)p.t-=1;
+        const a=(lit?0.9:0.04)*sIntro;if(a<=0.02)continue;
+        const sy=b.y1+p.f*b.h1, ty=b.y2+p.f*b.h2, mx=(b.x1+b.x2)/2;
+        const x=cub(b.x1,mx,mx,b.x2,p.t), y=cub(sy,sy,ty,ty,p.t);
+        const r=p.sz*(1+0.4*Math.sin((p.t+p.f)*6.28));
+        sctx.fillStyle=rgbaC(b.colour,a);sctx.beginPath();sctx.arc(x,y,r,0,6.283);sctx.fill();}
+      sctx.globalCompositeOperation="source-over";}
+    // nodes + labels
     sNodes.forEach(n=>{
-      const active=partyFilter&&n.col===2&&n.name===partyFilter;
-      sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,colW,n.h);
-      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,colW+4,n.h+4);}
+      const active=(partyFilter&&n.col===1&&n.name===partyFilter)||(donorFilter&&n.col===0&&n.name===donorFilter);
+      sctx.fillStyle=rgbaC(n.colour,0.28);sctx.fillRect(n.x-1.5,n.y-1.5,16,n.h+3);
+      sctx.fillStyle=n.colour;sctx.fillRect(n.x,n.y,13,n.h);
+      if(active){sctx.strokeStyle="#e9eefa";sctx.lineWidth=1.5;sctx.strokeRect(n.x-2,n.y-2,17,n.h+4);}
       if(n.h<10)return;
       sctx.fillStyle=active?"#e9eefa":"#c2cbe0";
       sctx.font=(active?"600 ":"500 ")+"11.5px Inter, sans-serif";
       sctx.textBaseline="middle";
       if(n.col===0){sctx.textAlign="right";sctx.fillText(n.name,n.x-8,n.y+n.h/2);}
-      else if(n.col===2){sctx.textAlign="left";
+      else{sctx.textAlign="left";
         const nm=n.name.length>24?n.name.slice(0,23)+"…":n.name;
-        sctx.fillText(nm,n.x+colW+8,n.y+n.h/2);}
-      else{sctx.textAlign="center";sctx.font="500 10.5px Inter, sans-serif";
-        sctx.fillText(n.name,n.x+colW/2,n.y-7);}
+        sctx.fillText(nm,n.x+21,n.y+n.h/2);}
     });
   }
 
+  const clickable=n=>n&&(n.col===0||(n.col===1&&n.name!=="Other recipients"));
   sk.addEventListener("mousemove",e=>{
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h);
-    sHot=n?n.name:null;drawSankey();
-    sk.style.cursor=(n&&n.col===2)?"pointer":"default";
+    sHot=n?n.name:null; if(!ANIMATE)drawSankeyFrame();
+    sk.style.cursor=clickable(n)?"pointer":"default";
     if(n){
       tip.innerHTML='<div class="t">'+n.name+'</div><div class="v">'+money(n.v)+'</div>'+
-        (n.col===2?'<div class="v">click to filter the breakdown</div>':'');
+        (n.col===0?'<div class="v">click: where this source’s money goes</div>':
+         n.name!=="Other recipients"?'<div class="v">click: how this recipient is funded</div>':'');
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
-  sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;drawSankey();});
+  sk.addEventListener("mouseleave",()=>{sHot=null;tip.style.opacity=0;if(!ANIMATE)drawSankeyFrame();});
   sk.addEventListener("click",e=>{
     const r=sk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
-    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&n.col===2);
-    if(!n||n.name==="Other recipients")return;
-    partyFilter=(partyFilter===n.name)?null:n.name;
-    renderFilterBar();drawSankey();drawMekko();
+    const n=sNodes.find(n=>mx>=n.x&&mx<=n.x+13&&my>=n.y&&my<=n.y+n.h&&(n.col===0||n.col===1));
+    if(!n)return;
+    if(n.col===1){ if(n.name==="Other recipients")return; partyFilter=(partyFilter===n.name)?null:n.name; donorFilter=null; }
+    else{ donorFilter=(donorFilter===n.name)?null:n.name; partyFilter=null; }
+    DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
+    renderFilterBar();renderMekkoHeader();computeMekko(true);scheduleDraw();
   });
 
-  /* ---------------- MEKKO ---------------- */
+  /* ================= MEKKO (animated build) ================= */
   const mk=document.getElementById("mekko"), mctx=mk.getContext("2d");
-  let mBoxes=[], mHot=null;
+  let mCols=[], mBoxes=[], mHot=null, mGeom=null, mEmpty=null, mClock=0, mSeen=false, mSelName=null;
+  const popState={}, dimState={};
+  const STAG=0.10, DUR=0.62;
+  const mkGeom=()=>{const H=600,headH=52,padT=8,padB=10,plotH=H-headH-padT-padB;
+    return {headH,padT,plotH,plotTop:headH+padT,plotBot:headH+padT+plotH};};
 
-  function drawMekko(){
-    const W=mk.clientWidth,H=600;
-    mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,W,H);
-    mBoxes=[];
+  function computeMekko(replay){
+    mCols=[];mBoxes=[];mEmpty=null;mGeom=mkGeom();
+    if(donorFilter) buildDonorMekko(); else buildRecipientMekko();
+    if(replay){mClock=0;mSeen=mVis;}
+  }
+
+  // default / recipient view: columns are recipients, segments are donor types
+  function buildRecipientMekko(){
+    const W=mk.clientWidth;
     if(!COMP||!COMP.recipients||!COMP.recipients.length)return;
-
     let list=COMP.recipients;
     if(partyFilter)list=list.filter(r=>r.name===partyFilter);
-    if(!list.length){
-      mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";
-      mctx.fillText(partyFilter+" has no reported donations in this window.",W/2,H/2);return;
-    }
-
-    // Party names sit ABOVE their column, not rotated beneath it.
-    const headH=52, padT=8, padB=10;
-    const plotH=H-headH-padT-padB;
+    if(!list.length){mEmpty=partyFilter+" has no reported donations in this window.";return;}
+    const {headH,padT,plotH}=mGeom;
     const grand=list.reduce((a,r)=>a+r.total,0)||1;
     const gap=list.length>1?7:0, totalGap=gap*(list.length-1);
     let x=4;
-
     list.forEach(r=>{
       const w=Math.max(30,(r.total/grand)*(W-8-totalGap));
-      const col=partyColour(r.name);
-
-      // header: colour bar, name, total
-      mctx.fillStyle=col;mctx.fillRect(x,padT,w,4);
-      mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
-      mctx.font="700 "+(w>150?14:w>90?12:10.5)+"px Inter, sans-serif";
-      const nm=w>210?r.name:w>130?(r.name.length>20?r.name.slice(0,19)+"…":r.name)
-                 :(r.name.length>13?r.name.slice(0,12)+"…":r.name);
-      mctx.fillText(nm,x,padT+12);
-      mctx.fillStyle="#7c8aa8";mctx.font="500 11px 'IBM Plex Mono', monospace";
-      mctx.fillText(money(r.total),x,padT+30);
-
+      const col={x,w,name:r.name,total:r.total,colour:partyColour(r.name),segs:[]};
       let y=headH+padT;
       r.segments.slice().sort((a,b)=>b.value-a.value).forEach(s=>{
         const h=(s.value/r.total)*plotH;
-        const lit=!mHot||mHot.donor===s.donor;
-        mctx.globalAlpha=lit?1:0.2;
-        mctx.fillStyle=DONOR[s.donor]||"#7c8aa8";
-        mctx.fillRect(x,y,w,h);
+        const so={donor:s.donor,value:s.value,share:s.share,count:s.count,y,h,color:DONOR[s.donor]||"#7c8aa8"};
+        col.segs.push(so);seedMotes(so,w);
         mBoxes.push({x,y,w,h,recipient:r.name,donor:s.donor,value:s.value,share:s.share,count:s.count,total:r.total});
-        if(h>24&&w>110){
-          mctx.fillStyle="rgba(6,9,16,.85)";
-          mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
-          mctx.fillText(s.donor,x+7,y+6);
-          mctx.font="400 10px 'IBM Plex Mono', monospace";
-          mctx.fillText(s.share+"%  "+money(s.value),x+7,y+19);
-        }
         y+=h;
       });
+      mCols.push(col);x+=w+gap;
+    });
+  }
+
+  // source view: columns are recipients that this donor type funds, from the flow data
+  function buildDonorMekko(){
+    const W=mk.clientWidth;
+    if(!FLOW||!FLOW.paths||!FLOW.paths.length){mEmpty="Donation data unavailable.";return;}
+    const inKind=p=>kind==="All"||p.type===kind;
+    const mine=FLOW.paths.filter(p=>p.donor===donorFilter&&inKind(p));
+    if(!mine.length){mEmpty=donorFilter+" made no donations of this recipient type in this window.";return;}
+    const recGrand={}; FLOW.paths.filter(inKind).forEach(p=>recGrand[p.to]=(recGrand[p.to]||0)+p.value);
+    const rec={}; mine.forEach(p=>rec[p.to]=(rec[p.to]||0)+p.value);
+    let list=Object.keys(rec).map(name=>({name,total:rec[name]})).sort((a,b)=>b.total-a.total).slice(0,12);
+    const {headH,padT,plotH}=mGeom;
+    const grand=list.reduce((a,r)=>a+r.total,0)||1;
+    const gap=list.length>1?7:0, totalGap=gap*(list.length-1);
+    let x=4;
+    list.forEach(r=>{
+      const w=Math.max(30,(r.total/grand)*(W-8-totalGap));
+      const share=Math.round(r.total/(recGrand[r.name]||r.total)*100);
+      const so={donor:donorFilter,value:r.total,share,count:null,y:headH+padT,h:plotH,color:DONOR[donorFilter]||"#7c8aa8"};
+      seedMotes(so,w);
+      const col={x,w,name:r.name,total:r.total,colour:partyColour(r.name),segs:[so]};
+      mBoxes.push({x,y:headH+padT,w,h:plotH,recipient:r.name,donor:donorFilter,value:r.total,share,count:null,total:(recGrand[r.name]||r.total)});
+      mCols.push(col);x+=w+gap;
+    });
+  }
+
+  function drawMekkoFrame(){
+    const W=mk.clientWidth,H=600;
+    mctx.setTransform(dpr,0,0,dpr,0,0);mctx.clearRect(0,0,W,H);
+    const bg=mctx.createLinearGradient(0,0,0,H);bg.addColorStop(0,"#0b111c");bg.addColorStop(1,"#080d16");
+    mctx.fillStyle=bg;mctx.fillRect(0,0,W,H);
+    if(mEmpty){mctx.fillStyle="#556080";mctx.font="400 13px Inter, sans-serif";mctx.textAlign="center";mctx.fillText(mEmpty,W/2,H/2);return;}
+    if(!mCols.length||!mGeom)return;
+    const {padT,plotH,plotTop,plotBot}=mGeom;
+    const ease=ANIMATE?0.2:1;
+    // draw order: the selected (popped) column last so it sits over its neighbours
+    const order=mCols.map((c,i)=>i).sort((a,b)=>((mSelName===mCols[a].name)?1:0)-((mSelName===mCols[b].name)?1:0));
+    order.forEach(i=>{
+      const c=mCols[i];
+      const p=ANIMATE?easeOut((mClock - i*STAG)/DUR):1;
+      if(p<=0.001)return;
+      const lift=(1-p)*12;
+      const popT=(mSelName===c.name)?1:0, dimT=(mSelName&&mSelName!==c.name)?0.4:1;
+      popState[c.name]=(popState[c.name]||0)+(popT-(popState[c.name]||0))*ease;
+      if(dimState[c.name]==null)dimState[c.name]=1;
+      dimState[c.name]+=(dimT-dimState[c.name])*ease;
+      const pop=popState[c.name], cd=dimState[c.name];
+
+      mctx.save();
+      // 3D pop: scale up around the column centre and lift toward the viewer
+      const ccx=c.x+c.w/2, ccy=plotTop+plotH*0.42, sc=1+0.045*pop;
+      mctx.translate(ccx,ccy);mctx.scale(sc,sc);mctx.translate(-ccx,-ccy);
+      mctx.translate(0,-5*pop);
+      if(pop>0.01){mctx.save();mctx.shadowColor="rgba(0,0,0,"+(0.55*pop).toFixed(3)+")";mctx.shadowBlur=40*pop;mctx.shadowOffsetY=14*pop;
+        mctx.fillStyle="#0c1320";mctx.fillRect(c.x,plotTop-2,c.w,plotH+4);mctx.restore();}
+
+      mctx.globalAlpha=p*cd;
+      mctx.fillStyle=c.colour;mctx.fillRect(c.x,padT+lift,c.w,4);
+      mctx.fillStyle="#e9eefa";mctx.textAlign="left";mctx.textBaseline="top";
+      mctx.font="700 "+(c.w>150?14:c.w>90?12:10.5)+"px Inter, sans-serif";
+      const nm=c.w>210?c.name:c.w>130?(c.name.length>20?c.name.slice(0,19)+"…":c.name)
+                 :(c.name.length>13?c.name.slice(0,12)+"…":c.name);
+      mctx.fillText(nm,c.x,padT+12+lift);
+      mctx.fillStyle="#7c8aa8";mctx.font="500 11px 'IBM Plex Mono', monospace";
+      mctx.fillText(money(c.total),c.x,padT+30+lift);
       mctx.globalAlpha=1;
-      x+=w+gap;
+      const clipTop=plotTop + plotH*(1-p) + lift;
+      mctx.save();mctx.beginPath();mctx.rect(c.x-2,clipTop,c.w+4,plotBot+lift-clipTop+2);mctx.clip();
+      // pass 1 — lit-slab material: body gradient + top sheen + left/right bevels + seam
+      c.segs.forEach(s=>{
+        const lit=!mHot||mHot.donor===s.donor;const al=(lit?1:0.22)*cd;const yy=s.y+lift, bw=Math.min(16,c.w*0.22);
+        const gd=mctx.createLinearGradient(0,yy,0,yy+s.h);
+        gd.addColorStop(0,mixHex(s.color,255,0.17));gd.addColorStop(0.42,s.color);gd.addColorStop(1,mixHex(s.color,0,0.24));
+        mctx.globalAlpha=al;mctx.fillStyle=gd;mctx.fillRect(c.x,yy,c.w,s.h);
+        const gg=mctx.createLinearGradient(0,yy,0,yy+Math.min(s.h,24));
+        gg.addColorStop(0,"rgba(255,255,255,.20)");gg.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=gg;mctx.fillRect(c.x,yy,c.w,Math.min(s.h,24));
+        const lb=mctx.createLinearGradient(c.x,0,c.x+bw,0);
+        lb.addColorStop(0,"rgba(255,255,255,.13)");lb.addColorStop(1,"rgba(255,255,255,0)");
+        mctx.fillStyle=lb;mctx.fillRect(c.x,yy,bw,s.h);
+        const rb=mctx.createLinearGradient(c.x+c.w-bw,0,c.x+c.w,0);
+        rb.addColorStop(0,"rgba(6,9,16,0)");rb.addColorStop(1,"rgba(6,9,16,.3)");
+        mctx.fillStyle=rb;mctx.fillRect(c.x+c.w-bw,yy,bw,s.h);
+        mctx.globalAlpha=al*0.55;mctx.fillStyle="rgba(6,9,16,.82)";mctx.fillRect(c.x,yy+s.h-1,c.w,1);
+      });
+      // pass 2 — motes glint (additive), brighter on a popped column
+      mctx.globalCompositeOperation="lighter";
+      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const yy=s.y+lift;if(!s.motes)return;
+        for(const m of s.motes){
+          if(ANIMATE){m.rx+=m.vx*sDt;m.ry+=m.vy*sDt;if(m.rx<0)m.rx+=1;else if(m.rx>1)m.rx-=1;if(m.ry<0)m.ry+=1;else if(m.ry>1)m.ry-=1;}
+          const tw=0.4+0.6*Math.sin(m.ph+(ANIMATE?mClock*2.2:0));
+          const a=(lit?0.95:0.12)*tw*p*cd*(1+0.5*pop);if(a<=0.03)continue;
+          mctx.fillStyle=rgbaC(s.moteCol,Math.min(1,a));mctx.beginPath();mctx.arc(c.x+m.rx*c.w,yy+m.ry*s.h,m.sz*(1+0.25*pop),0,6.283);mctx.fill();
+        }});
+      mctx.globalCompositeOperation="source-over";
+      // pass 3 — labels on top
+      c.segs.forEach(s=>{const lit=!mHot||mHot.donor===s.donor;const al=(lit?1:0.22)*cd;const yy=s.y+lift;
+        if(s.h>24&&c.w>110){mctx.globalAlpha=al;
+          mctx.fillStyle="rgba(6,9,16,.92)";mctx.font="600 10.5px Inter, sans-serif";mctx.textAlign="left";mctx.textBaseline="top";
+          mctx.fillText(s.donor,c.x+7,yy+6);
+          mctx.font="400 10px 'IBM Plex Mono', monospace";mctx.fillText(s.share+"%  "+money(s.value),c.x+7,yy+19);}
+      });
+      mctx.restore();mctx.globalAlpha=1;
+      mctx.restore();
     });
   }
 
   mk.addEventListener("mousemove",e=>{
     const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
-    mHot=b||null;drawMekko();
+    mHot=b||null;if(!ANIMATE)drawMekkoFrame();
     if(b){
       tip.innerHTML='<div class="t">'+b.recipient+'</div><div class="v">'+b.donor+'</div>'+
         '<div class="v">'+money(b.value)+' · '+b.share+'% of '+money(b.total)+'</div>'+
-        '<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+'</div>'+
+        (b.count!=null?'<div class="v">'+b.count+' donation'+(b.count>1?'s':'')+' · avg '+money(b.value/b.count)+'</div>':'')+
         '<div class="v" style="opacity:.7">click to see who paid</div>';
       tip.style.opacity=1;tip.style.left=Math.min(e.clientX+14,innerWidth-300)+"px";tip.style.top=(e.clientY+14)+"px";
     }else tip.style.opacity=0;
   });
-  mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;drawMekko();});
+  mk.addEventListener("mouseleave",()=>{mHot=null;tip.style.opacity=0;if(!ANIMATE)drawMekkoFrame();});
   mk.addEventListener("click",e=>{
     const r=mk.getBoundingClientRect(),mx=e.clientX-r.left,my=e.clientY-r.top;
     const b=mBoxes.find(b=>mx>=b.x&&mx<=b.x+b.w&&my>=b.y&&my<=b.y+b.h);
@@ -344,6 +474,7 @@
   let DRILL=null, drillView="donors";
 
   async function openDrill(recipient,donorType){
+    mSelName=recipient;scheduleDraw();
     const el=document.getElementById("drill");
     el.innerHTML='<div class="drill"><div class="sub">Loading donations…</div></div>';
     el.scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -366,7 +497,6 @@
       return;
     }
     const ch=n=>String(n).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
-
     let rows;
     if(drillView==="donors"){
       rows=d.donors.map(x=>'<tr>'+
@@ -390,7 +520,6 @@
       rows='<table><thead><tr><th>Donor</th><th class="num">Amount</th><th class="num">Accepted</th>'+
            '<th>Type</th></tr></thead><tbody>'+rows+'</tbody></table>';
     }
-
     el.innerHTML='<div class="drill">'+
       '<button class="close" id="drillClose">Close ×</button>'+
       '<h3>'+ch(d._donorType)+' donations to '+ch(d._recipient)+'</h3>'+
@@ -401,20 +530,37 @@
         '<button data-view="donors" aria-pressed="'+(drillView==="donors")+'">By donor</button>'+
         '<button data-view="each" aria-pressed="'+(drillView==="each")+'">Every donation</button>'+
       '</div>'+rows+'</div>';
-
-    document.getElementById("drillClose").onclick=()=>{DRILL=null;el.innerHTML="";};
-    el.querySelectorAll(".tabs button").forEach(b=>{
-      b.onclick=()=>{drillView=b.dataset.view;renderDrill();};
-    });
+    document.getElementById("drillClose").onclick=()=>{DRILL=null;mSelName=null;el.innerHTML="";scheduleDraw();};
+    el.querySelectorAll(".tabs button").forEach(b=>{b.onclick=()=>{drillView=b.dataset.view;renderDrill();};});
   }
 
   /* ---------------- shared ---------------- */
   function renderFilterBar(){
     const el=document.getElementById("filterbar");
-    if(!partyFilter){el.innerHTML='<span style="color:#556080">Showing all. Click a recipient in the flow above to filter.</span>';return;}
-    el.innerHTML='<span class="chip"><i class="swatch" style="background:'+partyColour(partyFilter)+'"></i>'+
-      'Filtered to <b>'+partyFilter+'</b><button title="Clear filter" id="clearF">×</button></span>';
-    document.getElementById("clearF").onclick=()=>{partyFilter=null;renderFilterBar();drawSankey();drawMekko();};
+    if(partyFilter){
+      el.innerHTML='<span class="chip"><i class="swatch" style="background:'+partyColour(partyFilter)+'"></i>'+
+        'Recipient <b>'+partyFilter+'</b><button title="Clear filter" id="clearF">×</button></span>';
+    }else if(donorFilter){
+      el.innerHTML='<span class="chip"><i class="swatch" style="background:'+(DONOR[donorFilter]||"#7c8aa8")+'"></i>'+
+        'Source <b>'+donorFilter+'</b><button title="Clear filter" id="clearF">×</button></span>';
+    }else{
+      el.innerHTML='<span style="color:#556080">Showing all. Click a source or recipient in the flow above to drive the breakdown.</span>';return;
+    }
+    document.getElementById("clearF").onclick=()=>{partyFilter=null;donorFilter=null;
+      DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
+      renderFilterBar();renderMekkoHeader();computeMekko(true);scheduleDraw();};
+  }
+
+  function renderMekkoHeader(){
+    const h=document.getElementById("mekkoHead"), d=document.getElementById("mekkoDek");
+    if(donorFilter){
+      const dl=donorFilter.toLowerCase();
+      h.textContent="Where "+dl+" money goes";
+      d.innerHTML="Each column is a recipient; width is how much came from "+dl+" donors, and the figure is that source’s share of the recipient’s total funding. Click a column for the donors behind it.";
+    }else{
+      h.textContent="How each party is funded";
+      d.innerHTML="Column width is the total raised; the bands are who it came from. Two parties can raise similar sums from entirely different places.";
+    }
   }
 
   function renderMeta(){
@@ -434,11 +580,11 @@
     }
   }
 
-  function resize(){
+  function sizeCanvases(){
     dpr=Math.min(devicePixelRatio||1,2);
-    [sk,mk].forEach(c=>{const h=c===sk?520:600;c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
-    drawSankey();drawMekko();
+    [[sk,520],[mk,600]].forEach(([c,h])=>{c.width=c.clientWidth*dpr;c.height=h*dpr;c.style.height=h+"px";});
   }
+  function resize(){sizeCanvases();computeSankey();computeMekko(false);scheduleDraw();if(!ANIMATE){drawSankeyFrame();drawMekkoFrame();}}
 
   async function load(){
     document.getElementById("sankeyState").style.display="block";
@@ -450,8 +596,11 @@
       FLOW=f;COMP=c;
       document.getElementById("sankeyState").style.display="none";
       document.getElementById("mekkoState").style.display="none";
-      DRILL=null;document.getElementById("drill").innerHTML="";
-      renderMeta();renderFilterBar();resize();
+      DRILL=null;mSelName=null;document.getElementById("drill").innerHTML="";
+      renderMeta();renderFilterBar();renderMekkoHeader();
+      sizeCanvases();sIntro=0;computeSankey();computeMekko(true);
+      scheduleDraw();
+      if(!ANIMATE){drawSankeyFrame();drawMekkoFrame();}
     }catch(e){
       document.getElementById("sankeyState").textContent="Donation data unavailable.";
     }
@@ -464,11 +613,37 @@
         if(x.classList.contains("kind")===isKind)x.setAttribute("aria-pressed","false");
       });
       b.setAttribute("aria-pressed","true");
-      if(isKind){kind=b.dataset.kind;partyFilter=null;}
+      if(isKind){kind=b.dataset.kind;partyFilter=null;donorFilter=null;}
       else months=Number(b.dataset.months);
       load();
     });
   });
+
+  /* ---------------- animation loop (pausable) ---------------- */
+  let rafOn=false, sVis=false, mVis=false, tabVis=true, lastTs=0, sDt=0;
+  const needLoop=()=>ANIMATE && tabVis && (sVis||mVis);
+  function tick(ts){
+    if(!rafOn)return;
+    sDt=Math.min(0.05,(ts-lastTs)/1000||0);lastTs=ts;mClock+=sDt;
+    if(sVis)drawSankeyFrame();
+    if(mVis)drawMekkoFrame();
+    if(needLoop())requestAnimationFrame(tick);else rafOn=false;
+  }
+  function scheduleDraw(){
+    if(ANIMATE){if(needLoop()&&!rafOn){rafOn=true;lastTs=0;requestAnimationFrame(tick);}}
+    else{if(sVis)drawSankeyFrame();if(mVis)drawMekkoFrame();}
+  }
+  if("IntersectionObserver" in window){
+    const io=new IntersectionObserver(es=>{
+      es.forEach(e=>{const vis=e.isIntersecting;
+        if(e.target===sk)sVis=vis;
+        if(e.target===mk){mVis=vis;if(vis&&!mSeen){mClock=0;mSeen=true;}}
+      });
+      scheduleDraw();
+    },{threshold:0.04});
+    io.observe(sk);io.observe(mk);
+  }else{sVis=mVis=true;}
+  document.addEventListener("visibilitychange",()=>{tabVis=!document.hidden;scheduleDraw();});
 
   addEventListener("resize",resize);
   load();
