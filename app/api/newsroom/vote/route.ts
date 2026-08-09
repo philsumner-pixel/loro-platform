@@ -9,7 +9,7 @@ function getSupabase() {
 }
 
 export async function POST(req: NextRequest) {
-  const { candidate_id, vote, journalist = 'Chris Cannon', note } = await req.json()
+  const { candidate_id, vote, journalist = 'newsroom', note } = await req.json()
 
   if (!candidate_id || !['up', 'down'].includes(vote)) {
     return NextResponse.json({ error: 'candidate_id and vote (up|down) required' }, { status: 400 })
