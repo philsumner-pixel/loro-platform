@@ -14,6 +14,16 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base: MetadataRoute.Sitemap = [
     { url: SITE, changeFrequency: 'hourly', priority: 1 },
     { url: `${SITE}/intelligence`, changeFrequency: 'monthly', priority: 0.5 },
+    { url: `${SITE}/sources`, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${SITE}/news`, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${SITE}/data`, changeFrequency: 'weekly', priority: 0.7 },
+    // The visualisations are static files in public/, so Next Metadata does not
+    // apply to them — they must be listed here explicitly or crawlers will
+    // never find them.
+    { url: `${SITE}/political-money.html`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${SITE}/donor-analysis.html`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${SITE}/signal-core.html`, changeFrequency: 'weekly', priority: 0.6 },
+    { url: `${SITE}/corridor-currents.html`, changeFrequency: 'monthly', priority: 0.5 },
     ...LANES.map(slug => ({
       url: `${SITE}/lane/${slug}`,
       changeFrequency: 'daily' as const,

@@ -10,7 +10,7 @@ export default function Masthead() {
         <nav className="loro-mast-nav">
           <a href="/news" className="active">News</a>
           <a href="/lane/money-markets">Markets</a>
-          <a href="/political-money.html">Political Money</a>
+          <a href="/data">Data</a>
           <a href="/lane/ownership-control">Ownership</a>
           <a href="/intelligence">Intelligence</a>
           <a href="/lane/regulation-enforcement">Regulation</a>

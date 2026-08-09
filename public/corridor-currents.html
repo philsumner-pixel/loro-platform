@@ -91,8 +91,22 @@
     .pill{top:auto;bottom:120px;font-size:11px}
   }
 </style>
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Loro">
+  <meta name="twitter:card" content="summary_large_image">
 </head>
 <body>
+<div id="loroBar" style="position:fixed;top:0;left:0;right:0;z-index:9999;
+  display:flex;align-items:center;gap:14px;padding:8px 16px;
+  background:rgba(6,9,16,.82);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(140,160,200,.14);
+  font-family:Inter,system-ui,sans-serif;font-size:11.5px">
+  <a href="/data" style="color:#e9eefa;text-decoration:none;font-weight:600;letter-spacing:.02em">← Loro Data</a>
+  <span style="color:#2b3548">|</span>
+  <a href="/political-money.html" style="color:#7c8aa8;text-decoration:none">Political money</a> <a href="/signal-core.html" style="color:#7c8aa8;text-decoration:none">Signal core</a>
+</div>
+<div style="height:34px"></div>
+
 
 <div id="stage">
   <canvas id="c"></canvas>
