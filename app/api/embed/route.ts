@@ -171,6 +171,31 @@ async function embedSourceEvents(sb: ReturnType<typeof getSupabase>, batchSize: 
   return { processed: inputs.length, embedded: Number(applied ?? 0) }
 }
 
+async function embedArticles(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
+  // Our own published articles were never embedded — so coverage tracking had
+  // nothing to compare against, and Loro's output could not be matched
+  // semantically to anything at all.
+  const { data: pending, error } = await sb.rpc('loro_pending_article_inputs', {
+    batch_size: Math.min(batchSize, 100),
+  })
+  if (error) return { processed: 0, embedded: 0, error: error.message }
+
+  const inputs = (pending ?? []) as Array<{ id: string; input: string }>
+  if (!inputs.length) return { processed: 0, embedded: 0 }
+
+  const embeddings = await embedBatch(inputs.map(i => i.input))
+  if (!embeddings) return { processed: inputs.length, embedded: 0 }
+
+  const payload = inputs.map((inp, i) => ({
+    id: inp.id, embedding: JSON.stringify(embeddings[i]), input: inp.input,
+  }))
+  const { data: applied, error: applyErr } = await sb.rpc('loro_apply_article_embeddings', {
+    payload, model: MODEL,
+  })
+  if (applyErr) return { processed: inputs.length, embedded: 0, error: applyErr.message }
+  return { processed: inputs.length, embedded: Number(applied ?? 0) }
+}
+
 async function embedLanes(sb: ReturnType<typeof getSupabase>, batchSize: number = BATCH_SIZE) {
   // Lane definitions are embedded once so anything else can be classified by
   // similarity against them.
@@ -229,6 +254,9 @@ export async function GET(req: NextRequest) {
     }
     if (!table || table === 'events') {
       results.source_events = await embedSourceEvents(sb, batchSize)
+    }
+    if (!table || table === 'articles') {
+      results.articles = await embedArticles(sb, batchSize)
     }
 
     // Summary stats
