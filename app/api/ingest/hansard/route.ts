@@ -78,8 +78,16 @@ export async function GET(req: Request) {
 
   // Terms chosen for the beat, not for volume: these are the debates where a
   // declared interest is most likely to be material.
-  const TERMS = ['payments', 'financial services', 'sanctions', 'procurement',
-                 'energy prices', 'planning', 'gambling', 'cryptocurrency']
+  // Rotate through the term list rather than running all eight in one
+  // invocation — each search over a 60-day window takes several seconds and
+  // eight sequentially exceeds the 60s limit. The cron runs daily and the
+  // offset advances with the date, so the whole set is covered every few days.
+  const ALL_TERMS = ['payments', 'financial services', 'sanctions', 'procurement',
+                     'energy prices', 'planning', 'gambling', 'cryptocurrency']
+  const perRun = Math.min(Number(url.searchParams.get('terms') ?? 3), ALL_TERMS.length)
+  const offset = (Math.floor(Date.now() / 86400_000) * perRun) % ALL_TERMS.length
+  const TERMS = Array.from({ length: perRun },
+    (_, i) => ALL_TERMS[(offset + i) % ALL_TERMS.length])
 
   if (probe) {
     const out: Array<Record<string, unknown>> = []
