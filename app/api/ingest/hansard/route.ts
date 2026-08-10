@@ -62,7 +62,10 @@ function asArray(payload: unknown): Contribution[] {
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const probe = url.searchParams.get('probe') === '1'
-  const days = Math.min(Number(url.searchParams.get('days') ?? 14), 90)
+  // Parliament sits for roughly two-thirds of the year: summer recess alone runs
+  // from late July to September. A 14-day window returns nothing for weeks at a
+  // time, so the default reaches back far enough to survive a recess.
+  const days = Math.min(Number(url.searchParams.get('days') ?? 60), 180)
 
   const auth = req.headers.get('authorization')
   const cronSecret = process.env.CRON_SECRET
