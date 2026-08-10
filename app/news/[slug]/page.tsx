@@ -168,6 +168,8 @@ export default async function ArticlePage({ params }: PageProps) {
               wasFirst={article.was_first}
               checkedAt={article.coverage_checked_at}
               publishedAt={article.published_at}
+              outletsWatched={article.coverage_outlets_watched}
+              lane={article.lane_slug}
             />
 
             {/* Answer block — visible (so it's crawlable and genuinely useful)

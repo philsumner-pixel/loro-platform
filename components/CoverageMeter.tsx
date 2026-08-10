@@ -20,6 +20,8 @@ interface Props {
   wasFirst: boolean | null
   checkedAt: string | null
   publishedAt: string
+  outletsWatched?: number | null
+  lane?: string | null
 }
 
 const LEVELS: Record<string, { label: string; bars: number; tone: string }> = {
@@ -35,6 +37,7 @@ function daysBetween(a: string, b: string): number {
 
 export default function CoverageMeter({
   status, coverageNow, coverageAtPublish, wasFirst, checkedAt, publishedAt,
+  outletsWatched, lane,
 }: Props) {
   if (!status) return null
   const level = LEVELS[status] ?? LEVELS.covered
@@ -46,14 +49,17 @@ export default function CoverageMeter({
   // The sentence under the meter. Written per case rather than templated,
   // because each one is a materially different claim.
   let line: string
+  const scope = outletsWatched
+    ? `${outletsWatched} outlet${outletsWatched === 1 ? '' : 's'}`
+    : 'the outlets'
   if (wasFirst && now === 0) {
     line = days >= 1
-      ? `No other outlet we monitor has covered this in the ${days === 1 ? 'day' : `${days} days`} since publication.`
-      : 'No other outlet we monitor has covered this.'
+      ? `None of the ${scope} we monitor for this subject has covered it in the ${days === 1 ? 'day' : `${days} days`} since publication.`
+      : `None of the ${scope} we monitor for this subject has covered it.`
   } else if (wasFirst && followed > 0) {
     line = `Loro reported this first. ${followed} other ${followed === 1 ? 'outlet has' : 'outlets have'} since covered it.`
   } else if (now === 0) {
-    line = 'No other coverage found among the outlets we monitor.'
+    line = `No matching coverage among the ${scope} we monitor for this subject.`
   } else {
     line = `${now} other ${now === 1 ? 'outlet has' : 'outlets have'} covered this story.`
   }
@@ -72,8 +78,9 @@ export default function CoverageMeter({
       </div>
       <p className="loro-cov-line">{line}</p>
       <p className="loro-cov-meth">
-        Measured continuously against the publications Loro monitors. Coverage can change —
-        this reflects the most recent check
+        Measured continuously against the publications Loro monitors for this subject
+        {lane ? '' : ''}, not the press as a whole. Coverage can change — this reflects the
+        most recent check
         {checkedAt ? `, ${new Date(checkedAt).toLocaleDateString('en-GB',
           { day: 'numeric', month: 'short' })}` : ''}.
       </p>
