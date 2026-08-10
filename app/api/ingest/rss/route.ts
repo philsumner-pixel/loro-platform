@@ -32,10 +32,15 @@ export async function GET(req: Request) {
     const sb = getSupabase()
     const { data: pubs, error: pubsError } = await sb
       .from('loro_monitored_publications')
-      .select('slug, name, rss_url, tier')
+      .select('slug, name, rss_url, tier, last_polled_at')
       .eq('active', true)
       .not('rss_url', 'is', null)
-      .order('tier', { ascending: true })
+      // Least-recently-polled first, so the whole set is covered in rotation.
+      // Fetching all 20 feeds sequentially in one run exceeds the 60s function
+      // limit; the cron runs every 15 minutes, so a batch of 8 still gives
+      // every feed several polls an hour.
+      .order('last_polled_at', { ascending: true, nullsFirst: true })
+      .limit(Number(new URL(req.url).searchParams.get('batch') ?? 8))
 
     if (pubsError) {
       await completeRun(runId, { found: 0, new: 0, duplicate: 0 }, [pubsError.message])
