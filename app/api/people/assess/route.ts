@@ -48,7 +48,7 @@ Answer FALSE for:
 does and what the measure concerns. If related is false, say briefly why not.
 Never assert or imply wrongdoing; describe the subject relationship only.`
 
-export async function POST(req: Request) {
+async function runAssessment(req: Request) {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY not set' }, { status: 500 })
 
@@ -141,9 +141,15 @@ export async function POST(req: Request) {
   })
 }
 
-// Read assessments for the dossier.
+export async function POST(req: Request) { return runAssessment(req) }
+
+// GET reads assessments for the dossier; ?run=1 triggers a batch, so the cron
+// can drive it without needing a POST body.
 export async function GET(req: Request) {
-  const person = new URL(req.url).searchParams.get('person')
+  const url = new URL(req.url)
+  if (url.searchParams.get('run') === '1') return runAssessment(req)
+
+  const person = url.searchParams.get('person')
   try {
     let q = sb().from('loro_relevance_assessments')
       .select('person, benefit_id, event_id, benefit_summary, event_summary, days_between, related, confidence, reason')
