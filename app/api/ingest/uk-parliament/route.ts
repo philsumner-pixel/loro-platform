@@ -271,7 +271,9 @@ export async function GET(req: Request) {
             source: 'uk_parliament_votes',
             event_type: 'division_votes',
             event_date: (d.Date ?? new Date().toISOString()).slice(0, 10),
-            url: `https://votes.parliament.uk/Votes/Commons/Division/${divId}`,
+            // Distinct from the division record's URL, which is otherwise
+            // identical and made these collide on dedupe.
+            url: `https://votes.parliament.uk/Votes/Commons/Division/${divId}#members`,
             raw_content: {
               title: `Division ${divId}: how members voted`,
               description: `${votes.length} members recorded on "${d.Title ?? 'division'}".`,
