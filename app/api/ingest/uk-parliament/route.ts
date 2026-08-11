@@ -89,7 +89,12 @@ export async function GET(req: Request) {
   const interestUrls = Array.from({ length: INTEREST_PAGES }, (_, i) =>
     `https://interests-api.parliament.uk/api/v1/Interests?Take=20&Skip=${i * 20}`)
   const INTERESTS = interestUrls[0]
-  const DIVISIONS = 'https://commonsvotes-api.parliament.uk/data/divisions.json/search?queryParameters.take=25'
+  // Paginate divisions rather than taking the most recent 25. Eight divisions
+  // is a fortnight of sitting time — far too thin to test whether a member's
+  // declared interest lines up with how they voted, which needs a year.
+  const divSkip = Number(url.searchParams.get('divSkip') ?? 0)
+  const divTake = Math.min(Number(url.searchParams.get('divTake') ?? 25), 50)
+  const DIVISIONS = `https://commonsvotes-api.parliament.uk/data/divisions.json/search?queryParameters.take=${divTake}&queryParameters.skip=${divSkip}`
 
   if (probe) {
     const out: Record<string, unknown> = {}
