@@ -79,11 +79,21 @@ export async function GET(req: Request) {
     type D = { company_number: string; donor_names: string[] | null; total_gbp: number }
     const all = (donors ?? []) as D[]
 
+    // "Known" must mean the CONTROL STRUCTURE has been fetched, not merely that
+    // an entity row exists. Entities were bulk-created for every donor company
+    // number, so checking loro_entities made the resolver believe it had
+    // finished while no officers, PSCs or SIC codes had been retrieved — and
+    // SIC codes are what the interest-to-vote relevance test depends on.
     const { data: known } = await sb
-      .from('loro_entities')
-      .select('companies_house_id')
-      .not('companies_house_id', 'is', null)
-    const knownSet = new Set((known ?? []).map(k => String(k.companies_house_id).toUpperCase()))
+      .from('loro_source_events')
+      .select('source_metadata')
+      .eq('source', 'companies_house_control')
+      .limit(5000)
+    const knownSet = new Set(
+      (known ?? [])
+        .map(k => String((k.source_metadata as { company_number?: string })?.company_number ?? '').toUpperCase())
+        .filter(Boolean)
+    )
 
     const todo = all
       .filter(d => d.company_number && !knownSet.has(d.company_number.toUpperCase()))
