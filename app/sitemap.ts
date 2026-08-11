@@ -22,6 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     // never find them.
     { url: `${SITE}/political-money.html`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${SITE}/donor-analysis.html`, changeFrequency: 'weekly', priority: 0.8 },
+    { url: `${SITE}/member-dossier.html`, changeFrequency: 'weekly', priority: 0.8 },
     { url: `${SITE}/signal-core.html`, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${SITE}/corridor-currents.html`, changeFrequency: 'monthly', priority: 0.5 },
     ...LANES.map(slug => ({

@@ -48,6 +48,15 @@ const VIZ: Viz[] = [
     source: 'The Electoral Commission',
   },
   {
+    href: '/member-dossier.html',
+    eyebrow: 'Political finance',
+    title: 'Member dossier',
+    blurb:
+      'Four public registers on one timeline for a single member: what they declared, what they received, what they said in the chamber and how they voted. Each register publishes separately and none of it is joined.',
+    finding: 'Chronology only — every entry is lawful, reported activity, and proximity in time implies nothing.',
+    source: 'Parliament and the Electoral Commission',
+  },
+  {
     href: '/signal-core.html',
     eyebrow: 'The engine',
     title: 'Signal core',

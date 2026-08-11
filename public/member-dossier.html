@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Loro — Member Dossier</title>
+<meta name="description" content="One member, four public registers, one timeline: what they declared, what they received, what they said and how they voted.">
+<meta property="og:type" content="website"><meta property="og:site_name" content="Loro">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#060910;--panel:#0b0f17;--line:rgba(140,160,200,.14);
+        --ink:#e9eefa;--ink2:#c2cbe0;--ink3:#7c8aa8;--ink4:#556080;
+        --declared:#f2b84b;--received:#5b8cff;--said:#63e6b8;--voted:#c47fa8}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink2);font-family:'Inter',system-ui,sans-serif}
+  .wrap{max-width:1120px;margin:0 auto;padding:34px 24px 80px}
+  .eyebrow{font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:#7e9bd6;font-weight:600}
+  h1{font-family:'Playfair Display',serif;font-size:clamp(28px,4.4vw,44px);font-weight:700;
+     line-height:1.05;letter-spacing:-.02em;color:var(--ink);margin-top:10px}
+  h1 em{font-style:italic}
+  .dek{font-size:14.5px;color:var(--ink3);line-height:1.65;max-width:700px;margin-top:12px}
+  .picker{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:24px 0 6px}
+  select,input{font-family:inherit;font-size:13px;padding:9px 12px;background:var(--panel);
+    border:1px solid var(--line);color:var(--ink);outline:none;min-width:230px}
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);margin:20px 0 6px}
+  .stat{background:var(--panel);padding:14px 16px}
+  .stat .n{font-family:'Playfair Display',serif;font-size:24px;font-weight:700;line-height:1}
+  .stat .k{font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--ink4);margin-top:7px;font-weight:600}
+  .stat.declared .n{color:var(--declared)} .stat.received .n{color:var(--received)}
+  .stat.said .n{color:var(--said)} .stat.voted .n{color:var(--voted)}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin:18px 0 10px}
+  .legend span{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--ink3)}
+  .legend i{width:10px;height:10px;display:block;border-radius:50%}
+  .tl{position:relative;margin-top:8px;padding-left:150px}
+  .tl:before{content:"";position:absolute;left:150px;top:0;bottom:0;width:1px;background:var(--line)}
+  .ev{position:relative;padding:14px 0 14px 26px;border-bottom:1px solid rgba(140,160,200,.07)}
+  .ev:before{content:"";position:absolute;left:-6px;top:20px;width:11px;height:11px;border-radius:50%;
+    border:2px solid var(--bg)}
+  .ev.declared:before{background:var(--declared)} .ev.received:before{background:var(--received)}
+  .ev.said:before{background:var(--said)} .ev.voted:before{background:var(--voted)}
+  .ev .date{position:absolute;left:-150px;top:16px;width:130px;text-align:right;
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--ink4)}
+  .ev .kind{font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;font-weight:700}
+  .ev.declared .kind{color:var(--declared)} .ev.received .kind{color:var(--received)}
+  .ev.said .kind{color:var(--said)} .ev.voted .kind{color:var(--voted)}
+  .ev h3{font-size:15px;font-weight:600;color:var(--ink);line-height:1.35;margin-top:5px}
+  .ev p{font-size:13px;color:var(--ink3);line-height:1.6;margin-top:6px}
+  .ev .val{font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);margin-top:6px}
+  .ev a{font-size:11.5px;color:#7e9bd6;text-decoration:none;margin-top:7px;display:inline-block}
+  .ev a:hover{text-decoration:underline}
+  .note{font-size:12px;color:var(--ink4);line-height:1.7;margin-top:26px;max-width:820px}
+  .note strong{color:var(--ink3);font-weight:500}
+  .state{padding:44px 0;text-align:center;color:var(--ink4);font-size:13px}
+</style>
+</head>
+<body>
+<div id="loroBar" style="position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;align-items:center;gap:14px;
+  padding:8px 16px;background:rgba(6,9,16,.82);backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(140,160,200,.14);font-family:Inter,system-ui,sans-serif;font-size:11.5px">
+  <a href="/data" style="color:#e9eefa;text-decoration:none;font-weight:600">← Loro Data</a>
+  <span style="color:#2b3548">|</span>
+  <a href="/political-money.html" style="color:#7c8aa8;text-decoration:none">Political money</a>
+  <a href="/donor-analysis.html" style="color:#7c8aa8;text-decoration:none">Who funds British politics</a>
+</div>
+<div style="height:34px"></div>
+
+<div class="wrap">
+  <div class="eyebrow">Loro · Political finance</div>
+  <h1>Member <em>dossier</em></h1>
+  <p class="dek">Four public registers, one timeline: what a member declared, what they received,
+    what they said in the chamber and how they voted. Each register publishes separately and none
+    of it is joined — together they answer a question none can alone.</p>
+
+  <div class="picker">
+    <select id="person"><option value="">Loading members…</option></select>
+    <span style="font-size:11.5px;color:#556080" id="hint"></span>
+  </div>
+
+  <div id="body"><div class="state">Choose a member to build their timeline.</div></div>
+
+  <p class="note">
+    <strong>How to read this.</strong> Every entry is drawn from a public register and reflects
+    lawful, reported activity. Entries are shown in date order; proximity in time does not imply
+    connection, and no inference is drawn here. Registers publish on different delays, so a gap
+    may reflect reporting rather than absence. Contains Electoral Commission Information
+    © Electoral Commission and/or database right, and Parliamentary information licensed under
+    the Open Parliament Licence v3.0.
+  </p>
+</div>
+
+<script>
+(function(){
+  const sel=document.getElementById("person"), body=document.getElementById("body");
+  const money=v=>v>=1e6?"£"+(v/1e6).toFixed(1)+"m":v>=1e3?"£"+Math.round(v/1e3)+"k":"£"+Math.round(v);
+  const cap=s=>s.replace(/\b\w/g,c=>c.toUpperCase());
+  const KIND={declared:"Declared",received:"Received",said:"Said",voted:"Voted"};
+
+  async function loadCandidates(){
+    const res=await fetch("/api/people/dossier");
+    const d=await res.json();
+    const list=(d.candidates||[]).filter(c=>c.registers>=2);
+    sel.innerHTML='<option value="">Select a member…</option>'+
+      list.map(c=>'<option value="'+c.person+'">'+cap(c.person)+
+        '  ('+c.registers+' registers'+(c.totalGbp?' · '+money(c.totalGbp):'')+')</option>').join("");
+    document.getElementById("hint").textContent=list.length+" members appear in two or more registers";
+  }
+
+  async function loadPerson(p){
+    body.innerHTML='<div class="state">Building timeline…</div>';
+    try{
+      const res=await fetch("/api/people/dossier?person="+encodeURIComponent(p));
+      const d=await res.json();
+      if(!d.events||!d.events.length){
+        body.innerHTML='<div class="state">No register entries found for this member.</div>';return;
+      }
+      const t=d.totals;
+      const ch=s=>String(s==null?"":s).replace(/[<>&"]/g,c=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[c]));
+
+      body.innerHTML=
+        '<div class="stats">'+
+          '<div class="stat declared"><div class="n">'+t.declared+'</div><div class="k">Interests declared</div></div>'+
+          '<div class="stat received"><div class="n">'+t.received+'</div><div class="k">Donations received</div></div>'+
+          '<div class="stat said"><div class="n">'+t.said+'</div><div class="k">Chamber contributions</div></div>'+
+          '<div class="stat voted"><div class="n">'+t.voted+'</div><div class="k">Recorded votes</div></div>'+
+          '<div class="stat"><div class="n">'+money(t.money)+'</div><div class="k">Total reported value</div></div>'+
+        '</div>'+
+        '<div class="legend">'+
+          '<span><i style="background:var(--declared)"></i>Declared an interest</span>'+
+          '<span><i style="background:var(--received)"></i>Received a donation</span>'+
+          '<span><i style="background:var(--said)"></i>Spoke in the chamber</span>'+
+          '<span><i style="background:var(--voted)"></i>Voted in a division</span>'+
+        '</div>'+
+        '<div class="tl">'+d.events.map(e=>
+          '<div class="ev '+e.kind+'">'+
+            '<span class="date">'+new Date(e.date).toLocaleDateString("en-GB",
+              {day:"numeric",month:"short",year:"numeric"})+'</span>'+
+            '<span class="kind">'+KIND[e.kind]+'</span>'+
+            '<h3>'+ch(e.headline)+'</h3>'+
+            (e.detail?'<p>'+ch(e.detail)+'</p>':'')+
+            (e.value?'<div class="val">'+money(e.value)+
+              (e.counterparty?' · '+ch(e.counterparty):'')+'</div>':'')+
+            '<a href="'+e.url+'" target="_blank" rel="noopener">'+ch(e.source)+' →</a>'+
+          '</div>').join("")+'</div>';
+    }catch(err){ body.innerHTML='<div class="state">Could not load this member.</div>'; }
+  }
+
+  sel.addEventListener("change",()=>{ if(sel.value)loadPerson(sel.value); });
+  loadCandidates();
+})();
+</script>
+</body>
+</html>
