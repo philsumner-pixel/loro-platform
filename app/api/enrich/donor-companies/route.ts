@@ -95,8 +95,16 @@ export async function GET(req: Request) {
         .filter(Boolean)
     )
 
+    // Compare PADDED to PADDED. Numbers are zero-padded to 8 characters before
+    // storing, but the registry supplies them unpadded — so comparing raw
+    // against stored never matched and every company was re-resolved on every
+    // run, producing 261 control records for 58 companies.
+    const pad = (v: string) => {
+      const raw = v.toUpperCase().trim()
+      return /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw
+    }
     const todo = all
-      .filter(d => d.company_number && !knownSet.has(d.company_number.toUpperCase()))
+      .filter(d => d.company_number && !knownSet.has(pad(d.company_number)))
       .sort((a, b) => Number(b.total_gbp) - Number(a.total_gbp))
       .slice(0, limit)
 
