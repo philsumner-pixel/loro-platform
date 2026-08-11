@@ -239,6 +239,60 @@ export async function GET(req: Request) {
       errors.push(`divisions: ${e instanceof Error ? e.message : 'failed'}`)
     }
 
+    // ── Member-level votes ───────────────────────────────────────────
+    // Divisions alone give aggregate counts ("Ayes 330, Noes 109"), which
+    // cannot answer the question that matters: how did THIS member vote on a
+    // matter touching their declared interest. The Commons Votes API publishes
+    // the individual lists, so fetch them per division.
+    try {
+      const divIds = rows
+        .filter(r => r.source === 'uk_parliament_divisions')
+        .map(r => (r.source_metadata as Record<string, unknown>).division_id as string)
+        .filter(Boolean)
+        .slice(0, Number(url.searchParams.get('votes') ?? 6))
+
+      for (const divId of divIds) {
+        try {
+          const raw = await getJson(
+            `https://commonsvotes-api.parliament.uk/data/division/${divId}.json`)
+          const d = raw as {
+            Title?: string; Date?: string
+            Ayes?: Array<{ MemberId?: number; Name?: string; Party?: string }>
+            Noes?: Array<{ MemberId?: number; Name?: string; Party?: string }>
+          }
+          const votes = [
+            ...(d.Ayes ?? []).map(m => ({ ...m, vote: 'Aye' })),
+            ...(d.Noes ?? []).map(m => ({ ...m, vote: 'No' })),
+          ].filter(v => v.Name)
+
+          if (!votes.length) continue
+
+          rows.push({
+            source: 'uk_parliament_votes',
+            event_type: 'division_votes',
+            event_date: (d.Date ?? new Date().toISOString()).slice(0, 10),
+            url: `https://votes.parliament.uk/Votes/Commons/Division/${divId}`,
+            raw_content: {
+              title: `Division ${divId}: how members voted`,
+              description: `${votes.length} members recorded on "${d.Title ?? 'division'}".`,
+              division_title: d.Title ?? null,
+              votes: votes.map(v => ({ member: v.Name, party: v.Party, vote: v.vote,
+                                       member_id: v.MemberId })),
+            },
+            source_metadata: {
+              division_id: divId,
+              aye_count: (d.Ayes ?? []).length,
+              no_count: (d.Noes ?? []).length,
+              attribution: 'Contains Parliamentary information licensed under the Open Parliament Licence v3.0',
+            },
+            processed: false,
+          })
+        } catch { /* skip this division */ }
+      }
+    } catch (e) {
+      errors.push(`votes: ${e instanceof Error ? e.message.slice(0, 60) : 'failed'}`)
+    }
+
     // Dedupe against what we already hold, then bulk insert.
     if (rows.length) {
       const urls = rows.map(r => r.url as string)
