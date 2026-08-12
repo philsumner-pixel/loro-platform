@@ -89,7 +89,10 @@ export async function GET(req: Request) {
     .select('id, headline, standfirst, category')
     .eq('novelty_status', 'unchecked')
     .neq('status', 'discarded')
-    .limit(20)  // process in batches
+    // 20 exceeds the 60s limit: each candidate runs three checks including a
+    // web search, so a full batch strands the tail in 'checking'. 8 completes
+    // reliably and the cron runs every 2 hours.
+    .limit(Math.min(Number(new URL(req.url).searchParams.get('batch') ?? 8), 15))
 
   if (!candidates?.length) {
     return NextResponse.json({ message: 'No unchecked candidates' })
