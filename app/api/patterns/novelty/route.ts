@@ -106,7 +106,11 @@ export async function GET(req: Request) {
     })
     const checkText = embeddingInput ?? `${candidate.headline}. ${candidate.standfirst ?? ''}`
     const checks: Array<{ layer: string; result: string; evidence: Record<string, unknown> }> = []
+    // Coverage means EXTERNAL coverage. Whether Loro has published something
+    // similar is tracked separately — it is a duplication question, not a
+    // novelty one.
     let overallStatus = 'novel'
+    let selfCovered = false
 
     // Mark as checking
     await sb.from('loro_story_candidates')
@@ -126,25 +130,44 @@ export async function GET(req: Request) {
         })
         .eq('id', candidate.id)
 
-      // Check against our own PUBLISHED articles only.
-      // NB: this must never compare against the unreviewed candidate queue —
-      // doing so made each repeat candidate match yesterday's queued copy and
-      // auto-flag as widely_covered, suppressing genuinely novel stories.
+      // Check against our own PUBLISHED articles.
+      //
+      // NB1: never compare against the unreviewed candidate queue — that made
+      // each repeat candidate match yesterday's queued copy.
+      //
+      // NB2: this layer answers "have WE already covered this", which is a
+      // DIFFERENT question from "is this novel to the world". It must not
+      // decide the overall verdict. Detector headlines are templated
+      // ("X: filing activity 6x above its own baseline"), so a candidate about
+      // one company matched our published article about a DIFFERENT company at
+      // 0.82 — the phrasing matched, not the story. That single layer was
+      // overriding live_news and web_search, which both correctly said novel
+      // in 55 of 55 and 51 of 55 checks.
       const { data: similarArticles } = await sb.rpc('loro_similar_candidates', {
         query_embedding: embedding,
         similarity_threshold: SIMILARITY_THRESHOLD_LIGHT,
         max_results: 5,
       })
 
+      // Only a near-identical match counts as us having already covered it,
+      // and it is recorded as 'self_covered' rather than folded into the
+      // external coverage verdict.
+      const SELF_DUPLICATE = 0.93
+
       if (similarArticles?.length) {
         const maxSim = Math.max(...similarArticles.map((a: { similarity: number }) => a.similarity))
+        selfCovered = maxSim >= SELF_DUPLICATE
         checks.push({
           layer: 'internal_corpus',
-          result: maxSim >= SIMILARITY_THRESHOLD_COVERED ? 'widely_covered' : 'lightly_covered',
-          evidence: { similar_articles: similarArticles, max_similarity: maxSim },
+          result: selfCovered ? 'self_covered' : 'novel',
+          evidence: {
+            similar_articles: similarArticles,
+            max_similarity: maxSim,
+            note: selfCovered
+              ? 'Near-identical to something Loro has already published'
+              : 'Similar phrasing to our own output, but a different story — not treated as coverage',
+          },
         })
-        if (maxSim >= SIMILARITY_THRESHOLD_COVERED) overallStatus = 'widely_covered'
-        else if (overallStatus === 'novel') overallStatus = 'lightly_covered'
       } else {
         checks.push({ layer: 'internal_corpus', result: 'novel', evidence: { similar_articles: [] } })
       }
@@ -299,7 +322,9 @@ Be concrete and specific. Name the exact uncovered angle. Do not pad or be gener
     await sb.from('loro_story_candidates')
       .update({
         novelty_status: overallStatus,
-        novelty_note: noveltyNote,
+        novelty_note: selfCovered
+          ? `${noveltyNote} (Loro has already published something near-identical — check before drafting.)`
+          : noveltyNote,
         novelty_checked_at: new Date().toISOString(),
         coverage_summary: coverageSummary.length > 0 ? coverageSummary : null,
         ...(aiAngle ? { loro_angle_hypothesis: aiAngle, ai_angle_generated: true } : {}),
