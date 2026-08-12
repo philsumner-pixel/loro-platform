@@ -170,10 +170,16 @@ export async function GET(req: Request) {
       const who = (r.entity_names ?? []).filter(n => n && n !== 'unknown')
       if (!who.length) continue
       const headline = `Unusual filing type ${r.event_type.replace(/_/g, ' ')} — ${who.slice(0, 3).join(', ')}`
-      if (await alreadyOpen(sb, headline)) continue
+      // The subject here is the EVENT TYPE, not the companies listed: the same
+      // rare filing type recurs with a different sample of company names in the
+      // headline each run. Keying on the headline meant every run looked new —
+      // 64 copies of one story in five days.
+      const subjectKey = `raretype_${r.event_type}`.toLowerCase().replace(/[^a-z0-9_]/g, '')
+      if (await alreadyOpen(sb, headline, subjectKey, 'rare_event_type')) continue
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
+        subject_key: subjectKey,
         standfirst: `${r.event_type.replace(/_/g, ' ')} accounts for just ${(r.corpus_share * 100).toFixed(2)}% of all recorded filings, and ${r.recent_count} landed in the last 7 days. Rare filing types are disproportionately newsworthy.`,
         category: 'Regulation',
         lane_slug: 'regulation-enforcement',
