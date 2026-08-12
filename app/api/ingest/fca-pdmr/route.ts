@@ -213,6 +213,12 @@ export async function GET(req: NextRequest) {
       if (res.ok) {
         const html = await res.text()
         announcements = parseInvestegateHtml(html)
+        // The fetch succeeds and the run reports 'completed' with zero found,
+        // so a markup change looks identical to a quiet register. Record enough
+        // to tell them apart.
+        if (!announcements.length) {
+          errors.push(`parse yielded 0 from ${html.length} bytes — markup may have changed`)
+        }
       } else {
         errors.push(`Investegate category: HTTP ${res.status}`)
       }
