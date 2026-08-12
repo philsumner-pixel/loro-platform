@@ -60,19 +60,27 @@ export async function GET(req: Request) {
 
   // Source status alone would have missed every serious failure this week, so
   // check the pipeline stages, volume trend and stale heartbeats too.
-  const [stagesRes, volumeRes, beatsRes] = await Promise.all([
+  const [stagesRes, volumeRes, beatsRes, barrenRes] = await Promise.all([
     sb.rpc('loro_pipeline_stages'),
     sb.rpc('loro_source_volume_anomaly'),
     sb.rpc('loro_stale_heartbeats'),
+    // The gap that let FCA PDMR run 7,950 times over three months producing
+    // nothing while reporting success: the fetch worked and only the parse
+    // failed, so it looked identical to a quiet register. Every other check
+    // needs a baseline, and a source that never produced has none.
+    sb.rpc('loro_barren_sources', { min_runs: 50 }),
   ])
 
   interface Stage { stage: string; pending: number; status: string }
   interface Volume { source: string; last_7d: number; weekly_avg: number; ratio: number; status: string }
   interface Beat { job: string; minutes_late: number }
+  interface Barren { slug: string; label: string; total_runs: number
+    events_total: number; verdict: string }
 
   const stages = (stagesRes.data ?? []) as Stage[]
   const volumes = (volumeRes.data ?? []) as Volume[]
   const beats = (beatsRes.data ?? []) as Beat[]
+  const barren = (barrenRes.data ?? []) as Barren[]
 
   const stalledStages = stages.filter(s => s.status === 'stalled' || s.status === 'behind')
   const volumeDrops = volumes.filter(v => v.status === 'STOPPED' || v.status === 'sharp drop')
@@ -87,6 +95,7 @@ export async function GET(req: Request) {
     ...stalledStages.map(s => `stage:${s.stage}:${s.status}`),
     ...volumeDrops.map(v => `vol:${v.source}:${v.status}`),
     ...beats.map(b => `beat:${b.job}`),
+    ...barren.map(b => `barren:${b.slug}`),
   ].sort().join('|')
 
   const { data: last } = await sb
@@ -108,7 +117,8 @@ export async function GET(req: Request) {
   let alerted = false
   const webhook = process.env.SLACK_WEBHOOK_URL
   const anyProblem =
-    problems.length + stalledStages.length + volumeDrops.length + beats.length > 0
+    problems.length + stalledStages.length + volumeDrops.length +
+    beats.length + barren.length > 0
 
   if (webhook && changed && anyProblem && !dryRun) {
     const stageLines = stalledStages.map(s =>
@@ -117,6 +127,8 @@ export async function GET(req: Request) {
       `• *${v.source}* — ${v.status}: ${v.last_7d} this week vs ${v.weekly_avg}/week average`)
     const beatLines = beats.map(b =>
       `• *Job not running: ${b.job}* — ${Math.round(b.minutes_late)} minutes overdue`)
+    const barrenLines = barren.map(b =>
+      `• *${b.label}* — ${b.verdict}`)
 
     const lines = problems.map(p => {
       const detail = p.status === 'failing'
@@ -135,6 +147,7 @@ export async function GET(req: Request) {
           text: [
             `*Loro pipeline health — ${problems.length + stalledStages.length + volumeDrops.length + beats.length} issue(s)*`,
             ...beatLines,
+            ...barrenLines,
             ...lines,
             ...stageLines,
             ...volumeLines,
@@ -162,6 +175,7 @@ export async function GET(req: Request) {
     stalled_stages: stalledStages,
     volume_anomalies: volumeDrops,
     stale_heartbeats: beats,
+    barren_sources: barren,
     state_changed: changed,
     alerted,
     slack_configured: Boolean(webhook),
