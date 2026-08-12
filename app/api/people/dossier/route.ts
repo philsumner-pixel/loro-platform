@@ -46,7 +46,20 @@ export async function GET(req: Request) {
       })
     }
 
-    const { data, error } = await client.rpc('loro_person_dossier', { person_name: person })
+    const normalised = person.toLowerCase()
+      .replace(/^(mr|mrs|ms|miss|dr|sir|lord|lady|the rt hon|rt hon)\s+/i, '')
+
+    const [dossierRes, assessRes] = await Promise.all([
+      client.rpc('loro_person_dossier', { person_name: person }),
+      // Adjudicated subject connections. Only those judged related are shown —
+      // and the REASON is what tells the reader why anything is flagged, which
+      // a bare chronology could not.
+      client.from('loro_relevance_assessments')
+        .select('benefit_summary, event_summary, days_between, confidence, reason')
+        .eq('person', normalised).eq('related', true)
+        .order('days_between', { ascending: true }).limit(20),
+    ])
+    const { data, error } = dossierRes
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     interface E { event_date: string; kind: string; headline: string; detail: string
@@ -71,8 +84,18 @@ export async function GET(req: Request) {
       money: events.reduce((a, e) => a + (e.value ?? 0), 0),
     }
 
+    interface A { benefit_summary: string; event_summary: string
+      days_between: number; confidence: string; reason: string }
+    const connections = ((assessRes.data ?? []) as A[]).map(a => ({
+      benefit: a.benefit_summary,
+      event: a.event_summary,
+      daysBetween: a.days_between,
+      confidence: a.confidence,
+      reason: a.reason,
+    }))
+
     return NextResponse.json({
-      person, events, totals,
+      person, events, totals, connections,
       caveat: 'Every entry is drawn from a public register and reflects lawful, reported activity. Sequence is chronological; proximity in time does not imply connection.',
       attribution: 'Contains Electoral Commission Information © Electoral Commission and/or database right, and Parliamentary information licensed under the Open Parliament Licence v3.0.',
     }, { headers: { 'Cache-Control': 'public, max-age=600, stale-while-revalidate=3600' } })

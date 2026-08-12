@@ -24,7 +24,11 @@ export async function GET(req: NextRequest) {
     .from('loro_story_candidates')
     .select('*')
     .in('status', statuses)
-    .order('anomaly_score', { ascending: false })
+    // Newest first. Sorting by anomaly_score meant a high-scoring older story
+    // sat permanently above everything new, so a journalist opening the inbox
+    // could not see what had just arrived — the score is already shown on each
+    // card, so it does not also need to drive the order.
+    .order('detected_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
