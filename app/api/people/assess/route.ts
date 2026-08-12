@@ -54,7 +54,10 @@ async function runAssessment(req: Request) {
 
   const url = new URL(req.url)
   const person = url.searchParams.get('person')
-  const limit = Math.min(Number(url.searchParams.get('limit') ?? 12), 30)
+  // Each pair is a separate LLM call taking 2-4s, so 20 exceeds the 60s function
+  // limit. 10 completes comfortably and the cron runs every 6 hours, which
+  // works through the backlog without any run failing.
+  const limit = Math.min(Number(url.searchParams.get('limit') ?? 10), 14)
 
   const client = sb()
   const { data: pairs, error } = await client.rpc('loro_relevance_candidates', {
