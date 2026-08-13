@@ -1598,3 +1598,35 @@ input { font-family: inherit; }
 .loro-cov-status { font-size: 12px; font-weight: 600; color: var(--ink); }
 .loro-cov-line { font-size: 14px; color: var(--ink2); line-height: 1.55; margin-top: 9px; }
 .loro-cov-meth { font-size: 11px; color: var(--ink5); line-height: 1.5; margin-top: 7px; }
+
+/* ── Social queue ───────────────────────────────────────────────────── */
+.loro-social { padding: 4px 0 40px; }
+.loro-social-head { display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; margin-bottom: 20px; }
+.loro-social-head h2 { font-family: 'Playfair Display', serif; font-size: 24px; font-weight: 600; color: var(--ink); }
+.loro-social-head p { font-size: 13px; color: var(--ink4); line-height: 1.6; max-width: 600px; margin-top: 6px; }
+.loro-social-cands { margin-bottom: 26px; }
+.loro-social-cands h3 { font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase; color: var(--ink5); font-weight: 600; margin-bottom: 10px; }
+.loro-social-cand { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 12px 14px; border: 1px solid var(--border); background: #FFF; margin-bottom: 6px; }
+.loro-social-cand .hl { font-size: 14px; font-weight: 500; color: var(--ink); line-height: 1.35; }
+.loro-social-cand .meta { display: flex; gap: 10px; flex-wrap: wrap; font-size: 11px; color: var(--ink5); margin-top: 5px; }
+.loro-social-cand .excl { color: #2D7A2D; font-weight: 600; }
+.loro-social-tabs { display: flex; gap: 4px; margin-bottom: 14px; flex-wrap: wrap; }
+.loro-social-tabs button { font-family: inherit; font-size: 12px; padding: 7px 13px; border: 1px solid var(--border); background: var(--paper); color: var(--ink3); cursor: pointer; display: flex; gap: 7px; align-items: center; }
+.loro-social-tabs button.active { background: var(--blue, #1A3A6B); border-color: var(--blue, #1A3A6B); color: #FFF; }
+.loro-social-tabs .n { opacity: .6; font-variant-numeric: tabular-nums; }
+.loro-social-post { border: 1px solid var(--border); background: #FFF; padding: 14px 16px; margin-bottom: 8px; }
+.loro-social-post .top { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+.loro-social-post .plat { font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700; padding: 3px 8px; }
+.loro-social-post .plat.linkedin { background: #E8F0FA; color: #0A66C2; }
+.loro-social-post .plat.x { background: #EFEFEF; color: #111; }
+.loro-social-post .tag { font-size: 10px; padding: 2px 7px; border: 1px solid var(--border); color: var(--ink5); }
+.loro-social-post .tag.err { border-color: #F5C6C6; color: #A33A3A; }
+.loro-social-post .count { margin-left: auto; font-size: 11px; font-family: 'IBM Plex Mono', monospace; color: var(--ink5); }
+.loro-social-post .count.over { color: #A33A3A; font-weight: 600; }
+.loro-social-post textarea { width: 100%; padding: 11px 13px; border: 1px solid var(--border); font-family: 'Inter', sans-serif; font-size: 14px; line-height: 1.6; color: var(--ink); background: var(--paper); outline: none; resize: vertical; }
+.loro-social-post .body { font-size: 14px; line-height: 1.65; color: var(--ink2); white-space: pre-wrap; }
+.loro-social-post .foot { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 9px; font-size: 11.5px; }
+.loro-social-post .foot a { color: var(--blue-mid, #2C5AA0); }
+.loro-social-post .tags { color: var(--ink5); }
+.loro-social-post .actions { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 11px; border-top: 1px solid var(--border); }
+.loro-social-post .decided { font-size: 11.5px; color: var(--ink5); margin-top: 10px; text-transform: capitalize; }
