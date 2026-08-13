@@ -16,6 +16,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${SITE}/intelligence`, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE}/sources`, changeFrequency: 'daily', priority: 0.6 },
     { url: `${SITE}/news`, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${SITE}/search`, changeFrequency: 'weekly', priority: 0.5 },
     { url: `${SITE}/data`, changeFrequency: 'weekly', priority: 0.7 },
     // The visualisations are static files in public/, so Next Metadata does not
     // apply to them — they must be listed here explicitly or crawlers will

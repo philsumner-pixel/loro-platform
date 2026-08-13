@@ -18,6 +18,7 @@ export default function Masthead() {
 
         <div className="loro-mast-right">
           <button className="loro-btn-signin">Sign in</button>
+          <a href="/search" style={{marginRight:14}}>Search</a>
           <a href="/subscribe" className="loro-btn-subscribe" style={{textDecoration:'none'}}>Subscribe →</a>
         </div>
       </div>
