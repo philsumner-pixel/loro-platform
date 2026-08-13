@@ -102,7 +102,20 @@ export async function POST(req: NextRequest) {
     `${e.name} (${e.entity_type}, ${e.jurisdiction})`
   ).join(', ') || 'Entity not resolved'
 
-  const prompt = `You are an editorial intelligence engine for Loro, an independent payments intelligence publication. Generate a publishable first-draft news brief from the following regulatory intelligence signal. A journalist will edit and refine this — aim for 80% publishable quality.
+  const prompt = `You are an editorial intelligence engine for Loro, an independent business and regulatory intelligence publication. Generate a publishable first-draft news brief from the following signal. A journalist will edit and refine this — aim for 80% publishable quality.
+
+BEFORE WRITING, CHECK THERE IS A STORY.
+If the evidence does not identify a named entity AND at least one dated filing
+or document, respond with exactly:
+
+INSUFFICIENT EVIDENCE: <one line saying what is missing>
+
+Do NOT write an article about the detection itself. Headlines like "Anomaly
+Detection System Flags Unresolved Signal" or "Entity Unconfirmed, Verification
+Pending" are reports of our own uncertainty, not journalism — they name no
+subject a reader could care about and they cannot be checked. Refusing is
+always the right answer when the evidence is thin; a journalist can then find
+the missing piece or discard the signal.
 
 ---
 

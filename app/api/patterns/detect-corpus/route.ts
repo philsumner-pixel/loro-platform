@@ -169,6 +169,28 @@ export async function GET(req: Request) {
       considered++
       const who = (r.entity_names ?? []).filter(n => n && n !== 'unknown')
       if (!who.length) continue
+
+      // Pull the filings this signal is actually about, so the brief has
+      // something concrete to write from.
+      const { data: evs } = await sb
+        .from('loro_source_events')
+        .select('url, event_date, source, raw_content')
+        .eq('event_type', r.event_type)
+        .gte('event_date', new Date(Date.now() - 7 * 86400_000).toISOString().slice(0, 10))
+        .order('event_date', { ascending: false })
+        .limit(6)
+
+      const sources = (evs ?? []).map(e => ({
+        url: e.url,
+        date: e.event_date,
+        register: e.source,
+        title: (e.raw_content as { title?: string })?.title ?? null,
+        detail: ((e.raw_content as { description?: string })?.description ?? '').slice(0, 400),
+      }))
+
+      // A signal with no retrievable document behind it cannot support an
+      // article — skip it rather than producing a story about our own alert.
+      if (!sources.length) continue
       const headline = `Unusual filing type ${r.event_type.replace(/_/g, ' ')} — ${who.slice(0, 3).join(', ')}`
       // The subject here is the EVENT TYPE, not the companies listed: the same
       // rare filing type recurs with a different sample of company names in the
@@ -193,6 +215,12 @@ export async function GET(req: Request) {
           corpus_share: r.corpus_share,
           recent_count: r.recent_count,
           entities: who,
+          // The underlying filings. Without these the packet was a statistic
+          // with no document behind it — event type, corpus share, a count —
+          // so the brief generator, correctly refusing to invent facts, wrote
+          // about the SIGNAL instead of the story: 'Anomaly Detection System
+          // Flags Unresolved Regulatory Signal'. Honest, but not journalism.
+          source_events: sources,
         },
       })
       if (error) errors.push(`rare: ${error.message}`)
