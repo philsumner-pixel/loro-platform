@@ -10,7 +10,7 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.43.0",
+    "@supabase/supabase-js": "^2.112.3",
     "@tiptap/extension-image": "^2.27.2",
     "@tiptap/extension-link": "^2.27.2",
     "@tiptap/react": "^2.27.2",
