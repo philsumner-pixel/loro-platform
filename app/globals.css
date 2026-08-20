@@ -1649,3 +1649,9 @@ input { font-family: inherit; }
 .loro-search-item p { font-size: 13.5px; color: var(--ink3); line-height: 1.55; margin-top: 6px; }
 .loro-search-item .meta { display: block; font-size: 11px; color: var(--ink5); margin-top: 7px; letter-spacing: .03em; }
 .loro-search-empty { padding: 40px 0; font-size: 15px; color: var(--ink4); line-height: 1.7; }
+
+/* Evidence strength on candidate cards */
+.loro-ev { font-size: 9px; letter-spacing: .08em; text-transform: uppercase; font-weight: 700; padding: 2px 6px; white-space: nowrap; }
+.loro-ev-publishable { background: #F0FAF0; color: #2D7A2D; }
+.loro-ev-lead_only   { background: #FDF6E3; color: #8A6A1F; }
+.loro-ev-insufficient{ background: #FDF2F2; color: #A33A3A; }

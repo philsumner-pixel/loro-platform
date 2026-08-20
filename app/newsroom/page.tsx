@@ -57,6 +57,8 @@ interface Candidate {
   discard_reason: string | null
   lane_slug: string | null
   lane_confidence: number | null
+  evidence_grade: string | null
+  evidence_doc_count: number | null
   evidence_packet: EvidencePacket
   detected_at: string
   coverage_links: CoverageLink[]
@@ -1116,6 +1118,24 @@ export default function NewsroomPage() {
                                   {c.lane_slug ? LANE_LABEL[c.lane_slug] ?? c.category : c.category}
                                 </span>
                                 <ScoreBadge c={c} />
+                                {/* Evidence strength, shown BEFORE the card is
+                                    opened — the whole point is that a
+                                    journalist should not discover a story
+                                    cannot be written only at the draft stage. */}
+                                {c.evidence_grade && c.evidence_grade !== 'publishable' && (
+                                  <span className={`loro-ev loro-ev-${c.evidence_grade}`}
+                                    title={c.evidence_grade === 'lead_only'
+                                      ? 'Named subject but no retrievable filing — needs reporting before it can be written'
+                                      : 'No named subject and no documents'}>
+                                    {c.evidence_grade === 'lead_only' ? 'Lead only' : 'Thin'}
+                                  </span>
+                                )}
+                                {c.evidence_grade === 'publishable' && (c.evidence_doc_count ?? 0) > 0 && (
+                                  <span className="loro-ev loro-ev-publishable"
+                                    title="Source documents attached">
+                                    {c.evidence_doc_count} doc{(c.evidence_doc_count ?? 0) > 1 ? 's' : ''}
+                                  </span>
+                                )}
                                 <span className={`loro-nr-novelty ${noveltyClass(c.novelty_status)}`}>{noveltyLabel(c.novelty_status)}</span>
                               </div>
                               <div className="loro-nr-card-headline">{c.headline}</div>

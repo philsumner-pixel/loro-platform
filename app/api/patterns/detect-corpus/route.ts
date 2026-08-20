@@ -49,6 +49,42 @@ interface RareRow {
  * same story. When a subject is already open, the new signal is recorded on
  * the existing candidate instead.
  */
+
+/**
+ * The filings behind a signal. Without these a candidate is a statistic about
+ * our own alerting — which is what produced "BMW Vehicle Owner Trust 2026-A has
+ * produced 3 filings against an expected 0" with nothing a journalist could
+ * open. The brief generator then correctly refused, but only after someone had
+ * already spent their attention on it.
+ */
+async function documentsFor(
+  sb: ReturnType<typeof getSupabase>,
+  entityName: string,
+  days = 14,
+  limit = 6
+) {
+  const { data: ent } = await sb
+    .from('loro_entities').select('id').eq('name', entityName).limit(1)
+  if (!ent?.length) return []
+
+  const { data: evs } = await sb
+    .from('loro_source_events')
+    .select('url, event_date, source, raw_content')
+    .eq('entity_id', ent[0].id)
+    .gte('event_date', new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10))
+    .not('url', 'is', null)
+    .order('event_date', { ascending: false })
+    .limit(limit)
+
+  return (evs ?? []).map(e => ({
+    url: e.url,
+    date: e.event_date,
+    register: e.source,
+    title: (e.raw_content as { title?: string })?.title ?? null,
+    detail: ((e.raw_content as { description?: string })?.description ?? '').slice(0, 400),
+  }))
+}
+
 async function alreadyOpen(
   sb: ReturnType<typeof getSupabase>,
   headline: string,
@@ -90,6 +126,7 @@ export async function GET(req: Request) {
   const errors: string[] = []
   const created: string[] = []
   let considered = 0
+  let skippedThin = 0
 
   try {
     // ── SIGNAL 1: burst ────────────────────────────────────────────────
@@ -102,6 +139,11 @@ export async function GET(req: Request) {
       if (b.burst_ratio < 3) continue
       const headline = `${b.entity_name}: filing activity ${b.burst_ratio}x above its own baseline`
       if (await alreadyOpen(sb, headline, b.entity_name, 'entity_burst')) continue
+
+      // A burst with no retrievable filings cannot be written up. Skip it here
+      // rather than letting a journalist discover that at the draft stage.
+      const burstDocs = await documentsFor(sb, b.entity_name)
+      if (!burstDocs.length) { skippedThin++; continue }
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
@@ -121,6 +163,7 @@ export async function GET(req: Request) {
           burst_ratio: b.burst_ratio,
           sources: b.sources,
           event_types: b.event_types,
+          source_events: burstDocs,
         },
       })
       if (error) errors.push(`burst: ${error.message}`)
@@ -136,6 +179,9 @@ export async function GET(req: Request) {
       considered++
       const headline = `${c.entity_name}: activity across ${c.source_count} registers within 14 days`
       if (await alreadyOpen(sb, headline, c.entity_name, 'cross_source')) continue
+
+      const crossDocs = await documentsFor(sb, c.entity_name, 21)
+      if (!crossDocs.length) { skippedThin++; continue }
 
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
@@ -154,6 +200,7 @@ export async function GET(req: Request) {
           source_count: c.source_count,
           event_count: c.event_count,
           window: [c.first_seen, c.last_seen],
+          source_events: crossDocs,
         },
       })
       if (error) errors.push(`cross: ${error.message}`)
@@ -233,6 +280,10 @@ export async function GET(req: Request) {
       ok: true,
       signals_considered: considered,
       candidates_created: created.length,
+      // Signals that fired but had no retrievable filing behind them. Reported
+      // rather than hidden: a rising number means the corpus is thin, not that
+      // the detector is quiet.
+      skipped_no_documents: skippedThin,
       created: created.slice(0, 10),
       errors: errors.slice(0, 3),
     })
