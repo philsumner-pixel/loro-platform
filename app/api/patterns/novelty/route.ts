@@ -86,7 +86,7 @@ export async function GET(req: Request) {
   // Get unchecked candidates
   const { data: candidates } = await sb
     .from('loro_story_candidates')
-    .select('id, headline, standfirst, category')
+    .select('id, headline, standfirst, category, evidence_packet')
     .eq('novelty_status', 'unchecked')
     .neq('status', 'discarded')
     // 20 exceeds the 60s limit: each candidate runs three checks including a
@@ -281,7 +281,11 @@ export async function GET(req: Request) {
 
         const allCoverageText = [coverageContext, newsApiContext].filter(Boolean).join('\n')
 
-        const prompt = `You are an editorial intelligence engine for Loro, an independent payments intelligence publication.
+        const pkt = (candidate as { evidence_packet?: {
+        source_events?: Array<{ date?: string; register?: string; title?: string }>
+        company_number?: string } }).evidence_packet
+
+      const prompt = `You are an editorial intelligence engine for Loro, an independent payments intelligence publication.
 
 DETECTED SIGNAL:
 Headline: ${candidate.headline}
@@ -290,12 +294,27 @@ Pattern: ${overallStatus === 'novel' ? 'Novel — no existing coverage found' : 
 
 ${allCoverageText ? `EXISTING COVERAGE:\n${allCoverageText}` : 'NO COVERAGE FOUND — this signal appears to be novel.'}
 
-Based on the signal and existing coverage (or lack of it), suggest in 2-3 sentences:
-1. What specific angle Loro could own that isn't yet covered
-2. What the payments-specific regulatory or ownership intelligence dimension is
-3. Why this matters to a payments journalist right now
+EVIDENCE ATTACHED: ${(pkt?.source_events?.length ?? 0)} source document(s).
+${(pkt?.source_events ?? []).slice(0,4).map((d: { date?: string; register?: string; title?: string }) =>
+  `- ${d.date ?? ''} ${d.register ?? ''}: ${d.title ?? ''}`).join('\n') || '- none'}
 
-Be concrete and specific. Name the exact uncovered angle. Do not pad or be generic.`
+Suggest in 2-3 sentences what a journalist should CHECK next.
+
+RULES
+- Work only from the evidence above. If it names no documents, say what would
+  need to be obtained to stand the story up — do not construct a thesis.
+- Never speculate about strategy, motive or market context that the documents
+  do not support. A confident narrative built on a bare filing count reads as
+  authoritative and is the most dangerous thing this engine can produce.
+- Be concrete: name the document, the register, the question.`
+
+        // No angle at all on thin evidence. A speculative narrative attached to
+        // a candidate a journalist cannot stand up is worse than silence.
+                const docCount = pkt?.source_events?.length ?? 0
+        const registerBacked = Boolean(pkt?.company_number)
+        if (docCount === 0 && !registerBacked) {
+          aiAngle = null
+        } else {
 
         const res = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -315,6 +334,7 @@ Be concrete and specific. Name the exact uncovered angle. Do not pad or be gener
         if (res.ok) {
           const data = await res.json()
           aiAngle = data.content?.[0]?.text ?? null
+        }
         }
       } catch {
         // Angle generation is best-effort — don't fail the whole check
