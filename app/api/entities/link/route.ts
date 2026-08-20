@@ -37,7 +37,23 @@ export async function GET(req: Request) {
   const { data: linked, error: linkErr } = await client.rpc('loro_link_person_events')
   if (linkErr) errors.push(`link: ${linkErr.message}`)
 
-  // 3. Propose fresh match candidates for human review.
+  // 3. Re-attach documents to candidates that were created before their entity
+  //    was enriched. Of 64 candidates graded below publishable, 50 turned out
+  //    not to be thin at all — the documents existed, they just were not
+  //    attached yet. Without this they would sit as leads forever.
+  const { data: upgraded, error: upErr } = await client.rpc('loro_upgrade_thin_candidates', {
+    max_rows: 200,
+  })
+  if (upErr) errors.push(`upgrade: ${upErr.message}`)
+
+  // 4. Retire leads that have had a week and still have nothing behind them,
+  //    so the queue does not silently fill with things nobody can write.
+  const { data: retired, error: retErr } = await client.rpc('loro_retire_stale_leads', {
+    older_than_days: 7,
+  })
+  if (retErr) errors.push(`retire: ${retErr.message}`)
+
+  // 5. Propose fresh match candidates for human review.
   const [co, pe] = await Promise.all([
     client.rpc('loro_propose_entity_matches', { min_similarity: 0.72, max_pairs: 100 }),
     client.rpc('loro_propose_person_matches', { min_similarity: 0.62, max_pairs: 100 }),
@@ -46,6 +62,8 @@ export async function GET(req: Request) {
   return NextResponse.json({
     ok: errors.length === 0,
     linked,
+    candidates_upgraded: upgraded ?? null,
+    stale_leads_retired: retired ?? 0,
     new_company_candidates: co.data ?? 0,
     new_person_candidates: pe.data ?? 0,
     errors,
