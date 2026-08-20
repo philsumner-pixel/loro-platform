@@ -47,6 +47,14 @@ export async function POST(req: NextRequest) {
     .limit(5)
 
   // Fetch raw source events for this candidate
+  // Documents attached to the evidence packet by the detector. This is where
+  // the corpus detectors put them; source_event_ids is a legacy column they
+  // never populate, so reading only that made every newly-enriched candidate
+  // look evidence-free and the generator refused stories it could have written.
+  const packetDocs = (candidate.evidence_packet?.source_events ?? []) as Array<{
+    url?: string; date?: string; register?: string; title?: string; detail?: string
+  }>
+
   const sourceEventIds = candidate.source_event_ids ?? []
   const { data: events } = sourceEventIds.length
     ? await sb
@@ -127,10 +135,21 @@ Detected: ${new Date(candidate.detected_at).toLocaleDateString('en-GB', { day: '
 
 SCORE BREAKDOWN
 ${breakdownText || 'Score data not available'}
+${candidate.evidence_packet?.company_number ? `
+REGISTER RECORD
+Company number: ${candidate.evidence_packet.company_number}
+${candidate.evidence_packet.total_gbp ? `Total value: £${Number(candidate.evidence_packet.total_gbp).toLocaleString('en-GB')}` : ''}
+${candidate.evidence_packet.donation_count ? `Donations: ${candidate.evidence_packet.donation_count}` : ''}
+${Array.isArray(candidate.evidence_packet.recipients) ? `Recipients: ${(candidate.evidence_packet.recipients as string[]).join('; ')}` : ''}` : ''}
 
-SOURCE EVENTS (${(events ?? []).length} total)
-${pdmrDetail || 'Regulatory filings — see evidence packet'}
+SOURCE DOCUMENTS (${packetDocs.length + (events ?? []).length} total)
+${packetDocs.slice(0, 8).map(d =>
+  `- ${d.date ?? 'undated'} · ${(d.register ?? '').replace(/_/g, ' ')} · ${d.title ?? 'filing'}` +
+  `${d.detail ? `\n  ${d.detail.slice(0, 300)}` : ''}` +
+  `${d.url ? `\n  ${d.url}` : ''}`).join('\n') || ''}
+${pdmrDetail || ''}
 ${chEvents.length > 0 ? `Companies House: ${chEvents.length} filing(s)` : ''}
+${packetDocs.length === 0 && (events ?? []).length === 0 ? 'No documents attached.' : ''}
 
 EXISTING COVERAGE IN MONITORED PUBLICATIONS
 ${coverageText}
