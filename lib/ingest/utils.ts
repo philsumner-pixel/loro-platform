@@ -192,6 +192,22 @@ export async function writeNewsCoverageBatch(
 }
 
 /**
+ * Remove `<script>` and `<style>` blocks *with their contents*, before
+ * stripTags removes the remaining markup.
+ *
+ * The end-tag pattern is the fiddly part. HTML allows attributes on a closing
+ * tag and ignores them, so `</script\t\n bar>` closes a script just as
+ * `</script>` does. Matching only `</script>` — or even `</script\s*>` — lets
+ * the script body survive into the extracted text, which is what CodeQL
+ * js/bad-tag-filter flags.
+ */
+export function stripScriptAndStyle(html: string, replacement = ' '): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script(?:\s[^>]*)?>/gi, replacement)
+    .replace(/<style\b[^>]*>[\s\S]*?<\/style(?:\s[^>]*)?>/gi, replacement)
+}
+
+/**
  * Strip HTML tags from untrusted feed content.
  *
  * A single-pass `.replace(/<[^>]+>/g, '')` is not safe: removing a sequence can

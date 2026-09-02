@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
-import { startRun, completeRun } from '@/lib/ingest/utils'
+import { startRun, completeRun, stripTags, stripScriptAndStyle } from '@/lib/ingest/utils'
 
 // ── CONTENT ENRICHMENT ──────────────────────────────────────────────────
 // Why this exists: the corpus was embedded but the embeddings were near
@@ -48,11 +48,14 @@ function extractText(raw: string): string {
   text = text.replace(/<TYPE>(?:EX-|GRAPHIC|ZIP|EXCEL|JSON|XML)[\s\S]*?<\/DOCUMENT>/gi, ' ')
   text = text.replace(/<SEC-HEADER>[\s\S]*?<\/SEC-HEADER>/gi, ' ')
   text = text.replace(/<head[\s\S]*?<\/head>/gi, ' ')
-  text = text.replace(/<script[\s\S]*?<\/script>/gi, ' ')
-  text = text.replace(/<style[\s\S]*?<\/style>/gi, ' ')
+  // Same defect as the FCA route carried alert #20 and #19: '</script>' does
+  // not match '</script bar>', which HTML treats as a valid end tag, so the
+  // script body survived into the embedded text.
+  text = stripScriptAndStyle(text)
 
-  // Tags to spaces, entities to characters.
-  text = text.replace(/<[^>]+>/g, ' ')
+  // Tags to spaces. stripTags repeats until stable — one pass can reassemble
+  // the tag it removed.
+  text = stripTags(text, ' ')
   text = text
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
