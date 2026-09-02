@@ -191,6 +191,27 @@ export async function writeNewsCoverageBatch(
   return { inserted, duplicate: unique.length - inserted }
 }
 
+/**
+ * Strip HTML tags from untrusted feed content.
+ *
+ * A single-pass `.replace(/<[^>]+>/g, '')` is not safe: removing a sequence can
+ * reassemble the very thing it removed. `<scr<foo>ipt>` loses `<foo>` and
+ * becomes `<script>`. Repeat until the string stops changing, then neutralise
+ * any stray bracket left over from an unclosed tag.
+ *
+ * Termination is guaranteed — every pass either shortens the string or leaves
+ * it identical, which ends the loop.
+ */
+export function stripTags(input: string, replacement = ''): string {
+  let out = input
+  let prev: string
+  do {
+    prev = out
+    out = out.replace(/<[^>]*>/g, replacement)
+  } while (out !== prev)
+  return out.replace(/[<>]/g, replacement)
+}
+
 // ── Simple XML → object (for RSS parsing, no external dep) ───────────
 
 export function extractRssItems(xml: string): Array<{

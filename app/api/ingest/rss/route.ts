@@ -4,6 +4,7 @@ import {
   startRun,
   completeRun,
   writeNewsCoverageBatch,
+  stripTags,
   extractRssItems,
   isRelevant,
   detectCategories,
@@ -96,7 +97,7 @@ export async function GET(req: Request) {
               keyword_relevant: isRelevant(text),
               publication: pub.slug,
               headline: item.title,
-              summary: item.description.replace(/<[^>]+>/g, '').slice(0, 500),
+              summary: stripTags(item.description).slice(0, 500),
               url: item.link,
               published_at: item.pubDate
                 ? new Date(item.pubDate).toISOString()

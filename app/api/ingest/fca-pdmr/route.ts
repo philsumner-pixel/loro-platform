@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getSupabase, startRun, completeRun, writeSourceEvent } from '@/lib/ingest/utils'
+import { getSupabase, startRun, completeRun, writeSourceEvent, stripTags } from '@/lib/ingest/utils'
 
 // FCA PDMR Ingestor
 // Source: Investegate director dealings category (aggregates LSE RNS + EQS + other PIPs)
@@ -263,10 +263,16 @@ export async function GET(req: NextRequest) {
           
           if (annRes.ok) {
             const html = await annRes.text()
-            const bodyText = html
-              .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-              .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-              .replace(/<[^>]+>/g, ' ')
+            // stripTags repeats until stable — a single pass can reassemble
+            // the tag it just removed ("<scr<foo>ipt>" becomes "<script>"),
+            // which is what CodeQL js/incomplete-multi-character-sanitization
+            // and js/bad-tag-filter were both flagging here.
+            const bodyText = stripTags(
+              html
+                .replace(/<script[\s\S]*?<\/script\s*>/gi, ' ')
+                .replace(/<style[\s\S]*?<\/style\s*>/gi, ' '),
+              ' '
+            )
               .replace(/\s+/g, ' ')
               .trim()
             
