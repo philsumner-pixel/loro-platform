@@ -28,7 +28,12 @@ function getSupabase() {
 
 interface BurstRow {
   entity_id: string; entity_name: string
-  recent_events: number; baseline_rate: number; burst_ratio: number
+  // 'burst' means a real baseline exists and burst_ratio is a genuine quotient.
+  // 'first_filings' means no history, and burst_ratio is null — there is no
+  // denominator, and inventing one is exactly how this signal went wrong.
+  signal_kind: 'burst' | 'first_filings'
+  recent_events: number; baseline_events: number
+  baseline_rate: number; burst_ratio: number | null
   sources: string[]; event_types: string[]
 }
 interface CrossRow {
@@ -136,11 +141,33 @@ export async function GET(req: Request) {
 
     for (const b of ((bursts ?? []) as BurstRow[]).slice(0, 10)) {
       considered++
-      if (b.burst_ratio < 3) continue
-      const headline = `${b.entity_name}: filing activity ${b.burst_ratio}x above its own baseline`
+
+      const isBurst = b.signal_kind === 'burst'
+
+      // A real burst still has to clear the threshold. First filings have no
+      // ratio to clear one with — they qualify on the activity itself, which is
+      // why they need their own framing rather than a manufactured multiple.
+      if (isBurst && (b.burst_ratio ?? 0) < 3) continue
+
+      const headline = isBurst
+        ? `${b.entity_name}: filing activity ${b.burst_ratio}x above its own baseline`
+        : `${b.entity_name}: first filings on record — ${b.recent_events} in seven days`
+
+      const standfirst = isBurst
+        ? `${b.entity_name} has produced ${b.recent_events} filings in the last 7 days ` +
+          `against an expected ${b.baseline_rate}, based on ${b.baseline_events} filings ` +
+          `over the preceding 90 days. Sources: ${b.sources.join(', ')}.`
+        // Say plainly that there is no history. The old wording claimed a
+        // multiple "above its own baseline" for entities that had no baseline
+        // at all — a fabricated statistic in a publication whose entire pitch
+        // is primary-source rigour.
+        : `${b.entity_name} has produced ${b.recent_events} filings in the last 7 days ` +
+          `and has no filing history in the preceding 90 days. This is an entity ` +
+          `appearing on the register, not a rate increase. Sources: ${b.sources.join(', ')}.`
+
       if (await alreadyOpen(sb, headline, b.entity_name, 'entity_burst')) continue
 
-      // A burst with no retrievable filings cannot be written up. Skip it here
+      // A signal with no retrievable filings cannot be written up. Skip it here
       // rather than letting a journalist discover that at the draft stage.
       const burstDocs = await documentsFor(sb, b.entity_name)
       if (!burstDocs.length) { skippedThin++; continue }
@@ -148,17 +175,23 @@ export async function GET(req: Request) {
       const { error } = await sb.from('loro_story_candidates').insert({
         headline,
         subject_key: b.entity_name.toLowerCase().replace(/[^a-z0-9]/g, ''),
-        standfirst: `${b.entity_name} has produced ${b.recent_events} filings in the last 7 days against an expected ${b.baseline_rate}. Sources: ${b.sources.join(', ')}.`,
+        standfirst,
         category: 'Ownership Intel',
         lane_slug: 'ownership-control',
-        anomaly_score: Math.min(10, 4 + b.burst_ratio / 2),
+        // A real burst scores off its ratio. A first-filings signal cannot, so
+        // it scores off volume and sits below a genuine anomaly by default —
+        // interesting, but not the same claim.
+        anomaly_score: isBurst
+          ? Math.min(10, 4 + (b.burst_ratio ?? 0) / 2)
+          : Math.min(7, 3 + b.recent_events / 4),
         status: 'new',
         novelty_status: 'unchecked',
         detected_at: new Date().toISOString(),
         evidence_packet: {
-          signal: 'entity_burst',
+          signal: isBurst ? 'entity_burst' : 'entity_first_filings',
           entity: b.entity_name,
           recent_events: b.recent_events,
+          baseline_events: b.baseline_events,
           baseline_rate: b.baseline_rate,
           burst_ratio: b.burst_ratio,
           sources: b.sources,
@@ -166,7 +199,7 @@ export async function GET(req: Request) {
           source_events: burstDocs,
         },
       })
-      if (error) errors.push(`burst: ${error.message}`)
+      if (error) errors.push(`${b.signal_kind}: ${error.message}`)
       else created.push(headline)
     }
 
