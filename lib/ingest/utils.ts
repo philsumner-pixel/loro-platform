@@ -125,6 +125,66 @@ export async function writeNewsCoverage(item: NewsCoverageInput): Promise<boolea
   return true
 }
 
+/**
+ * Batched version of writeNewsCoverage.
+ *
+ * The per-item writer issues a SELECT COUNT then an INSERT for every single
+ * item. Since collection was un-gated (every item a feed carries is now
+ * ingested and relevance recorded as a column rather than used as a filter),
+ * a run sees ~228 items of which ~226 are already known — so it was spending
+ * the whole 60s budget on ~228 sequential round trips to confirm that almost
+ * nothing was new.
+ *
+ * `loro_news_coverage_url_key` is a plain unique index on url, so the database
+ * can do that deduplication itself in a single statement. With
+ * ignoreDuplicates the upsert becomes ON CONFLICT DO NOTHING, and .select()
+ * returns only the rows actually inserted — which gives us the new/duplicate
+ * split for free.
+ */
+export async function writeNewsCoverageBatch(
+  items: NewsCoverageInput[]
+): Promise<{ inserted: number; duplicate: number }> {
+  if (!items.length) return { inserted: 0, duplicate: 0 }
+
+  // Collapse duplicates within the batch first. A feed can carry the same URL
+  // twice, and ON CONFLICT cannot resolve two conflicting rows in one
+  // statement — Postgres raises "cannot affect row a second time".
+  const byUrl = new Map<string, NewsCoverageInput>()
+  for (const item of items) {
+    if (item.url) byUrl.set(item.url, item)
+  }
+  const unique = [...byUrl.values()]
+
+  const rows = unique.map(item => ({
+    publication: item.publication,
+    headline: item.headline,
+    summary: item.summary ?? null,
+    url: item.url,
+    published_at: item.published_at,
+    entities_mentioned: item.entities_mentioned ?? [],
+    categories_detected: item.categories_detected ?? [],
+    keyword_relevant: item.keyword_relevant ?? null,
+    processed: false,
+  }))
+
+  const sb = getSupabase()
+  let inserted = 0
+
+  // Chunked so a very large feed cannot produce an oversized statement.
+  const CHUNK = 500
+  for (let i = 0; i < rows.length; i += CHUNK) {
+    const { data, error } = await sb
+      .from('loro_news_coverage')
+      .upsert(rows.slice(i, i + CHUNK), { onConflict: 'url', ignoreDuplicates: true })
+      .select('id')
+
+    if (error) throw new Error(`writeNewsCoverageBatch: ${error.message}`)
+    inserted += data?.length ?? 0
+  }
+
+  return { inserted, duplicate: unique.length - inserted }
+}
+
 // ── Simple XML → object (for RSS parsing, no external dep) ───────────
 
 export function extractRssItems(xml: string): Array<{

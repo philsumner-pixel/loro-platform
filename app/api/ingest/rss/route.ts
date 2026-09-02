@@ -3,7 +3,7 @@ import {
   getSupabase,
   startRun,
   completeRun,
-  writeNewsCoverage,
+  writeNewsCoverageBatch,
   extractRssItems,
   isRelevant,
   detectCategories,
@@ -23,6 +23,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const startedAt = Date.now()
   const runId = await startRun('rss_monitoring')
   const errors: string[] = []
   let totalFound = 0, totalNew = 0, totalDup = 0
@@ -52,8 +53,22 @@ export async function GET(req: Request) {
       return NextResponse.json({ message: 'No active RSS feeds configured' })
     }
 
-    // Poll each feed
+    // Poll each feed.
+    //
+    // Even with the writes batched, a slow feed can eat the budget: eight
+    // feeds each allowed a 10s fetch timeout is 80s of worst case against a
+    // 60s function limit. Stop polling with enough headroom left to record
+    // the run — a run that dies mid-loop is stranded in 'running' forever
+    // with no error attached, which is how 122 of these went missing in a
+    // week without anything reporting a failure.
+    const deadline = startedAt + 45_000
+    let skippedForTime = 0
+
     for (const pub of pubs) {
+      if (Date.now() > deadline) {
+        skippedForTime++
+        continue
+      }
       try {
         const res = await fetch(pub.rss_url!, {
           headers: { 'User-Agent': 'Loro-Intelligence-Bot/1.0 (+https://loro.co/bot)' },
@@ -69,31 +84,30 @@ export async function GET(req: Request) {
         const items = extractRssItems(xml)
         totalFound += items.length
 
-        for (const item of items) {
-          if (!item.link || !item.title) continue
-
-          // UN-GATED: ingest everything the feed carries and record whether it
-          // matched the old payments keyword list, rather than dropping it at
-          // collection. Relevance is now decided downstream on the embedded
-          // corpus, where it can be judged semantically instead of by keyword.
-          const text = `${item.title} ${item.description}`
-          const keywordRelevant = isRelevant(text)
-
-          const written = await writeNewsCoverage({
-            keyword_relevant: keywordRelevant,
-            publication: pub.slug,
-            headline: item.title,
-            summary: item.description.replace(/<[^>]+>/g, '').slice(0, 500),
-            url: item.link,
-            published_at: item.pubDate
-              ? new Date(item.pubDate).toISOString()
-              : new Date().toISOString(),
-            categories_detected: detectCategories(text),
+        // UN-GATED: ingest everything the feed carries and record whether it
+        // matched the old payments keyword list, rather than dropping it at
+        // collection. Relevance is now decided downstream on the embedded
+        // corpus, where it can be judged semantically instead of by keyword.
+        const batch = items
+          .filter(item => item.link && item.title)
+          .map(item => {
+            const text = `${item.title} ${item.description}`
+            return {
+              keyword_relevant: isRelevant(text),
+              publication: pub.slug,
+              headline: item.title,
+              summary: item.description.replace(/<[^>]+>/g, '').slice(0, 500),
+              url: item.link,
+              published_at: item.pubDate
+                ? new Date(item.pubDate).toISOString()
+                : new Date().toISOString(),
+              categories_detected: detectCategories(text),
+            }
           })
 
-          if (written) totalNew++
-          else totalDup++
-        }
+        const { inserted, duplicate } = await writeNewsCoverageBatch(batch)
+        totalNew += inserted
+        totalDup += duplicate
 
         // Update last_polled_at
         await sb
@@ -106,11 +120,20 @@ export async function GET(req: Request) {
       }
     }
 
-    await completeRun(runId, { found: totalFound, new: totalNew, duplicate: totalDup }, errors)
+    // Feeds skipped for time are not an error — they keep their old
+    // last_polled_at, so the rotation picks them up first next run. Report it
+    // so a persistently short run is visible rather than silent.
+    const notes = skippedForTime
+      ? [...errors, `${skippedForTime} feed(s) skipped: 45s budget reached`]
+      : errors
+
+    await completeRun(runId, { found: totalFound, new: totalNew, duplicate: totalDup }, notes)
 
     return NextResponse.json({
       run_id: runId,
-      feeds_polled: pubs.length,
+      elapsed_ms: Date.now() - startedAt,
+      feeds_skipped_for_time: skippedForTime || undefined,
+      feeds_polled: pubs.length - skippedForTime,
       items_found: totalFound,
       items_new: totalNew,
       items_duplicate: totalDup,
