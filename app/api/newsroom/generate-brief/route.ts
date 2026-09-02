@@ -104,19 +104,70 @@ export async function POST(req: NextRequest) {
       ).join('\n')
     : 'No comparable coverage found in monitored publications.'
 
+  // The subject, wherever the detector put it.
+  //
+  // cross_register_donor does not populate entity_ids — it works from donor
+  // names in the registers, not resolved entity rows — so entityText read
+  // 'Entity not resolved' and the model refused a story that named the company
+  // in its own standfirst. Mirrors loro_evidence_subject() in the database, so
+  // the prompt and the grader identify the subject the same way.
+  const packet = (candidate.evidence_packet ?? {}) as Record<string, unknown>
+  const packetSubject =
+    (packet.entity as string) ||
+    (packet.entity_name as string) ||
+    (Array.isArray(packet.entities) ? (packet.entities as string[])[0] : undefined) ||
+    (Array.isArray(packet.donor_names) ? (packet.donor_names as string[])[0] : undefined) ||
+    (packet.donor_name as string) ||
+    undefined
+
   const entityText = (entities ?? []).map((e: {
     name: string; entity_type: string; jurisdiction: string
   }) =>
     `${e.name} (${e.entity_type}, ${e.jurisdiction})`
-  ).join(', ') || 'Entity not resolved'
+  ).join(', ') || packetSubject || 'Entity not resolved'
+
+  // Register detail, including the nested-per-register shape.
+  //
+  // A cross-register signal splits its values by register on purpose — the
+  // story IS that the same money appears in two places — so the old block,
+  // which read only top-level total_gbp and recipients, printed a bare company
+  // number and dropped the substance. £5,000 to Nigel Huddleston MP in the
+  // Electoral Commission register and £5,000 declared by David Davis in the
+  // Register of Members' Financial Interests never reached the prompt.
+  const REGISTER_LABELS: Record<string, string> = {
+    electoral_commission: 'Electoral Commission (donations register)',
+    declared_interests: "Register of Members' Financial Interests",
+  }
+  const nestedRegisters = Object.entries(packet)
+    .filter(([, v]) => v !== null && typeof v === 'object' && !Array.isArray(v)
+                       && 'total_gbp' in (v as Record<string, unknown>))
+    .map(([k, v]) => {
+      const r = v as { count?: number; total_gbp?: number; recipients?: string[]; members?: string[] }
+      const who = [...(r.recipients ?? []), ...(r.members ?? [])].join('; ')
+      return `- ${REGISTER_LABELS[k] ?? k.replace(/_/g, ' ')}: ` +
+             `${r.count ?? '?'} record(s), £${Number(r.total_gbp ?? 0).toLocaleString('en-GB')}` +
+             (who ? ` — ${who}` : '')
+    })
+
+  const verificationNeeded = Array.isArray(packet.verification_needed)
+    ? (packet.verification_needed as string[])
+    : []
 
   const prompt = `You are an editorial intelligence engine for Loro, an independent business and regulatory intelligence publication. Generate a publishable first-draft news brief from the following signal. A journalist will edit and refine this — aim for 80% publishable quality.
 
 BEFORE WRITING, CHECK THERE IS A STORY.
-If the evidence does not identify a named entity AND at least one dated filing
-or document, respond with exactly:
+Write only if EITHER of these holds:
+  (a) a named subject AND at least one dated filing or document, OR
+  (b) a REGISTER RECORD below with a named counterparty and a value — the
+      register entry IS the primary source; it does not need a separate filing.
+Otherwise respond with exactly:
 
 INSUFFICIENT EVIDENCE: <one line saying what is missing>
+
+This mirrors loro_evidence_grade() in the database, which decides whether a
+candidate reaches you at all. The two must agree: when the bar was stated in
+prose here and computed separately there, the engine refused stories it had
+been told were publishable.
 
 Do NOT write an article about the detection itself. Headlines like "Anomaly
 Detection System Flags Unresolved Signal" or "Entity Unconfirmed, Verification
@@ -140,7 +191,14 @@ REGISTER RECORD
 Company number: ${candidate.evidence_packet.company_number}
 ${candidate.evidence_packet.total_gbp ? `Total value: £${Number(candidate.evidence_packet.total_gbp).toLocaleString('en-GB')}` : ''}
 ${candidate.evidence_packet.donation_count ? `Donations: ${candidate.evidence_packet.donation_count}` : ''}
-${Array.isArray(candidate.evidence_packet.recipients) ? `Recipients: ${(candidate.evidence_packet.recipients as string[]).join('; ')}` : ''}` : ''}
+${Array.isArray(candidate.evidence_packet.recipients) ? `Recipients: ${(candidate.evidence_packet.recipients as string[]).join('; ')}` : ''}
+${nestedRegisters.length ? `Appears in ${nestedRegisters.length} registers:\n${nestedRegisters.join('\n')}` : ''}` : ''}
+${verificationNeeded.length ? `
+BEFORE PUBLICATION, A JOURNALIST MUST CHECK
+${verificationNeeded.map(v => `- ${v}`).join('\n')}
+State these as open questions in the brief. Do NOT assert that the two register
+entries are the same money, or that the donation caused anything, unless the
+records below actually show it.` : ''}
 
 SOURCE DOCUMENTS (${packetDocs.length + (events ?? []).length} total)
 ${packetDocs.slice(0, 8).map(d =>
