@@ -163,10 +163,25 @@ export async function GET(req: Request) {
       // the difference between a 404 and a match.
       const num = clean(d.company_number)
       try {
-        const profile = await ch(`/company/${num}`, apiKey) as {
+        type Profile = {
           company_name?: string; company_status?: string; date_of_creation?: string
           sic_codes?: string[]; registered_office_address?: Record<string, string>
-        } | null
+        }
+        let profile = await ch(`/company/${num}`, apiKey) as Profile | null
+        let resolvedNum = num
+
+        // The Electoral Commission register records Northern Irish and Scottish
+        // companies by their bare digits, dropping the NI/SC prefix that
+        // Companies House requires. "Republican Merchandising" is filed as
+        // 376645; Companies House holds it only as NI376645. Retry the
+        // prefixes before giving up — two extra calls, and only on a miss.
+        if (!profile && /^\d{8}$/.test(num)) {
+          for (const prefix of ['NI', 'SC'] as const) {
+            const candidate = `${prefix}${num.slice(2)}`
+            profile = await ch(`/company/${candidate}`, apiKey) as Profile | null
+            if (profile) { resolvedNum = candidate; break }
+          }
+        }
 
         if (!profile) {
           // Not an error — Companies House genuinely has no such company. Record
@@ -178,8 +193,8 @@ export async function GET(req: Request) {
         }
 
         const [officersRes, pscRes] = await Promise.all([
-          ch(`/company/${num}/officers?items_per_page=35`, apiKey).catch(() => null),
-          ch(`/company/${num}/persons-with-significant-control?items_per_page=25`, apiKey).catch(() => null),
+          ch(`/company/${resolvedNum}/officers?items_per_page=35`, apiKey).catch(() => null),
+          ch(`/company/${resolvedNum}/persons-with-significant-control?items_per_page=25`, apiKey).catch(() => null),
         ])
 
         const officers = ((officersRes as { items?: Officer[] } | null)?.items ?? [])
@@ -237,13 +252,18 @@ export async function GET(req: Request) {
                 ? `Persons with significant control: ${pscs.map(p =>
                     `${p.name}${p.control?.length ? ` — ${p.control.join(', ')}` : ''}`).join('; ')}.`
                 : 'No persons with significant control listed.'),
-            company_number: num,
+            company_number: resolvedNum,
             company_status: profile.company_status,
             officers,
             pscs,
           },
           source_metadata: {
+            // knownSet is built from this field, so it must stay the padded form
+            // the registry supplies. Storing the prefixed number here would
+            // stop the record ever matching its own queue entry, and the
+            // company would be re-resolved on every run.
             company_number: num,
+            companies_house_number: resolvedNum,
             donor_total_gbp: d.total_gbp,
             officer_count: officers.length,
             psc_count: pscs.length,
