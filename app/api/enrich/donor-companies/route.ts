@@ -54,6 +54,33 @@ interface Psc {
   identification?: { country_registered?: string; registration_number?: string }
 }
 
+/**
+ * Record a failed resolution attempt, and dead-letter the number once it has
+ * failed three times. Three rather than one because Companies House returns
+ * 502 under load, and a transient outage should not permanently drop a donor.
+ */
+async function noteAttempt(
+  sb: ReturnType<typeof getSupabase>,
+  companyNumber: string,
+  reason: string
+) {
+  const { data: existing } = await sb
+    .from('loro_donor_resolution_attempts')
+    .select('attempts')
+    .eq('company_number', companyNumber)
+    .maybeSingle()
+
+  const attempts = (existing?.attempts ?? 0) + 1
+
+  await sb.from('loro_donor_resolution_attempts').upsert({
+    company_number: companyNumber,
+    attempts,
+    last_attempt_at: new Date().toISOString(),
+    last_reason: reason,
+    permanent: attempts >= 3,
+  }, { onConflict: 'company_number' })
+}
+
 export async function GET(req: Request) {
   const url = new URL(req.url)
   const auth = req.headers.get('authorization')
@@ -71,6 +98,7 @@ export async function GET(req: Request) {
   const runId = await startRun('donor_resolution')
   const sb = getSupabase()
   const errors: string[] = []
+  const unresolved: string[] = []
   let attempted = 0, resolved = 0
 
   try {
@@ -103,8 +131,26 @@ export async function GET(req: Request) {
       const raw = v.toUpperCase().trim()
       return /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw
     }
+
+    // The Electoral Commission register is hand-keyed and its company numbers
+    // show it: trailing query marks ("06317947 ?"), bare hyphens, and numbers
+    // from other registers entirely. Strip the punctuation before deciding a
+    // number is bad — "06317947 ?" is a good number wearing a typo.
+    const clean = (v: string) => pad(v.toUpperCase().replace(/[^A-Z0-9]/g, ''))
+
+    // A number that cannot resolve has no companies_house_control event, so it
+    // stayed in the queue and was retried every four hours indefinitely. Six of
+    // them had been cycling since 15 August, failing the run each time.
+    const { data: deadLettered } = await sb
+      .from('loro_donor_resolution_attempts')
+      .select('company_number')
+      .eq('permanent', true)
+    const deadSet = new Set((deadLettered ?? []).map(r => String(r.company_number).toUpperCase()))
+
     const todo = all
-      .filter(d => d.company_number && !knownSet.has(pad(d.company_number)))
+      .filter(d => d.company_number)
+      .filter(d => !knownSet.has(pad(d.company_number)))
+      .filter(d => !deadSet.has(d.company_number.toUpperCase()) && !deadSet.has(clean(d.company_number)))
       .sort((a, b) => Number(b.total_gbp) - Number(a.total_gbp))
       .slice(0, limit)
 
@@ -113,22 +159,42 @@ export async function GET(req: Request) {
       // Companies House numbers are 8 characters, zero-padded. The registers
       // often strip leading zeros (792807), which 404s against the API —
       // it must be 00792807. Prefixed numbers (SC, NI, OC) are already 8.
-      const raw = d.company_number.toUpperCase().trim()
-      const num = /^\d+$/.test(raw) ? raw.padStart(8, '0') : raw
+      // Use the cleaned form for the lookup: punctuation from the register is
+      // the difference between a 404 and a match.
+      const num = clean(d.company_number)
       try {
-        const profile = await ch(`/company/${num}`, apiKey) as {
+        type Profile = {
           company_name?: string; company_status?: string; date_of_creation?: string
           sic_codes?: string[]; registered_office_address?: Record<string, string>
-        } | null
+        }
+        let profile = await ch(`/company/${num}`, apiKey) as Profile | null
+        let resolvedNum = num
+
+        // The Electoral Commission register records Northern Irish and Scottish
+        // companies by their bare digits, dropping the NI/SC prefix that
+        // Companies House requires. "Republican Merchandising" is filed as
+        // 376645; Companies House holds it only as NI376645. Retry the
+        // prefixes before giving up — two extra calls, and only on a miss.
+        if (!profile && /^\d{8}$/.test(num)) {
+          for (const prefix of ['NI', 'SC'] as const) {
+            const candidate = `${prefix}${num.slice(2)}`
+            profile = await ch(`/company/${candidate}`, apiKey) as Profile | null
+            if (profile) { resolvedNum = candidate; break }
+          }
+        }
 
         if (!profile) {
-          errors.push(`${num}: not found`)
+          // Not an error — Companies House genuinely has no such company. Record
+          // the attempt so the queue drains instead of retrying it forever, and
+          // dead-letter it after three tries.
+          unresolved.push(`${num}: not in Companies House`)
+          await noteAttempt(sb, num, 'not in Companies House')
           continue
         }
 
         const [officersRes, pscRes] = await Promise.all([
-          ch(`/company/${num}/officers?items_per_page=35`, apiKey).catch(() => null),
-          ch(`/company/${num}/persons-with-significant-control?items_per_page=25`, apiKey).catch(() => null),
+          ch(`/company/${resolvedNum}/officers?items_per_page=35`, apiKey).catch(() => null),
+          ch(`/company/${resolvedNum}/persons-with-significant-control?items_per_page=25`, apiKey).catch(() => null),
         ])
 
         const officers = ((officersRes as { items?: Officer[] } | null)?.items ?? [])
@@ -186,13 +252,18 @@ export async function GET(req: Request) {
                 ? `Persons with significant control: ${pscs.map(p =>
                     `${p.name}${p.control?.length ? ` — ${p.control.join(', ')}` : ''}`).join('; ')}.`
                 : 'No persons with significant control listed.'),
-            company_number: num,
+            company_number: resolvedNum,
             company_status: profile.company_status,
             officers,
             pscs,
           },
           source_metadata: {
+            // knownSet is built from this field, so it must stay the padded form
+            // the registry supplies. Storing the prefixed number here would
+            // stop the record ever matching its own queue entry, and the
+            // company would be re-resolved on every run.
             company_number: num,
+            companies_house_number: resolvedNum,
             donor_total_gbp: d.total_gbp,
             officer_count: officers.length,
             psc_count: pscs.length,
@@ -207,11 +278,27 @@ export async function GET(req: Request) {
       }
     }
 
-    await completeRun(runId, { found: attempted, new: resolved, duplicate: 0 }, errors)
+    // A company Companies House does not hold is a fact about the register,
+    // not a fault in the run — it goes to notes. But if a whole batch fails to
+    // resolve, that is the "runs fine and produces nothing" pattern again, so
+    // escalate it to a real error rather than logging six quiet notes.
+    if (attempted >= 3 && resolved === 0 && unresolved.length === attempted) {
+      errors.push(
+        `all ${attempted} lookups unresolved — check COMPANIES_HOUSE_API_KEY and number normalisation`
+      )
+    }
+
+    await completeRun(
+      runId,
+      { found: attempted, new: resolved, duplicate: 0 },
+      errors,
+      unresolved
+    )
     return NextResponse.json({
       ok: true,
       donor_companies_known: all.length,
       attempted, resolved,
+      unresolved: unresolved.length,
       remaining: Math.max(0, all.length - knownSet.size - resolved),
       errors: errors.slice(0, 5),
     })
