@@ -150,14 +150,19 @@ function parseInvestegateHtml(html: string): Array<{
     const id = urlParts[urlParts.length - 1]
     const headlineSlug = urlParts[urlParts.length - 2] ?? ''
     
-    // Only include PDMR-related headlines
-    const ispdmr = headlineSlug.includes('pdmr') ||
-      headlineSlug.includes('director-pdmr') ||
-      headlineSlug.includes('director-dealing') ||
-      text.toLowerCase().includes('pdmr') ||
-      text.toLowerCase().includes('director/pdmr') ||
-      text.toLowerCase().includes('director shareholding')
-    
+    // Only include PDMR-related headlines.
+    //
+    // The old test looked for the substring 'director-dealing', which does not
+    // appear in 'directors-dealings' — the plural breaks it. Current
+    // Investegate slugs are directors-dealings, directors-dealing,
+    // director-s-dealings, director-dealings and
+    // directors-dealings-and-holdings, so match on the stem instead.
+    const haystack = `${headlineSlug} ${text}`.toLowerCase()
+    const ispdmr = /director'?-?s?[-\s/]*dealing/.test(haystack) ||
+      haystack.includes('pdmr') ||
+      haystack.includes('director shareholding') ||
+      haystack.includes('transaction in own shares')
+
     if (!ispdmr) continue
     
     // Extract company from URL: /announcement/rns/company-name--ticker/headline/id
@@ -217,7 +222,17 @@ export async function GET(req: NextRequest) {
         // so a markup change looks identical to a quiet register. Record enough
         // to tell them apart.
         if (!announcements.length) {
-          errors.push(`parse yielded 0 from ${html.length} bytes — markup may have changed`)
+          // "markup may have changed" was true but not actionable — it has
+          // been repeating every 15 minutes since 15 August without ever
+          // saying what arrived. Record enough to tell the three cases apart:
+          // a consent interstitial, a moved page, and a real markup change.
+          const anchors = (html.match(/href="\/announcement\//g) ?? []).length
+          const gated = /private investor|confirm that you are|cookie policy/i.test(html)
+          errors.push(
+            `parse yielded 0 from ${html.length} bytes ` +
+            `(announcement anchors: ${anchors}, consent wall: ${gated ? 'yes' : 'no'}) — ` +
+            html.replace(/\s+/g, ' ').slice(0, 300)
+          )
         }
       } else {
         errors.push(`Investegate category: HTTP ${res.status}`)

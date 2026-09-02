@@ -22,7 +22,13 @@ export async function startRun(source: string): Promise<string> {
 export async function completeRun(
   runId: string,
   counts: { found: number; new: number; duplicate: number },
-  errors: string[] = []
+  errors: string[] = [],
+  // Things worth recording that are not failures: records the source legitimately
+  // cannot supply, work deferred to the next run. Kept out of the status
+  // calculation, because a run whose only "errors" are expected gaps is a run
+  // that worked. donor_resolution reported failure on all 42 of its runs
+  // because six unresolvable company numbers were being counted as errors.
+  notes: string[] = []
 ) {
   const sb = getSupabase()
   await sb
@@ -32,7 +38,7 @@ export async function completeRun(
       events_found: counts.found,
       events_new: counts.new,
       events_duplicate: counts.duplicate,
-      errors: errors.length ? errors : [],
+      errors: [...errors, ...notes.map(n => `note: ${n}`)],
       status: errors.length && counts.new === 0 ? 'failed' : errors.length ? 'partial' : 'completed',
     })
     .eq('id', runId)
