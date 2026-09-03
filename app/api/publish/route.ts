@@ -9,7 +9,7 @@ function getSupabase() {
   )
 }
 
-export function slugify(text: string): string {
+function slugify(text: string): string {
   const full = text
     .toLowerCase()
     .replace(/[£€$]/g, '')
@@ -41,7 +41,7 @@ export function slugify(text: string): string {
  * Strips script/style wholesale, then tags, then decodes the entities that
  * actually appear in copy, so '&amp;nbsp;' does not get counted as a word.
  */
-export function readingStats(html: string): { wordCount: number; readingTimeMins: number } {
+function readingStats(html: string): { wordCount: number; readingTimeMins: number } {
   const text = (html ?? '')
     .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
     .replace(/<[^>]+>/g, ' ')
