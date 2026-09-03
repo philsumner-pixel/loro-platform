@@ -16,9 +16,26 @@ export async function GET(req: NextRequest) {
   const sb = getSupabase()
 
   // Keep the inbox usable: anything left unreviewed in 'new' for more than
-  // 7 days moves to 'expired' (recoverable from the Archive tab). Runs on
-  // load so the inbox is always current without needing another cron.
-  await sb.rpc('loro_expire_stale_candidates', { days_old: 7 })
+  // 7 days moves to 'expired' (recoverable from the Archive tab).
+  //
+  // This is now belt-and-braces — /api/newsroom/expire runs on a cron, which is
+  // where the guarantee lives. Two overloads of this function used to exist, so
+  // PostgREST could not disambiguate and returned HTTP 300 / PGRST203 on every
+  // load. The error was awaited but never checked, so expiry silently never ran
+  // for a month and 57 of 72 inbox items were past the rule. Check the error.
+  //
+  // The surviving 2-arg function also expires shortlisted candidates at 21
+  // days, which the broken 1-arg version never did. That is intended: a
+  // shortlist nobody has touched in three weeks is a backlog, not a plan.
+  const { error: expireErr } = await sb.rpc('loro_expire_stale_candidates', {
+    days_old: 7,
+    shortlist_days_old: 21,
+  })
+  if (expireErr) {
+    console.error('[newsroom] auto-expiry failed', {
+      code: expireErr.code, message: expireErr.message,
+    })
+  }
 
   const { data: candidates, error } = await sb
     .from('loro_story_candidates')

@@ -50,10 +50,47 @@ function titleFor(ev: EvidenceEvent, meta: Record<string, unknown>): string {
   return company ? `${company} — ${form}` : form
 }
 
+/** Shape emitted by the current detectors: URL is already resolvable. */
+interface SourceEvent {
+  url?: string
+  date?: string
+  title?: string
+  detail?: string
+  register?: string
+}
+
+/** Map the current `source_events` shape onto citations. */
+function sourceEventsOf(packet: Record<string, unknown>): SourceCitation[] {
+  const raw = Array.isArray(packet.source_events)
+    ? (packet.source_events as SourceEvent[])
+    : []
+
+  const out: SourceCitation[] = []
+  for (const ev of raw) {
+    // Same rule as the legacy path: never emit a citation without a real URL.
+    if (!ev || typeof ev.url !== 'string' || !/^https?:\/\//.test(ev.url)) continue
+
+    const register = ev.register ?? ''
+    // EDGAR paths carry the accession number as the filename stem.
+    const accession = /\/(\d{10}-\d{2}-\d{6})\./.exec(ev.url)?.[1]
+
+    out.push({
+      url: ev.url,
+      title: ev.title || ev.detail || 'Filing',
+      publisher: PUBLISHER[register] ?? register.replace(/_/g, ' ') ?? '',
+      date: ev.date,
+      identifier: accession,
+    })
+  }
+  return out
+}
+
 /**
  * Extract citations from an evidence packet. Only emits entries with a real,
  * resolvable URL — never a placeholder, since a broken citation is worse than
  * none for both readers and answer engines.
+ *
+ * Handles both packet shapes: `source_events` (current) and `events` (legacy).
  */
 export function citationsFromEvidence(
   evidence: unknown
@@ -64,6 +101,20 @@ export function citationsFromEvidence(
   const events = Array.isArray(packet.events) ? (packet.events as EvidenceEvent[]) : []
   const out: SourceCitation[] = []
   const seen = new Set<string>()
+
+  // Current detectors emit `source_events`, which already carries a resolvable
+  // URL, a title, a date and the originating register. Only legacy packets use
+  // `events`, where the URL has to be constructed from CIK + accession.
+  //
+  // This function previously read `events` only. Live data has not used that key
+  // since the detectors were rewritten, so it returned [] for every candidate in
+  // `new`, `shortlisted` and `in_draft` — which is why fixing the `entity_id`
+  // column name alone would still have published articles with zero citations.
+  for (const ev of sourceEventsOf(packet)) {
+    if (seen.has(ev.url)) continue
+    seen.add(ev.url)
+    out.push(ev)
+  }
 
   for (const ev of events) {
     const meta = (ev.metadata ?? {}) as Record<string, unknown>

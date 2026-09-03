@@ -103,6 +103,10 @@
     {
       "path": "/api/social/publish",
       "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/newsroom/expire",
+      "schedule": "0 4 * * *"
     }
   ]
 }
