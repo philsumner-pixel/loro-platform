@@ -9,15 +9,33 @@ function getSupabase() {
   )
 }
 
+/**
+ * Strip leading and trailing hyphens.
+ *
+ * Deliberately not a regex. `/^-+|-+$/` is polynomial on its input: for a run of
+ * N hyphens the engine retries `-+` from every start position before failing the
+ * `$` anchor, so a headline of many dashes — and headlines come from the request
+ * body — costs O(N²). CodeQL flags it as js/polynomial-redos, high severity, and
+ * is right to. Two index walks are linear and clearer besides.
+ */
+function trimHyphens(s: string): string {
+  let start = 0
+  let end = s.length
+  while (start < end && s.charCodeAt(start) === 45) start++
+  while (end > start && s.charCodeAt(end - 1) === 45) end--
+  return s.slice(start, end)
+}
+
 function slugify(text: string): string {
-  const full = text
-    .toLowerCase()
-    .replace(/[£€$]/g, '')
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-+|-+$/g, '')
+  const full = trimHyphens(
+    text
+      .toLowerCase()
+      .replace(/[£€$]/g, '')
+      .replace(/[^a-z0-9\s-]/g, '')
+      .trim()
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+  )
 
   // Under the cap, nothing was cut — return it whole.
   if (full.length <= 80) return full
@@ -33,7 +51,7 @@ function slugify(text: string): string {
   // slug is a single long word, and a hard cut is the only option left.
   const cut = full.slice(0, 80)
   const lastHyphen = cut.lastIndexOf('-')
-  return (lastHyphen > 0 ? cut.slice(0, lastHyphen) : cut).replace(/-+$/g, '')
+  return trimHyphens(lastHyphen > 0 ? cut.slice(0, lastHyphen) : cut)
 }
 
 /**
@@ -42,15 +60,40 @@ function slugify(text: string): string {
  * actually appear in copy, so '&amp;nbsp;' does not get counted as a word.
  */
 function readingStats(html: string): { wordCount: number; readingTimeMins: number } {
-  const text = (html ?? '')
-    .replace(/<(script|style)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&nbsp;/gi, ' ')
-    .replace(/&[a-z]+;|&#\d+;/gi, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+  // Scanned with indexOf rather than matched with a regex, for the same reason
+  // trimHyphens exists: body_html arrives from the request body, and patterns
+  // like /<(script|style)\b[^>]*>[\s\S]*?<\/\1>/ backtrack quadratically on
+  // pathological input. Index scanning is linear and cannot be made to hang.
+  const src = html ?? ''
+  const lower = src.toLowerCase()
 
-  const wordCount = text ? text.split(' ').length : 0
+  let out = ''
+  let i = 0
+  while (i < src.length) {
+    const lt = src.indexOf('<', i)
+    if (lt === -1) { out += src.slice(i); break }
+    out += src.slice(i, lt) + ' '
+
+    // Drop script and style bodies wholesale rather than counting their contents.
+    let skipTo = -1
+    for (const tag of ['script', 'style'] as const) {
+      if (lower.startsWith(`<${tag}`, lt)) {
+        const close = lower.indexOf(`</${tag}>`, lt)
+        skipTo = close === -1 ? src.length : close + tag.length + 3
+        break
+      }
+    }
+    if (skipTo !== -1) { i = skipTo; continue }
+
+    const gt = src.indexOf('>', lt)
+    if (gt === -1) break          // unterminated tag: nothing countable remains
+    i = gt + 1
+  }
+
+  // Entities are bounded and unambiguous, so these stay as regexes.
+  const text = out.replace(/&nbsp;/gi, ' ').replace(/&[a-z]{1,10};|&#\d{1,7};/gi, '')
+
+  const wordCount = text.split(/\s+/).filter(w => w.length > 0).length
   // 225 wpm is the usual figure for considered non-fiction reading.
   return { wordCount, readingTimeMins: Math.max(1, Math.round(wordCount / 225)) }
 }
